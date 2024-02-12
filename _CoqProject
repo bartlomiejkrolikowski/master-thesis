@@ -1,2 +1,3 @@
 -R . Top
+src/Example.v
 src/LambdaRef.v

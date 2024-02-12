@@ -204,6 +204,58 @@ Inductive cost_red {V : Set}
     cost_red e m e'' m'' (S c)
 .
 
+(* type system *)
+Definition env (V : Set) : Set := V -> type.
+Definition env_empty : env Empty_set :=
+  fun x => match x with end.
+
+Definition ext_fun {A B : Set}
+  (f : A -> B) (y : B) (x : inc_set A) : B :=
+  match x with
+  | None => y
+  | Some x' => f x'
+  end.
+
+Reserved Notation "'T[' G '|-' e ':::' t ']'".
+
+Inductive typing {V : Set} (G : env V) :
+  Expr V -> type -> Prop :=
+
+| T_Unit : T[ G |- U_val ::: Unit ]
+
+| T_Var : forall x, T[ G |- Var x ::: (G x) ]
+
+| T_Lam : forall e t1 t2,
+    T[ ext_fun G t1 |- e ::: t2 ] ->
+    T[ G |- Lam e ::: Arrow t1 t2 ]
+
+| T_App : forall e1 e2 t2 t1,
+    T[ G |- e1 ::: Arrow t2 t1 ] ->
+    T[ G |- e2 ::: t2 ] ->
+    T[ G |- App e1 e2 ::: t1 ]
+
+| T_Ref : forall e t,
+    T[ G |- e ::: t ] ->
+    T[ G |- Ref e ::: RefT t ]
+
+| T_Deref : forall e t,
+    T[ G |- e ::: RefT t ] ->
+    T[ G |- Deref e ::: t ]
+
+| T_Assign : forall e1 e2 t,
+    T[ G |- e1 ::: RefT t ] ->
+    T[ G |- e2 ::: t ] ->
+    T[ G |- Assign e1 e2 ::: Unit ]
+
+| T_Seq : forall e1 e2 t,
+    T[ G |- e1 ::: Unit ] ->
+    T[ G |- e2 ::: t ] ->
+    T[ G |- Seq e1 e2 ::: t ]
+
+where "T[ G |- e ::: t ]" := (@typing _ G e t).
+
+(* NOTATIONS *)
+
 Notation "'$' x" := (Some x) (at level 50).
 
 Notation "'-\' e" := (Lam e) (at level 100).
@@ -221,156 +273,3 @@ Notation "e1 '<-' e2" :=
 Notation "e1 ';;' e2" :=
   (Seq e1 e2)
   (at level 90, right associativity).
-
-Axiom l : Label.
-Axiom l' : Label.
-Axiom OtherLabel : l <> l'.
-
-
-Definition t : Expr Empty_set := (
-  Lab l <- Lab l;;
-  U_val;;
-  (-\ -\ -\ -\ -\ -\ (
-    Var ($ None) <* Var ($ $ None) <* Var ($ $ $ None);;
-    Var None <- (! Var ($ $ $ $ None)) <* Lab l;;
-    Var ($ $ $ $ $ None)
-  ))
-  <* Lab l
-  <* (-\ Var None)
-  <* (-\ Lab l <- ! (Var None);; U_val)
-  <* Lab l
-  <* Ref (-\ U_val)
-  <* ! (Lab l)
-).
-
-(* trivial proof: t can be reduced to t *)
-Goal forall m, exists c, cost_red t m t m c.
-Proof.
-  exists 0. constructor.
-Qed.
-
-(* interesting proof *)
-Goal exists c,
-  cost_red
-    t [(l, U_val)]%list
-    (Lab l) [(l', -\ U_val); (l, U_val)]%list
-    c.
-Proof.
-  eexists. econstructor.
-  { econstructor. econstructor. econstructor. }
-  { econstructor.
-    { apply red_seq2, red_seq2.
-      econstructor. econstructor. econstructor. econstructor.
-      econstructor. econstructor. }
-    { simpl. econstructor.
-      { apply red_seq2, red_seq2.
-        econstructor. econstructor. econstructor. econstructor.
-        econstructor.
-      }
-      { simpl. econstructor.
-        { apply red_seq2, red_seq2.
-          econstructor. econstructor. econstructor. econstructor.
-        }
-        { simpl. econstructor.
-          { apply red_seq2, red_seq2.
-            econstructor. econstructor. econstructor.
-          }
-          { simpl. econstructor.
-            { apply red_seq2, red_seq2.
-              econstructor. apply red_app2.
-              econstructor. unfold Is_fresh_label. intro H.
-              destruct H.
-              { apply OtherLabel. simpl in H. exact H. }
-              shelve.
-            }
-            { econstructor.
-              { apply red_seq2, red_seq2.
-                econstructor. econstructor.
-              }
-              { simpl. econstructor.
-                { apply red_seq2, red_seq2.
-                  apply red_app2.
-                  econstructor. econstructor. econstructor.
-                }
-                { econstructor.
-                  { apply red_seq2, red_seq2.
-                    econstructor.
-                  }
-                  { simpl. econstructor.
-                    { apply red_seq2, red_seq2.
-                      econstructor. econstructor. econstructor.
-                    }
-                    { simpl. econstructor.
-                      { apply red_seq2, red_seq2.
-                        econstructor. econstructor.
-                      }
-                      { simpl. econstructor.
-                        { apply red_seq2, red_seq2.
-                          econstructor. econstructor. apply red_assign2.
-                          econstructor. econstructor. econstructor.
-                        }
-                        { econstructor.
-                          { apply red_seq2, red_seq2.
-                            econstructor. econstructor. econstructor.
-                            econstructor. econstructor.
-                          }
-                          { econstructor.
-                            { apply red_seq2, red_seq2.
-                              econstructor. econstructor.
-                            }
-                            { econstructor.
-                              { apply red_seq2, red_seq2, red_seq2.
-                                econstructor. apply red_assign2.
-                                econstructor. econstructor.
-                                econstructor.
-                              }
-                              { econstructor.
-                                { apply red_seq2, red_seq2, red_seq2.
-                                  econstructor. apply red_assign2.
-                                  econstructor.
-                                }
-                                { simpl. econstructor.
-                                  { apply red_seq2, red_seq2, red_seq2.
-                                    econstructor. econstructor.
-                                    econstructor. econstructor.
-                                  }
-                                  { econstructor.
-                                    { apply red_seq2, red_seq2, red_seq2.
-                                      econstructor.
-                                    }
-                                    { econstructor.
-                                      { apply red_seq2, red_seq2.
-                                        econstructor.
-                                      }
-                                      { econstructor.
-                                        { apply red_seq2.
-                                          econstructor.
-                                        }
-                                        { econstructor.
-                                          { econstructor. }
-                                          { eapply no_red. }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  Unshelve.
-  { exact []%list. }
-  { simpl in H. exact H. }
-  { exact []%list. }
-Qed.

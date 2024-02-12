@@ -1,0 +1,10 @@
+.Makefile.coq.d
+src/.Example.aux
+src/.LambdaRef.aux
+src/Example.vo
+src/Example.vok
+src/Example.vos
+src/LambdaRef.glob
+src/LambdaRef.vo
+src/LambdaRef.vok
+src/LambdaRef.vos
