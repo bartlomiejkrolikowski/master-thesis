@@ -7,12 +7,15 @@ Import List.ListNotations.
 Definition inc_set (A : Set) : Set :=
   option A.
 
-(*
+Definition inc_fun {A B : Set}
+  (f : A -> B) (y : B) (x : inc_set A) : B :=
+  match x with
+  | None => y
+  | Some x' => f x'
+  end.
+
 Inductive Label : Set :=
 | OfNat : nat -> Label.
-*)
-
-Parameter Label : Set.
 
 Inductive Value (V : Set) :=
 | U_val : Value V
@@ -47,48 +50,68 @@ Arguments Seq {V}.
 
 Coercion Val : Value >-> Expr.
 
-Fixpoint shift_v {V : Set} (v : Value V) : Value (inc_set V) :=
+Fixpoint map_v {A B : Set} (f : A -> B) (v : Value A) : Value B :=
   match v with
   | U_val => U_val
-  | Var x => Var (Some x)
+  | Var x => Var (f x)
   | Lab l => Lab l
-  | Lam e => Lam (shift_e e)
+  | Lam e => Lam (map_e (option_map f) e)
   end
-with shift_e {V : Set} (e : Expr V) : Expr (inc_set V) :=
+with map_e {A B : Set} (f : A -> B) (e : Expr A) : Expr B :=
   match e with
-  | Val v => shift_v v
-  | App e1 e2 => App (shift_e e1) (shift_e e2)
-  | Ref e => Ref (shift_e e)
-  | Deref e => Deref (shift_e e)
-  | Assign e1 e2 => Assign (shift_e e1) (shift_e e2)
-  | Seq e1 e2 => Seq (shift_e e1) (shift_e e2)
+  | Val v => map_v f v
+  | App e1 e2 => App (map_e f e1) (map_e f e2)
+  | Ref e => Ref (map_e f e)
+  | Deref e => Deref (map_e f e)
+  | Assign e1 e2 => Assign (map_e f e1) (map_e f e2)
+  | Seq e1 e2 => Seq (map_e f e1) (map_e f e2)
   end.
+
+Definition shift_v {V : Set} : Value V -> Value (inc_set V) :=
+  map_v Some.
+
+Definition shift_e {V : Set} : Expr V -> Expr (inc_set V) :=
+  map_e Some.
 
 Definition subst_inc_set {V : Set}
   (x : inc_set V) (e' : Expr V) : Expr V :=
+  inc_fun (fun y => Val (Var y)) e' x.
+
+(* lifting of substitution *)
+Definition liftS {A B : Set} (f : A -> Value B) (x : inc_set A) :
+  Value (inc_set B) :=
   match x with
-  | None => e'
-  | Some x => Var x
+  | None => Var None
+  | Some x' => shift_v (f x')
   end.
 
-Fixpoint subst_v {V : Set}
-  (v : Value (inc_set V)) (e' : Expr V) : Expr V :=
+(* bind, but only for functions mapping to values *)
+Fixpoint bind_v {A B : Set}
+  (f : A -> Value B) (v : Value A) : Value B :=
   match v with
   | U_val => U_val
-  | Var x => subst_inc_set x e'
+  | Var x => f x
   | Lab l => Lab l
-  | Lam e => Lam (subst_e e (shift_e e'))
+  | Lam e => Lam (bind_e (liftS f) e)
   end
-with subst_e {V : Set}
-  (e : Expr (inc_set V)) (e' : Expr V) : Expr V :=
+with bind_e {A B : Set}
+  (f : A -> Value B) (e : Expr A) : Expr B :=
   match e with
-  | Val v => subst_v v e'
-  | App e1 e2 => App (subst_e e1 e') (subst_e e2 e')
-  | Ref e => Ref (subst_e e e')
-  | Deref e => Deref (subst_e e e')
-  | Assign e1 e2 => Assign (subst_e e1 e') (subst_e e2 e')
-  | Seq e1 e2 => Seq (subst_e e1 e') (subst_e e2 e')
+  | Val v => bind_v f v
+  | App e1 e2 => App (bind_e f e1) (bind_e f e2)
+  | Ref e => Ref (bind_e f e)
+  | Deref e => Deref (bind_e f e)
+  | Assign e1 e2 => Assign (bind_e f e1) (bind_e f e2)
+  | Seq e1 e2 => Seq (bind_e f e1) (bind_e f e2)
   end.
+
+Definition subst_v {V : Set}
+  (v : Value (inc_set V)) (v' : Value V) : Value V :=
+  bind_v (inc_fun Var v') v.
+
+Definition subst_e {V : Set}
+  (e : Expr (inc_set V)) (v' : Value V) : Expr V :=
+  bind_e (inc_fun Var v') e.
 
 Definition Map (V : Set) : Set := list (Label * (Value V)).
 
@@ -209,13 +232,6 @@ Definition env (V : Set) : Set := V -> type.
 Definition env_empty : env Empty_set :=
   fun x => match x with end.
 
-Definition ext_fun {A B : Set}
-  (f : A -> B) (y : B) (x : inc_set A) : B :=
-  match x with
-  | None => y
-  | Some x' => f x'
-  end.
-
 Reserved Notation "'T[' G '|-' e ':::' t ']'".
 
 Inductive typing {V : Set} (G : env V) :
@@ -226,7 +242,7 @@ Inductive typing {V : Set} (G : env V) :
 | T_Var : forall x, T[ G |- Var x ::: (G x) ]
 
 | T_Lam : forall e t1 t2,
-    T[ ext_fun G t1 |- e ::: t2 ] ->
+    T[ inc_fun G t1 |- e ::: t2 ] ->
     T[ G |- Lam e ::: Arrow t1 t2 ]
 
 | T_App : forall e1 e2 t2 t1,
@@ -273,3 +289,30 @@ Notation "e1 '<-' e2" :=
 Notation "e1 ';;' e2" :=
   (Seq e1 e2)
   (at level 90, right associativity).
+
+Notation "t1 --> t2" :=
+  (Arrow t1 t2)
+  (at level 60, right associativity).
+
+
+(*(* reordering in context *)
+Lemma reordering (V : Set) (G : env V) (e : Expr _) (t t' t'' : type) :
+  T[ inc_fun (inc_fun G t'') t' |- shift_e e ::: t] ->
+  T[ inc_fun (inc_fun G t') t'' |- map_e (option_map Some) e ::: t].
+Proof.
+  (*remember (inc_fun (inc_fun G t') t'') as G'.*)
+  remember (inc_fun (inc_fun G t'') t') as G''.
+  (*remember (map_e (option_map Some) e) as e'.*)
+  remember (shift_e e) as e''.
+  intro H. induction H.
+  - econstructor.
+Qed.
+*)
+(* weakening lemma *)
+Lemma weakening (V : Set) (G : env V) (e : Expr V) (t t' : type) :
+  T[ G |- e ::: t ] ->
+  T[ inc_fun G t' |- shift_e e ::: t].
+Proof.
+  intro H. induction H; cbn; econstructor; try eassumption.
+Admitted.
+

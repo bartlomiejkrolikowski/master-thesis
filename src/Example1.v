@@ -3,7 +3,7 @@ Import List.ListNotations.
 
 Require Import src.LambdaRef.
 
-Definition t : Expr Empty_set := (
+Definition e : Expr Empty_set := (
   (-\ -\ (
     Var ($ None) <- Var ($ None);;
     U_val;;
@@ -24,8 +24,8 @@ Definition t : Expr Empty_set := (
   <* Ref U_val
 ).
 
-(* t typechecks *)
-Goal T[ env_empty |- t ::: RefT Unit ].
+(* e typechecks *)
+Goal T[ env_empty |- e ::: RefT Unit ].
 Proof.
   econstructor.
   { econstructor.
@@ -93,8 +93,8 @@ Proof.
   { simpl. econstructor. }
 Qed.
 
-(* trivial proof: t can be reduced to t *)
-Goal forall m, exists c, cost_red t m t m c.
+(* trivial proof: e can be reduced to e *)
+Goal forall m, exists c, cost_red e m e m c.
 Proof.
   exists 0. constructor.
 Qed.
@@ -102,7 +102,7 @@ Qed.
 (* interesting proof *)
 Goal exists c l,
   cost_red
-    t []%list
+    e []%list
     (Lab l) [(l, U_val)]%list
     c.
 Proof.
