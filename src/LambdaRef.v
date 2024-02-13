@@ -295,6 +295,8 @@ Notation "t1 --> t2" :=
   (at level 60, right associativity).
 
 
+(* ------------------------LEMMAS-------------------------------------*)
+
 (*(* reordering in context *)
 Lemma reordering (V : Set) (G : env V) (e : Expr _) (t t' t'' : type) :
   T[ inc_fun (inc_fun G t'') t' |- shift_e e ::: t] ->
@@ -316,3 +318,27 @@ Proof.
   intro H. induction H; cbn; econstructor; try eassumption.
 Admitted.
 
+(* uniqueness of reduction results *)
+Lemma uniqueness (V : Set)
+  (e e' e'' : Expr V) (m m' m'' : Map V) :
+  red e m e' m' ->
+  red e m e'' m'' ->
+  e' = e'' /\ m' = m''.
+Proof.
+  intro H'. revert e'' m''. induction H'; intros e'' m'' H''.
+  - inversion H''; [ easy | | ];
+    match goal with
+    | [ H : red (Val _) _ _ _ |- _ ] => inversion H
+    end.
+  - inversion H''.
+    (* TODO *)
+Admitted.
+
+Lemma uniqueness_full (V : Set)
+  (e e' e'' : Expr V) (m m' m'' : Map V) (c' c'' : nat) :
+  cost_red e m e' m' c' ->
+  cost_red e m e'' m'' c'' ->
+  e' = e'' /\ m' = m'' /\ c' = c''.
+Proof.
+  intros H' H''.
+Admitted.
