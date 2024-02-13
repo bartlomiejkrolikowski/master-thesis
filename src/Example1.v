@@ -5,21 +5,21 @@ Require Import src.LambdaRef.
 
 Definition e : Expr Empty_set := (
   (-\ -\ (
-    Var ($ None) <- Var ($ None);;
+    Var None <- ! Var None;;
     U_val;;
-    Var None
-    <* Var ($ None)
-    <* (-\ Var ($ $ None))
-    <* (-\ Var ($ None) <- ! (Var ($ $ None));; U_val)
-    <* Var ($ None)
+    Var ($ None)
+    <* Var None
+    <* (-\ Var None)
+    <* (-\ Var ($ None) <- ! (Var None);; U_val)
+    <* Var None
     <* Ref (-\ U_val)
-    <* ! Var ($ None)
-    <* Var ($ None)
+    <* (! Var None)
+    <* Var None
   ))
   <* (-\ -\ -\ -\ -\ -\ -\ (
-    Var ($ None) <* Var ($ $ None) <* Var ($ $ $ None);;
-    Var None <- (! Var ($ $ $ $ None)) <* Var ($ $ $ $ $ $ None);;
-    Var ($ $ $ $ $ None)
+    (Var ($ $ $ $ $ None) <* Var ($ $ $ $ None)) <* Var ($ $ $ None);;
+    Var ($ $ $ $ $ $ None) <- (! Var ($ $ None)) <* Var ($ None);;
+    Var None
   ))
   <* Ref U_val
 ).
@@ -32,7 +32,7 @@ Proof.
     { econstructor. econstructor. econstructor.
       { econstructor.
         { shelve. }
-        { econstructor. }
+        { econstructor. shelve. }
       }
       { econstructor.
         { econstructor. }
@@ -42,27 +42,27 @@ Proof.
               { econstructor.
                 { econstructor.
                   { econstructor.
-                    { shelve. }
+                    { econstructor.
+                      { shelve. }
+                      { econstructor. }
+                    }
+                    { econstructor. econstructor. }
+                  }
+                  { econstructor. econstructor.
+                    { econstructor.
+                      { shelve. }
+                      { econstructor. shelve. }
+                    }
                     { econstructor. }
                   }
-                  { econstructor. econstructor. }
                 }
-                { econstructor. econstructor.
-                  { econstructor.
-                    { shelve. }
-                    { shelve. }
-                  }
-                  { econstructor. }
-                }
+                { econstructor. }
               }
-              { econstructor. }
+              { econstructor. econstructor. econstructor. }
             }
-            { econstructor. econstructor. econstructor. }
-          }
-          { econstructor.
             { econstructor. shelve. }
-            { econstructor. }
           }
+          { econstructor. }
         }
       }
     }
@@ -89,8 +89,59 @@ Proof.
   }
   { econstructor. econstructor. }
   Unshelve. all: simpl.
-  (* TODO *)
-  { simpl. econstructor. }
+  2:{ apply (T_Var (inc_fun _ _) None). }
+  { econstructor. }
+  2:{ apply (T_Var (inc_fun (inc_fun _ _) _) ($ None)). }
+  4:{ apply (T_Var (inc_fun (inc_fun _ _) _) ($ None)). }
+  3:{ apply (T_Var (inc_fun _ _) None). }
+  3:{ apply (T_Var (inc_fun _ _) None). }
+  3:{
+    apply
+      (T_Var
+        (inc_fun
+          (inc_fun
+            (inc_fun
+              (inc_fun
+                (inc_fun
+                  (inc_fun _ _)
+                _)
+              _)
+            _)
+          _)
+        _)
+        ($ $ $ $ $ None)
+      ).
+  }
+  3:{
+    apply
+        (T_Var
+          (inc_fun
+            (inc_fun
+              (inc_fun
+                (inc_fun
+                  (inc_fun
+                    (inc_fun
+                      (inc_fun _ _)
+                    _)
+                  _)
+                _)
+              _)
+            _)
+          _)
+          ($ $ $ $ $ $ None)
+        ).
+  }
+  2:{
+    apply
+      (T_Var
+        (inc_fun
+          (inc_fun
+            (inc_fun _ _)
+          _)
+        _)
+        ($ $ None)
+      ).
+  }
 Qed.
 
 (* trivial proof: e can be reduced to e *)
@@ -100,115 +151,134 @@ Proof.
 Qed.
 
 (* interesting proof *)
-Goal exists c l,
-  cost_red
-    e []%list
-    (Lab l) [(l, U_val)]%list
-    c.
+Goal exists l m c,
+  cost_red e []%list (Lab l) m c /\
+    List.In (l, U_val) m.
 Proof.
-  eexists. eexists. econstructor.
-  { econstructor. econstructor. }
-  { simpl. econstructor.
-    { apply red_app2. econstructor. unfold Is_fresh_label.
-      simpl. easy.
-    }
-    { econstructor.
-      { econstructor. }
-      { simpl. econstructor.
-  { econstructor. econstructor. econstructor. }
+  eexists. eexists. eexists. econstructor.
   { econstructor.
-    { apply red_seq2, red_seq2.
-      econstructor. econstructor. econstructor. econstructor.
-      econstructor. econstructor. }
-    { simpl. econstructor.
-      { apply red_seq2, red_seq2.
-        econstructor. econstructor. econstructor. econstructor.
-        econstructor.
+    { econstructor. econstructor. }
+    { cbn. econstructor.
+      { apply red_app2. econstructor. unfold Is_fresh_label.
+        simpl. easy.
       }
-      { simpl. econstructor.
-        { apply red_seq2, red_seq2.
-          econstructor. econstructor. econstructor. econstructor.
-        }
-        { simpl. econstructor.
-          { apply red_seq2, red_seq2.
-            econstructor. econstructor. econstructor.
+      { econstructor.
+        { econstructor. }
+        { cbn. econstructor.
+          { econstructor. apply red_assign2.
+            econstructor. econstructor.
           }
-          { simpl. econstructor.
-            { apply red_seq2, red_seq2.
-              econstructor. apply red_app2.
-              econstructor. unfold Is_fresh_label. simpl. intro H.
-              shelve.
-            }
+          { econstructor.
+            { econstructor. econstructor. econstructor. }
             { econstructor.
-              { apply red_seq2, red_seq2.
-                econstructor. econstructor.
+              { apply red_seq2, red_seq2. econstructor. econstructor.
+                econstructor. econstructor. econstructor. econstructor.
+                econstructor.
               }
-              { simpl. econstructor.
-                { apply red_seq2, red_seq2.
-                  apply red_app2.
-                  econstructor. econstructor. econstructor.
+              { cbn. econstructor.
+                { apply red_seq2, red_seq2. econstructor. econstructor.
+                  econstructor. econstructor. econstructor. econstructor.
                 }
-                { econstructor.
-                  { apply red_seq2, red_seq2. apply red_app2.
-                    econstructor.
+                { cbn. econstructor.
+                  { apply red_seq2, red_seq2. econstructor. econstructor.
+                    econstructor. econstructor. econstructor.
                   }
-                  { simpl. econstructor.
-                  { apply red_seq2, red_seq2.
-                    econstructor.
-                  }
-                  { simpl. econstructor.
-                    { apply red_seq2, red_seq2.
+                  { cbn. econstructor.
+                    { apply red_seq2, red_seq2. econstructor.
                       econstructor. econstructor. econstructor.
                     }
-                    { simpl. econstructor.
-                      { apply red_seq2, red_seq2.
-                        econstructor. econstructor.
+                    { cbn. econstructor.
+                      { apply red_seq2, red_seq2. econstructor.
+                        econstructor. apply red_app2.
+                        econstructor. unfold Is_fresh_label.
+                        simpl. shelve.
                       }
-                      { simpl. econstructor.
-                        { apply red_seq2, red_seq2.
-                          econstructor. econstructor. apply red_assign2.
-                          econstructor. econstructor. econstructor.
+                      { econstructor.
+                        { apply red_seq2, red_seq2. econstructor.
+                          econstructor. econstructor.
                         }
-                        { econstructor.
-                          { apply red_seq2, red_seq2.
-                            econstructor. econstructor. econstructor.
-                            econstructor. econstructor.
+                        { cbn. econstructor.
+                          { apply red_seq2, red_seq2. econstructor.
+                            apply red_app2. econstructor.
+                            apply Lookup_tl, Lookup_hd.
                           }
                           { econstructor.
-                            { apply red_seq2, red_seq2.
-                              econstructor. econstructor.
+                            { apply red_seq2, red_seq2. econstructor.
+                              econstructor.
                             }
-                            { econstructor.
-                              { apply red_seq2, red_seq2, red_seq2.
-                                econstructor. apply red_assign2.
-                                econstructor. econstructor.
-                                econstructor.
+                            { cbn. econstructor.
+                              { apply red_seq2, red_seq2. econstructor.
                               }
-                              { econstructor.
-                                { apply red_seq2, red_seq2, red_seq2.
-                                  econstructor. apply red_assign2.
-                                  econstructor.
+                              { cbn. econstructor.
+                                { apply red_seq2, red_seq2. econstructor.
+                                  econstructor. econstructor.
                                 }
-                                { simpl. econstructor.
-                                  { apply red_seq2, red_seq2, red_seq2.
-                                    econstructor. econstructor.
+                                { cbn. econstructor.
+                                  { apply red_seq2, red_seq2.
                                     econstructor. econstructor.
                                   }
-                                  { econstructor.
-                                    { apply red_seq2, red_seq2, red_seq2.
-                                      econstructor.
+                                  { cbn. econstructor.
+                                    { apply red_seq2, red_seq2.
+                                      econstructor. econstructor.
+                                      apply red_assign2. econstructor.
+                                      apply Lookup_tl, Lookup_hd.
                                     }
                                     { econstructor.
                                       { apply red_seq2, red_seq2.
+                                        econstructor. econstructor.
                                         econstructor.
+                                        apply Assignment_tl, Assignment_hd.
                                       }
                                       { econstructor.
-                                        { apply red_seq2.
-                                          econstructor.
+                                        { apply red_seq2, red_seq2.
+                                          econstructor. econstructor.
                                         }
                                         { econstructor.
-                                          { econstructor. }
-                                          { eapply no_red. }
+                                          { apply red_seq2, red_seq2,
+                                              red_seq2.
+                                            econstructor.
+                                            apply red_assign2.
+                                            econstructor. econstructor.
+                                            econstructor.
+                                          }
+                                          { econstructor.
+                                            { apply red_seq2, red_seq2,
+                                                red_seq2.
+                                              econstructor.
+                                              apply red_assign2.
+                                              econstructor.
+                                            }
+                                            { cbn. econstructor.
+                                              { apply red_seq2, red_seq2,
+                                                  red_seq2.
+                                                econstructor.
+                                                econstructor.
+                                                apply Assignment_tl,
+                                                  Assignment_hd.
+                                              }
+                                              { econstructor.
+                                                { apply red_seq2,
+                                                    red_seq2, red_seq2.
+                                                  econstructor.
+                                                }
+                                                { econstructor.
+                                                  { apply red_seq2,
+                                                      red_seq2.
+                                                    econstructor.
+                                                  }
+                                                  { econstructor.
+                                                    { apply red_seq2.
+                                                      econstructor.
+                                                    }
+                                                    { econstructor.
+                                                      { econstructor. }
+                                                      { econstructor. }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
                                         }
                                       }
                                     }
@@ -221,7 +291,6 @@ Proof.
                       }
                     }
                   }
-                  }
                 }
               }
             }
@@ -230,11 +299,12 @@ Proof.
       }
     }
   }
-  }
-  }
-  }
+  { simpl. right. left. reflexivity. }
   Unshelve.
+  { constructor. exact 0. }
   { exact []%list. }
-  { simpl in H. exact H. }
+  { constructor. exact 1. }
+  { simpl. intros [H | []]. easy. }
+  { exact []%list. }
   { exact []%list. }
 Qed.
