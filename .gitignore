@@ -2,9 +2,11 @@
 src/.Example1.aux
 src/.Example2.aux
 src/.LambdaRef.aux
+src/Example1.glob
 src/Example1.vo
 src/Example1.vok
 src/Example1.vos
+src/Example2.glob
 src/Example2.vo
 src/Example2.vok
 src/Example2.vos
