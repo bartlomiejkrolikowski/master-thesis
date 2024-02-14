@@ -3,6 +3,7 @@
 Require Import Nat.
 Require List.
 Import List.ListNotations.
+Require Import String.
 
 Definition inc_set (A : Set) : Set :=
   option A.
@@ -298,6 +299,25 @@ Notation "[let] e1 [in] e2" :=
   ((-\ e2) <* e1)
   (at level 50, no associativity).
 
+
+(*Fixpoint StringLam (x : string) (e : Expr string) :
+  Expr (option string) :=
+  match e with
+  | Val v => str_val_to_None x v
+  | App e1 e2 => App (StringLam x e1) (StringLam x e2)
+  | Ref e => Ref (StringLam x e)
+  | Deref e => Deref (StringLam x e)
+  | Assign e1 e2 => Assign (StringLam x e1) (StringLam x e2)
+  | Seq e1 e2 => Seq (StringLam x e1) (StringLam x e2)
+  end
+with str_val_to_None (x : string) (v : Value string) :
+  Value (option string) :=
+  match v with
+  | U_val => U_val
+  | Var y => if (x =? y)%string then None else Some y
+  | Lab l => Lab l
+  | Lam e => Lam (StringLam e)
+  end.*)
 
 (* ------------------------LEMMAS-------------------------------------*)
 

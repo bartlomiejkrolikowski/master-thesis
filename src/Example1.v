@@ -47,8 +47,54 @@ Goal exists l m c,
   cost_red e []%list (Lab l) m c /\
     List.In (l, U_val) m.
 Proof.
+  unfold e.
   eexists. eexists. eexists. econstructor.
-  { econstructor.
+  { (*match goal with
+  | [ |- cost_red _ _ _ _ _ ] => eapply S_red
+  end.
+  match goal with
+  | [ |- red (App _ _) _ _ _ ] => eapply red_app1
+  end.
+  match goal with
+  | [ |- cost_red ?x _ ?x _ _ ] => eapply no_red
+  | [ |- cost_red _ _ _ _ _ ] => eapply S_red
+  | [ |- red (App (Val _) (Val _)) _ _ _ ] => eapply red_lam
+  | [ |- red (Ref (Val _)) _ _ _ ] => eapply red_ref
+  | [ |- red (Deref (Val _)) _ _ _ ] => eapply red_deref
+  | [ |- red (Assign (Val _) (Val _)) _ _ _ ] => eapply red_assign
+  | [ |- red (Seq (Val _) (Val _)) _ _ _ ] => eapply red_seq
+  | [ |- red (App (Val _) _) _ _ _ ] => eapply red_app2
+  | [ |- red (App _ _) _ _ _ ] => eapply red_app1
+  | [ |- red (Ref _) _ _ _ ] => eapply red_ref_e
+  | [ |- red (Deref _) _ _ _ ] => eapply red_deref_e
+  | [ |- red (Assign (Val _) _) _ _ _ ] => eapply red_assign2
+  | [ |- red (Assign _ _) _ _ _ ] => eapply red_assign1
+  | [ |- red (Seq (Val _) _) _ _ _ ] => eapply red_seq2
+  | [ |- red (Seq _ _) _ _ _ ] => eapply red_seq1
+  end.
+  cbn.
+    do 15 try (cbn; match goal with
+  | [ |- cost_red ?x _ ?x _ _ ] => eapply no_red
+  | [ |- cost_red _ _ _ _ _ ] => eapply S_red
+  | [ |- red (App (Val _) (Val _)) _ _ _ ] => eapply red_lam
+  | [ |- red (Ref (Val _)) _ _ _ ] => eapply red_ref
+  | [ |- red (Deref (Val _)) _ _ _ ] => eapply red_deref
+  | [ |- red (Assign (Val _) (Val _)) _ _ _ ] => eapply red_assign
+  | [ |- red (Seq (Val _) (Val _)) _ _ _ ] => eapply red_seq
+  | [ |- red (App (Val _) _) _ _ _ ] => eapply red_app2
+  | [ |- red (App _ _) _ _ _ ] => eapply red_app1
+  | [ |- red (Ref _) _ _ _ ] => eapply red_ref_e
+  | [ |- red (Deref _) _ _ _ ] => eapply red_deref_e
+  | [ |- red (Assign (Val _) _) _ _ _ ] => eapply red_assign2
+  | [ |- red (Assign _ _) _ _ _ ] => eapply red_assign1
+  | [ |- red (Seq (Val _) _) _ _ _ ] => eapply red_seq2
+  | [ |- red (Seq _ _) _ _ _ ] => eapply red_seq1
+  end; cbn).
+  idtac 1.
+  econstructor.
+  eapply red_app1.*)
+  (**)
+    econstructor.
     { econstructor. econstructor. }
     { cbn. econstructor.
       { apply red_app2. econstructor. unfold Is_fresh_label.
