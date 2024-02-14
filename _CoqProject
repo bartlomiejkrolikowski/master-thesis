@@ -1,4 +1,5 @@
 -R . Top
 src/Example1.v
 src/Example2.v
+src/InferType.v
 src/LambdaRef.v

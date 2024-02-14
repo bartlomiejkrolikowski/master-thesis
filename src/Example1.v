@@ -4,7 +4,14 @@ Import List.ListNotations.
 Require Import src.LambdaRef.
 
 Definition e : Expr Empty_set := (
-  (-\ -\ (
+  ([let]
+  (-\ -\ -\ -\ -\ -\ -\ (
+    (Var ($ $ $ $ $ None) <* Var ($ $ $ $ None)) <* Var ($ $ $ None);;
+    Var ($ $ $ $ $ $ None) <- (! Var ($ $ None)) <* Var ($ None);;
+    Var None
+  ))
+  [in]
+  (-\ (
     Var None <- ! Var None;;
     U_val;;
     Var ($ None)
@@ -16,132 +23,17 @@ Definition e : Expr Empty_set := (
     <* (! Var None)
     <* Var None
   ))
-  <* (-\ -\ -\ -\ -\ -\ -\ (
-    (Var ($ $ $ $ $ None) <* Var ($ $ $ $ None)) <* Var ($ $ $ None);;
-    Var ($ $ $ $ $ $ None) <- (! Var ($ $ None)) <* Var ($ None);;
-    Var None
-  ))
   <* Ref U_val
+  )
 ).
 
 (* e typechecks *)
 Goal T[ env_empty |- e ::: RefT Unit ].
 Proof.
-  econstructor.
-  { econstructor.
-    { econstructor. econstructor. econstructor.
-      { econstructor.
-        { shelve. }
-        { econstructor. shelve. }
-      }
-      { econstructor.
-        { econstructor. }
-        { econstructor.
-          { econstructor.
-            { econstructor.
-              { econstructor.
-                { econstructor.
-                  { econstructor.
-                    { econstructor.
-                      { shelve. }
-                      { econstructor. }
-                    }
-                    { econstructor. econstructor. }
-                  }
-                  { econstructor. econstructor.
-                    { econstructor.
-                      { shelve. }
-                      { econstructor. shelve. }
-                    }
-                    { econstructor. }
-                  }
-                }
-                { econstructor. }
-              }
-              { econstructor. econstructor. econstructor. }
-            }
-            { econstructor. shelve. }
-          }
-          { econstructor. }
-        }
-      }
-    }
-    { econstructor. econstructor. econstructor. econstructor.
-      econstructor. econstructor. econstructor. econstructor.
-      { econstructor.
-        { econstructor.
-          { shelve. }
-          { econstructor. }
-        }
-        { econstructor. }
-      }
-      { econstructor.
-        { econstructor.
-          { shelve. }
-          { econstructor.
-            { econstructor. shelve. }
-            { econstructor. }
-          }
-        }
-        { econstructor. }
-      }
-    }
-  }
-  { econstructor. econstructor. }
-  Unshelve. all: simpl.
-  2:{ apply (T_Var (inc_fun _ _) None). }
-  { econstructor. }
-  2:{ apply (T_Var (inc_fun (inc_fun _ _) _) ($ None)). }
-  4:{ apply (T_Var (inc_fun (inc_fun _ _) _) ($ None)). }
-  3:{ apply (T_Var (inc_fun _ _) None). }
-  3:{ apply (T_Var (inc_fun _ _) None). }
-  3:{
-    apply
-      (T_Var
-        (inc_fun
-          (inc_fun
-            (inc_fun
-              (inc_fun
-                (inc_fun
-                  (inc_fun _ _)
-                _)
-              _)
-            _)
-          _)
-        _)
-        ($ $ $ $ $ None)
-      ).
-  }
-  3:{
-    apply
-        (T_Var
-          (inc_fun
-            (inc_fun
-              (inc_fun
-                (inc_fun
-                  (inc_fun
-                    (inc_fun
-                      (inc_fun _ _)
-                    _)
-                  _)
-                _)
-              _)
-            _)
-          _)
-          ($ $ $ $ $ $ None)
-        ).
-  }
-  2:{
-    apply
-      (T_Var
-        (inc_fun
-          (inc_fun
-            (inc_fun _ _)
-          _)
-        _)
-        ($ $ None)
-      ).
-  }
+  repeat econstructor; simpl;
+  match goal with
+  | [ |- T[ ?G |- Val (Var ?x) ::: ?t ] ] => apply (T_Var G x)
+  end.
 Qed.
 
 (* trivial proof: e can be reduced to e *)

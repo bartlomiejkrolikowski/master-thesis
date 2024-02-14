@@ -294,6 +294,10 @@ Notation "t1 --> t2" :=
   (Arrow t1 t2)
   (at level 60, right associativity).
 
+Notation "[let] e1 [in] e2" :=
+  ((-\ e2) <* e1)
+  (at level 50, no associativity).
+
 
 (* ------------------------LEMMAS-------------------------------------*)
 
@@ -318,6 +322,7 @@ Proof.
   intro H. induction H; cbn; econstructor; try eassumption.
 Admitted.
 
+(*
 (* uniqueness of reduction results *)
 Lemma uniqueness (V : Set)
   (e e' e'' : Expr V) (m m' m'' : Map V) :
@@ -342,3 +347,5 @@ Lemma uniqueness_full (V : Set)
 Proof.
   intros H' H''.
 Admitted.
+*)
+
