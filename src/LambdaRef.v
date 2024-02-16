@@ -327,9 +327,13 @@ Definition StringLam' {A : Set} `{EqBool A} (x : A) (e : Expr A) :
   Lam (map_e (fun y => if eqB x y then None else $ y) e).
 *)
 
-Notation "[-\] x , e" :=
+Notation "'[-\]' x ',' e" :=
   (StringLam x e)
   (at level 100, no associativity).
+
+Notation "'[let' x ']' e1 '[in]' e2" :=
+  (([-\] x, e2) <* e1)
+  (at level 50, no associativity).
 
 
 (* ------------------------LEMMAS-------------------------------------*)
