@@ -2,6 +2,7 @@ Require List.
 Import List.ListNotations.
 
 Require Import src.LambdaRef.
+Require Import src.Tactics.
 
 (* map for Ref *)
 Definition e : Expr Empty_set := (
@@ -12,10 +13,7 @@ Definition e : Expr Empty_set := (
 Fact type_e (t1 t2 : type) :
   T[ env_empty |- e ::: (t1 --> t2) --> (RefT t1) --> (RefT t2) ].
 Proof.
-  econstructor. econstructor. econstructor. econstructor.
-  Unshelve.
-  3:{ exact t1. }
-  all: repeat econstructor.
+  solve_typing.
 Qed.
 
 (* map for Ref in place *)
@@ -27,15 +25,7 @@ Definition e' : Expr Empty_set := (
 Fact type_e' (t : type) :
   T[ env_empty |- e' ::: (t --> t) --> (RefT t) --> Unit ].
 Proof.
-  econstructor. econstructor. econstructor.
-  Unshelve.
-  3:{ exact t. }
-  { econstructor. }
-  { econstructor.
-    Unshelve.
-    3:{ exact t. }
-    all: repeat econstructor.
-  }
+  solve_typing.
 Qed.
 
 Definition e_id : Expr Empty_set := (
@@ -46,7 +36,7 @@ Definition e_id : Expr Empty_set := (
 Fact type_e_id (t : type) :
   T[ env_empty |- e_id ::: t --> t ].
 Proof.
-  econstructor. econstructor.
+  solve_typing.
 Qed.
 
 Definition e_ref_u : Expr Empty_set := (
@@ -56,7 +46,7 @@ Definition e_ref_u : Expr Empty_set := (
 (* e_ref_u typechecks *)
 Fact type_e_ref_u : T[ env_empty |- e_ref_u ::: RefT Unit ].
 Proof.
-  econstructor. econstructor.
+  solve_typing.
 Qed.
 
 (* -------------------------------------------------------- *)
@@ -65,12 +55,7 @@ Definition ex : Expr Empty_set := e <* e_id <* e_ref_u.
 
 Fact type_ex : T[ env_empty |- ex ::: RefT Unit ].
 Proof.
-  econstructor.
-  { econstructor.
-    { apply type_e. }
-    { apply type_e_id. }
-  }
-  { apply type_e_ref_u. }
+  solve_typing.
 Qed.
 
 Goal exists l m c,
@@ -110,12 +95,7 @@ Definition ex' : Expr Empty_set := e' <* e_id <* e_ref_u.
 
 Fact type_ex' : T[ env_empty |- ex' ::: Unit ].
 Proof.
-  econstructor.
-  { econstructor.
-    { apply type_e'. }
-    { apply type_e_id. }
-  }
-  { apply type_e_ref_u. }
+  solve_typing.
 Qed.
 
 Definition ex'' : Expr Empty_set :=
@@ -123,21 +103,7 @@ Definition ex'' : Expr Empty_set :=
 
 Fact type_ex'' : T[ env_empty |- ex'' ::: RefT Unit ].
 Proof.
-  econstructor.
-  { econstructor. econstructor.
-    { econstructor.
-      { econstructor.
-        { apply weakening. apply type_e'. }
-        { apply weakening. apply type_e_id. }
-      }
-      { shelve. }
-    }
-    { shelve. }
-  }
-  { apply type_e_ref_u. }
-  Unshelve.
-  { exact Unit. }
-  all: constructor.
+  solve_typing.
 Qed.
 
 Goal exists l m c,
