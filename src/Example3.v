@@ -3,9 +3,9 @@ Import List.ListNotations.
 Require Import String.
 
 Require Import src.LambdaRef.
-Compute (-\ [-\] "y", -\ -\ -\ -\ -\ (
-  (Var ($ $ $ $ $ "y") <* Var ($ $ $ $ None)) <* Var ($ $ $ None);;
-  Var ($ $ $ $ $ "x") <- (! Var ($ $ None)) <* Var ($ None);;
+Compute ([-\] "x", [-\] "y", [-\] "z", [-\] "u", -\ -\ -\ (
+  (Var ($ $ $ "y") <* Var ($ $ $ "z")) <* Var ($ $ $ "u");;
+  Var ($ $ $ "x") <- (! Var ($ $ None)) <* Var ($ None);;
   Var None
 ))%string.
 Definition e : Expr _ := (
@@ -33,7 +33,7 @@ Definition e : Expr _ := (
 )%string.
 
 (* e typechecks *)
-Goal T[ env_empty |- e ::: RefT Unit ].
+Goal forall G, T[ G |- e ::: RefT Unit ].
 Proof.
   repeat econstructor; simpl;
   match goal with

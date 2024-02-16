@@ -300,10 +300,11 @@ Notation "[let] e1 [in] e2" :=
   (at level 50, no associativity).
 
 
-Definition StringLam (x : string) :
-  Expr string -> Expr (inc_set string) :=
-  map_e (fun y => if x =? y then None else $ y)%string.
+Definition StringLam (x : string) (e : Expr string) :
+  Value string :=
+  Lam (map_e (fun y => if x =? y then None else $ y)%string e).
 
+(*
 Class EqBool (A : Set) : Set := {
   eqB : A -> A -> bool;
 }.
@@ -324,9 +325,10 @@ Global Instance OptionEqB (A : Set) `{EqBool A} :
 Definition StringLam' {A : Set} `{EqBool A} (x : A) (e : Expr A) :
   Value A :=
   Lam (map_e (fun y => if eqB x y then None else $ y) e).
+*)
 
 Notation "[-\] x , e" :=
-  (StringLam' x e)
+  (StringLam x e)
   (at level 100, no associativity).
 
 
