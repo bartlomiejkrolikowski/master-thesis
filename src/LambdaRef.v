@@ -300,24 +300,35 @@ Notation "[let] e1 [in] e2" :=
   (at level 50, no associativity).
 
 
-(*Fixpoint StringLam (x : string) (e : Expr string) :
-  Expr (option string) :=
-  match e with
-  | Val v => str_val_to_None x v
-  | App e1 e2 => App (StringLam x e1) (StringLam x e2)
-  | Ref e => Ref (StringLam x e)
-  | Deref e => Deref (StringLam x e)
-  | Assign e1 e2 => Assign (StringLam x e1) (StringLam x e2)
-  | Seq e1 e2 => Seq (StringLam x e1) (StringLam x e2)
-  end
-with str_val_to_None (x : string) (v : Value string) :
-  Value (option string) :=
-  match v with
-  | U_val => U_val
-  | Var y => if (x =? y)%string then None else Some y
-  | Lab l => Lab l
-  | Lam e => Lam (StringLam e)
-  end.*)
+Definition StringLam (x : string) :
+  Expr string -> Expr (inc_set string) :=
+  map_e (fun y => if x =? y then None else $ y)%string.
+
+Class EqBool (A : Set) : Set := {
+  eqB : A -> A -> bool;
+}.
+
+Global Instance StringEqB : EqBool string := {|
+  eqB := eqb;
+|}.
+
+Global Instance OptionEqB (A : Set) `{EqBool A} :
+  EqBool (option A) := {|
+  eqB x y := match x, y with
+  | None, None => true
+  | Some x', Some y' => eqB x' y'
+  | _, _ => false
+  end;
+|}.
+
+Definition StringLam' {A : Set} `{EqBool A} (x : A) (e : Expr A) :
+  Value A :=
+  Lam (map_e (fun y => if eqB x y then None else $ y) e).
+
+Notation "[-\] x , e" :=
+  (StringLam' x e)
+  (at level 100, no associativity).
+
 
 (* ------------------------LEMMAS-------------------------------------*)
 
