@@ -357,7 +357,7 @@ Lemma weakening (V : Set) (G : env V) (e : Expr V) (t t' : type) :
   T[ inc_fun G t' |- shift_e e ::: t].
 Proof.
   intro H. induction H; cbn; econstructor; try eassumption.
-Admitted.
+Abort.
 
 (*
 (* uniqueness of reduction results *)
