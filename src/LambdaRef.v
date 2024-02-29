@@ -4,6 +4,7 @@ Require Import Nat.
 Require List.
 Import List.ListNotations.
 Require Import String.
+Require Import ZArith.
 
 Definition inc_set (A : Set) : Set :=
   option A.
@@ -18,14 +19,55 @@ Definition inc_fun {A B : Set}
 Inductive Label : Set :=
 | OfNat : nat -> Label.
 
+Inductive BoolUnOpKind : Set :=
+| BNeg (* Boolean negation *)
+.
+
+Inductive IntUnOpKind : Set :=
+| INeg (* Integer negation *)
+.
+
+Inductive UnOpKind : Set :=
+| BUOp : BoolUnOpKind -> UnOpKind
+| IUOp : IntUnOpKind -> UnOpKind
+.
+
+Inductive BoolBinOpKind : Set :=
+| BOr
+| BAnd
+.
+
+Inductive IntBinOpKind : Set :=
+| IAdd
+| ISub
+| IMul
+| IDiv
+.
+
+(* Conditions *)
+Inductive CondBinOpKind : Set :=
+| CLt (* x < y *)
+| CEq (* x = y *)
+.
+
+Inductive BinOpKind : Set :=
+| BBOp : BoolBinOpKind -> BinOpKind
+| IBOp : IntBinOpKind -> BinOpKind
+| CBOp : CondBinOpKind -> BinOpKind
+.
+
 Inductive Value (V : Set) :=
 | U_val : Value V
 | Var : V -> Value V
+| Int : Z -> Value V (* integer *)
+| Bool : bool -> Value V
 | Lab : Label -> Value V (* label *)
 | Lam : Expr (inc_set V) -> Value V
 with Expr (V : Set) :=
 | Val : Value V -> Expr V
 | App : Expr V -> Expr V -> Expr V
+| UnOp : UnOpKind -> Expr V -> Expr V
+| BinOp : BinOpKind -> Expr V -> Expr V -> Expr V
 | Ref : Expr V -> Expr V (* mutable reference *)
 | Deref : Expr V -> Expr V
 | Assign : Expr V -> Expr V -> Expr V
@@ -34,17 +76,23 @@ with Expr (V : Set) :=
 
 Inductive type :=
 | Unit : type
+| IntT : type (* integer *)
+| BoolT : type (* bool *)
 | Arrow : type -> type -> type
 | RefT : type -> type (* reference *)
 .
 
 Arguments U_val {V}.
 Arguments Var {V}.
+Arguments Int {V}.
+Arguments Bool {V}.
 Arguments Lab {V}.
 Arguments Lam {V}.
 Arguments Ref {V}.
 Arguments Val {V}.
 Arguments App {V}.
+Arguments UnOp {V}.
+Arguments BinOp {V}.
 Arguments Deref {V}.
 Arguments Assign {V}.
 Arguments Seq {V}.
@@ -55,6 +103,8 @@ Fixpoint map_v {A B : Set} (f : A -> B) (v : Value A) : Value B :=
   match v with
   | U_val => U_val
   | Var x => Var (f x)
+  | Int i => Int i
+  | Bool i => Bool i
   | Lab l => Lab l
   | Lam e => Lam (map_e (option_map f) e)
   end
@@ -62,6 +112,8 @@ with map_e {A B : Set} (f : A -> B) (e : Expr A) : Expr B :=
   match e with
   | Val v => map_v f v
   | App e1 e2 => App (map_e f e1) (map_e f e2)
+  | UnOp k e => UnOp k (map_e f e)
+  | BinOp k e1 e2 => BinOp k (map_e f e1) (map_e f e2)
   | Ref e => Ref (map_e f e)
   | Deref e => Deref (map_e f e)
   | Assign e1 e2 => Assign (map_e f e1) (map_e f e2)
@@ -92,6 +144,8 @@ Fixpoint bind_v {A B : Set}
   match v with
   | U_val => U_val
   | Var x => f x
+  | Int i => Int i
+  | Bool i => Bool i
   | Lab l => Lab l
   | Lam e => Lam (bind_e (liftS f) e)
   end
@@ -100,6 +154,8 @@ with bind_e {A B : Set}
   match e with
   | Val v => bind_v f v
   | App e1 e2 => App (bind_e f e1) (bind_e f e2)
+  | UnOp k e => UnOp k (bind_e f e)
+  | BinOp k e1 e2 => BinOp k (bind_e f e1) (bind_e f e2)
   | Ref e => Ref (bind_e f e)
   | Deref e => Deref (bind_e f e)
   | Assign e1 e2 => Assign (bind_e f e1) (bind_e f e2)
@@ -157,13 +213,45 @@ Inductive Assignment {V : Set} (l : Label) (v : Value V) :
 .
 
 (* SOS semantics *)
+Reserved Notation "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'".
+
 Inductive red {V : Set} :
   Expr V -> Map V ->
   Expr V -> Map V ->
   Prop :=
 
 | red_lam : forall m e (v : Value _),
-    red (App (Lam e) v) m (subst_e e v) m
+    R[App (Lam e) v , m ~~> subst_e e v , m]
+
+| red_bneg : forall m b,
+    R[UnOp (BUOp BNeg) (Bool b), m ~~> Bool (negb b), m]
+
+| red_ineg : forall m i,
+    R[UnOp (IUOp INeg) (Int i), m ~~> Int (- i), m]
+
+| red_bor : forall m b1 b2,
+    R[BinOp (BBOp BOr) (Bool b1) (Bool b2), m ~~> Bool (b1 || b2), m]
+
+| red_band : forall m b1 b2,
+    R[BinOp (BBOp BAnd) (Bool b1) (Bool b2), m ~~> Bool (b1 && b2), m]
+
+| red_iadd : forall m i1 i2,
+    R[BinOp (IBOp IAdd) (Int i1) (Int i2), m ~~> Int (i1 + i2), m]
+
+| red_isub : forall m i1 i2,
+    R[BinOp (IBOp ISub) (Int i1) (Int i2), m ~~> Int (i1 - i2), m]
+
+| red_imul : forall m i1 i2,
+    R[BinOp (IBOp IMul) (Int i1) (Int i2), m ~~> Int (i1 * i2), m]
+
+| red_idiv : forall m i1 i2,
+    R[BinOp (IBOp IDiv) (Int i1) (Int i2), m ~~> Int (i1 / i2), m]
+
+| red_clt : forall m i1 i2,
+    R[BinOp (CBOp CLt) (Int i1) (Int i2), m ~~> Bool (i1 <? i2)%Z, m]
+
+| red_ceq : forall m i1 i2,
+    R[BinOp (CBOp CEq) (Int i1) (Int i2), m ~~> Bool (i1 =? i2)%Z, m]
 
 | red_ref : forall m l (v : Value _),
     Is_fresh_label l m ->
@@ -189,6 +277,18 @@ Inductive red {V : Set} :
     red e m e' m' ->
     red (App v e) m (App v e') m'
 
+| red_unop : forall k m m' e e',
+    red e m e' m' ->
+    red (UnOp k e) m (UnOp k e') m'
+
+| red_binop1 : forall k m m' e1 e1' e2,
+    red e1 m e1' m' ->
+    red (BinOp k e1 e2) m (BinOp k e1' e2) m'
+
+| red_binop2 : forall k m m' (v : Value _) e e',
+    red e m e' m' ->
+    red (BinOp k v e) m (BinOp k v e') m'
+
 | red_ref_e : forall m m' e e',
     red e m e' m' ->
     red (Ref e) m (Ref e') m'
@@ -212,9 +312,13 @@ Inductive red {V : Set} :
 | red_seq2 : forall m m' (v : Value _) e e',
     red e m e' m' ->
     red (Seq v e) m (Seq v e') m'
-.
+
+where "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'" :=
+  (@red _ e1 m1 e2 m2).
 
 (* cost semantics *)
+Reserved Notation "'C[' e1 ',' m1 '~~>' e2 ',' m2 '|' c ']'".
+
 Inductive cost_red {V : Set}
   (e : Expr V)  (m : Map V) :
   Expr V -> Map V ->
@@ -226,7 +330,9 @@ Inductive cost_red {V : Set}
     red e m e' m' ->
     cost_red e' m' e'' m'' c ->
     cost_red e m e'' m'' (S c)
-.
+
+where "'C[' e1 ',' m1 '~~>' e2 ',' m2 '|' c ']'" :=
+    (@cost_red _ e1 m1 e2 m2 c).
 
 (* type system *)
 Definition env (V : Set) : Set := V -> type.
@@ -242,6 +348,10 @@ Inductive typing {V : Set} (G : env V) :
 
 | T_Var : forall x, T[ G |- Var x ::: (G x) ]
 
+| T_Int : forall i, T[ G |- Int i ::: IntT ]
+
+| T_Bool : forall b, T[ G |- Bool b ::: BoolT ]
+
 | T_Lam : forall e t1 t2,
     T[ inc_fun G t1 |- e ::: t2 ] ->
     T[ G |- Lam e ::: Arrow t1 t2 ]
@@ -250,6 +360,29 @@ Inductive typing {V : Set} (G : env V) :
     T[ G |- e1 ::: Arrow t2 t1 ] ->
     T[ G |- e2 ::: t2 ] ->
     T[ G |- App e1 e2 ::: t1 ]
+
+| T_BUOp : forall e k,
+    T[ G |- e ::: BoolT ] ->
+    T[ G |- UnOp (BUOp k) e ::: BoolT ]
+
+| T_IUOp : forall e k,
+    T[ G |- e ::: IntT ] ->
+    T[ G |- UnOp (IUOp k) e ::: IntT ]
+
+| T_BBOp : forall e1 e2 k,
+    T[ G |- e1 ::: BoolT ] ->
+    T[ G |- e2 ::: BoolT ] ->
+    T[ G |- BinOp (BBOp k) e1 e2 ::: BoolT ]
+
+| T_IBOp : forall e1 e2 k,
+    T[ G |- e1 ::: IntT ] ->
+    T[ G |- e2 ::: IntT ] ->
+    T[ G |- BinOp (IBOp k) e1 e2 ::: IntT ]
+
+| T_CBOp : forall e1 e2 k,
+    T[ G |- e1 ::: IntT ] ->
+    T[ G |- e2 ::: IntT ] ->
+    T[ G |- BinOp (CBOp k) e1 e2 ::: BoolT ]
 
 | T_Ref : forall e t,
     T[ G |- e ::: t ] ->
@@ -280,6 +413,15 @@ Notation "'-\' e" := (Lam e) (at level 100).
 Notation "e1 '<*' e2" :=
   (App e1 e2)
   (at level 50, left associativity).
+
+Notation "'[~]' e" := (BNeg e) (at level 50).
+Notation "'[--]' e" := (INeg e) (at level 50).
+Notation "e1 '[+]' e2" := (IAdd e1 e2) (at level 50).
+Notation "e1 '[-]' e2" := (ISub e1 e2) (at level 50).
+Notation "e1 '[*]' e2" := (IMul e1 e2) (at level 50).
+Notation "e1 '[/]' e2" := (IDiv e1 e2) (at level 50).
+Notation "e1 '[<]' e2" := (CLt e1 e2) (at level 50).
+Notation "e1 '[=]' e2" := (CEq e1 e2) (at level 50).
 
 Notation "'!' e" := (Deref e) (at level 50).
 
