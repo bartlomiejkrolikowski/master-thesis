@@ -4,4 +4,6 @@ src/Example2.v
 src/Example3.v
 src/InferType.v
 src/LambdaRef.v
+src/LambdaRef2.v
+src/LR2LogRel.v
 src/Tactics.v
