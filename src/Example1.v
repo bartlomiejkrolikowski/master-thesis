@@ -25,7 +25,7 @@ Definition e : Expr Empty_set := (
     <* Var None
   ))
   <* Ref U_val
-  )
+  [end])
 ).
 
 (* e typechecks *)

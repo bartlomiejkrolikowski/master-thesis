@@ -28,6 +28,8 @@ Compute (
     <* (! Var "y")
     <* Var "y"
   )
+  [end]
+  [end]
 )%string.
 Definition e : Expr _ := (
   [let "y"]
@@ -53,6 +55,8 @@ Definition e : Expr _ := (
     <* (! Var "y")
     <* Var "y"
   )
+  [end]
+  [end]
 )%string.
 
 (* e typechecks *)

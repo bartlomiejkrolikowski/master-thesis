@@ -72,6 +72,8 @@ with Expr (V : Set) :=
 | Deref : Expr V -> Expr V
 | Assign : Expr V -> Expr V -> Expr V
 | Seq : Expr V -> Expr V -> Expr V
+| If : Expr V -> Expr V -> Expr V -> Expr V
+| While : Expr V -> Expr V -> Expr V
 .
 
 Inductive type :=
@@ -96,6 +98,8 @@ Arguments BinOp {V}.
 Arguments Deref {V}.
 Arguments Assign {V}.
 Arguments Seq {V}.
+Arguments If {V}.
+Arguments While {V}.
 
 Coercion Val : Value >-> Expr.
 
@@ -118,6 +122,8 @@ with map_e {A B : Set} (f : A -> B) (e : Expr A) : Expr B :=
   | Deref e => Deref (map_e f e)
   | Assign e1 e2 => Assign (map_e f e1) (map_e f e2)
   | Seq e1 e2 => Seq (map_e f e1) (map_e f e2)
+  | If e1 e2 e3 => If (map_e f e1) (map_e f e2) (map_e f e3)
+  | While e1 e2 => While (map_e f e1) (map_e f e2)
   end.
 
 Definition shift_v {V : Set} : Value V -> Value (inc_set V) :=
@@ -160,6 +166,8 @@ with bind_e {A B : Set}
   | Deref e => Deref (bind_e f e)
   | Assign e1 e2 => Assign (bind_e f e1) (bind_e f e2)
   | Seq e1 e2 => Seq (bind_e f e1) (bind_e f e2)
+  | If e1 e2 e3 => If (bind_e f e1) (bind_e f e2) (bind_e f e3)
+  | While e1 e2 => While (bind_e f e1) (bind_e f e2)
   end.
 
 Definition subst_v {V : Set}
@@ -255,35 +263,43 @@ Inductive red {V : Set} :
 
 | red_ref : forall m l (v : Value _),
     Is_fresh_label l m ->
-    red (Ref v) m (Lab l) ((l,v) :: m)%list
+    R[Ref v, m ~~> Lab l, ((l,v) :: m)%list]
 
 | red_deref : forall m l v,
     Lookup l m v ->
-    red (Deref (Lab l)) m v m
+    R[Deref (Lab l), m ~~> v, m]
 
 | red_assign : forall m m' l v,
     Assignment l v m m' ->
-    red (Assign (Lab l) v) m U_val m'
+    R[Assign (Lab l) v, m ~~> U_val, m']
 
 | red_seq : forall m (v : Value _),
-    red (Seq U_val v) m v m
+    R[Seq U_val v, m ~~> v, m]
+
+| red_if : forall b m e1 e2,
+    R[If (Bool b) e1 e2, m ~~> if b then e1 else e2, m]
+
+| red_while : forall b m e,
+    R[While (Bool b) e, m
+      ~~>
+      if b then U_val else Seq e (While (Bool b) e), m]
 
 (* structural rules *)
 | red_app1 : forall m m' e1 e1' e2,
-    red e1 m e1' m' ->
-    red (App e1 e2) m (App e1' e2) m'
+    R[e1, m ~~> e1', m'] ->
+    R[App e1 e2, m ~~> App e1' e2, m']
 
 | red_app2 : forall m m' (v : Value _) e e',
-    red e m e' m' ->
-    red (App v e) m (App v e') m'
+    R[e, m ~~> e', m'] ->
+    R[App v e, m ~~> App v e', m']
 
 | red_unop : forall k m m' e e',
-    red e m e' m' ->
-    red (UnOp k e) m (UnOp k e') m'
+    R[e, m ~~> e', m'] ->
+    R[UnOp k e, m ~~> UnOp k e', m']
 
 | red_binop1 : forall k m m' e1 e1' e2,
-    red e1 m e1' m' ->
-    red (BinOp k e1 e2) m (BinOp k e1' e2) m'
+    R[e1, m ~~> e1', m'] ->
+    R[BinOp k e1 e2, m ~~> BinOp k e1' e2, m']
 
 | red_binop2 : forall k m m' (v : Value _) e e',
     red e m e' m' ->
@@ -306,12 +322,20 @@ Inductive red {V : Set} :
     red (Assign v e) m (Assign v e') m'
 
 | red_seq1 : forall m m' e1 e1' e2,
-    red e1 m e1' m' ->
-    red (Seq e1 e2) m (Seq e1' e2) m'
+    R[e1, m ~~> e1', m'] ->
+    R[Seq e1 e2, m ~~> Seq e1' e2, m']
 
 | red_seq2 : forall m m' (v : Value _) e e',
-    red e m e' m' ->
-    red (Seq v e) m (Seq v e') m'
+    R[e, m ~~> e', m'] ->
+    R[Seq v e, m ~~> Seq v e', m']
+
+| red_cond_if : forall m m' e1 e1' e2 e3,
+    R[e1, m ~~> e1', m'] ->
+    R[If e1 e2 e3, m ~~> If e1' e2 e3, m']
+
+| red_cond_while : forall m m' e1 e1' e2,
+    R[e1, m ~~> e1', m'] ->
+    R[While e1 e2, m ~~> While e1' e2, m']
 
 where "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'" :=
   (@red _ e1 m1 e2 m2).
@@ -402,6 +426,17 @@ Inductive typing {V : Set} (G : env V) :
     T[ G |- e2 ::: t ] ->
     T[ G |- Seq e1 e2 ::: t ]
 
+| T_If : forall e1 e2 e3 t,
+    T[ G |- e1 ::: BoolT ] ->
+    T[ G |- e2 ::: t ] ->
+    T[ G |- e2 ::: t ] ->
+    T[ G |- If e1 e2 e3 ::: t ]
+
+| T_While : forall e1 e2,
+    T[ G |- e1 ::: BoolT ] ->
+    T[ G |- e2 ::: Unit ] ->
+    T[ G |- While e1 e2 ::: Unit ]
+
 where "T[ G |- e ::: t ]" := (@typing _ G e t).
 
 (* NOTATIONS *)
@@ -437,8 +472,16 @@ Notation "t1 --> t2" :=
   (Arrow t1 t2)
   (at level 60, right associativity).
 
-Notation "[let] e1 [in] e2" :=
+Notation "[let] e1 [in] e2 [end]" :=
   ((-\ e2) <* e1)
+  (at level 50, no associativity).
+
+Notation "[if] e1 [then] e2 [else] e3 [end]" :=
+  (If e1 e2 e3)
+  (at level 50, no associativity).
+
+Notation "[while] e1 [do] e2 [end]" :=
+  (While e1 e2)
   (at level 50, no associativity).
 
 
@@ -473,7 +516,7 @@ Notation "'[-\]' x ',' e" :=
   (StringLam x e)
   (at level 100, no associativity).
 
-Notation "'[let' x ']' e1 '[in]' e2" :=
+Notation "'[let' x ']' e1 '[in]' e2 [end]" :=
   (([-\] x, e2) <* e1)
   (at level 50, no associativity).
 
