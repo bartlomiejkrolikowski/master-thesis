@@ -2,6 +2,7 @@
 src/Example1.v
 src/Example2.v
 src/Example3.v
+src/Example4.v
 src/InferType.v
 src/LambdaRef.v
 src/Tactics.v
