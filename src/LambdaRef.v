@@ -62,12 +62,15 @@ Inductive Value (V : Set) :=
 | Int : Z -> Value V (* integer *)
 | Bool : bool -> Value V
 | Lab : Label -> Value V (* label *)
+| RecV : list (Value V) -> Value V (* record value *)
 | Lam : Expr (inc_set V) -> Value V
 with Expr (V : Set) :=
 | Val : Value V -> Expr V
 | App : Expr V -> Expr V -> Expr V
 | UnOp : UnOpKind -> Expr V -> Expr V
 | BinOp : BinOpKind -> Expr V -> Expr V -> Expr V
+| RecE : list (Expr V) -> Expr V (* record expression *)
+| Get : nat -> Expr V -> Expr V (* get nth field of a record *)
 | Ref : Expr V -> Expr V (* mutable reference *)
 | Deref : Expr V -> Expr V
 | Assign : Expr V -> Expr V -> Expr V
@@ -82,6 +85,7 @@ Inductive type :=
 | BoolT : type (* bool *)
 | Arrow : type -> type -> type
 | RefT : type -> type (* reference *)
+| RecT : list type -> type (* record *)
 .
 
 Arguments U_val {V}.
@@ -89,12 +93,15 @@ Arguments Var {V}.
 Arguments Int {V}.
 Arguments Bool {V}.
 Arguments Lab {V}.
+Arguments RecV {V}.
 Arguments Lam {V}.
 Arguments Ref {V}.
 Arguments Val {V}.
 Arguments App {V}.
 Arguments UnOp {V}.
 Arguments BinOp {V}.
+Arguments RecE {V}.
+Arguments Get {V}.
 Arguments Deref {V}.
 Arguments Assign {V}.
 Arguments Seq {V}.
@@ -103,6 +110,9 @@ Arguments While {V}.
 
 Coercion Val : Value >-> Expr.
 
+Definition vals2exprs {V : Set} : list (Value V) -> list (Expr V) :=
+  List.map Val.
+
 Fixpoint map_v {A B : Set} (f : A -> B) (v : Value A) : Value B :=
   match v with
   | U_val => U_val
@@ -110,6 +120,7 @@ Fixpoint map_v {A B : Set} (f : A -> B) (v : Value A) : Value B :=
   | Int i => Int i
   | Bool i => Bool i
   | Lab l => Lab l
+  | RecV vs => RecV (List.map (map_v f) vs)
   | Lam e => Lam (map_e (option_map f) e)
   end
 with map_e {A B : Set} (f : A -> B) (e : Expr A) : Expr B :=
@@ -118,6 +129,8 @@ with map_e {A B : Set} (f : A -> B) (e : Expr A) : Expr B :=
   | App e1 e2 => App (map_e f e1) (map_e f e2)
   | UnOp k e => UnOp k (map_e f e)
   | BinOp k e1 e2 => BinOp k (map_e f e1) (map_e f e2)
+  | RecE es => RecE (List.map (map_e f) es)
+  | Get n e => Get n (map_e f e)
   | Ref e => Ref (map_e f e)
   | Deref e => Deref (map_e f e)
   | Assign e1 e2 => Assign (map_e f e1) (map_e f e2)
@@ -153,6 +166,7 @@ Fixpoint bind_v {A B : Set}
   | Int i => Int i
   | Bool i => Bool i
   | Lab l => Lab l
+  | RecV vs => RecV (List.map (bind_v f) vs)
   | Lam e => Lam (bind_e (liftS f) e)
   end
 with bind_e {A B : Set}
@@ -162,6 +176,8 @@ with bind_e {A B : Set}
   | App e1 e2 => App (bind_e f e1) (bind_e f e2)
   | UnOp k e => UnOp k (bind_e f e)
   | BinOp k e1 e2 => BinOp k (bind_e f e1) (bind_e f e2)
+  | RecE es => RecE (List.map (bind_e f) es)
+  | Get n e => Get n (bind_e f e)
   | Ref e => Ref (bind_e f e)
   | Deref e => Deref (bind_e f e)
   | Assign e1 e2 => Assign (bind_e f e1) (bind_e f e2)
@@ -220,6 +236,24 @@ Inductive Assignment {V : Set} (l : Label) (v : Value V) :
     Assignment l v (a :: m)%list (a :: m')%list
 .
 
+Inductive Nth {A : Set} : nat -> list A -> A -> Prop :=
+| Nth_zero (x : A) (xs : list A) : Nth 0 (x::xs) x
+| Nth_succ (n : nat) (x y : A) (xs : list A) :
+    Nth n xs y -> Nth (S n) (x::xs) y
+.
+
+Inductive SplitAt {A : Set} :
+  list A ->
+  list A -> A -> list A -> Prop :=
+| SplitAt_hd (x : A) (xs : list A) :
+    SplitAt (x::xs) [] x xs
+| SplitAt_tl (x : A) (xs ys : list A) (y : A) (ys' : list A) :
+    SplitAt xs ys y ys' ->
+    SplitAt (x::xs) (x::ys) y ys'
+.
+
+Notation "'L[' xs '~~>' ys '|' y '|' zs ']'" := (@SplitAt _ xs ys y zs).
+
 (* SOS semantics *)
 Reserved Notation "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'".
 
@@ -260,6 +294,13 @@ Inductive red {V : Set} :
 
 | red_ceq : forall m i1 i2,
     R[BinOp (CBOp CEq) (Int i1) (Int i2), m ~~> Bool (i1 =? i2)%Z, m]
+
+| red_rec_e2v : forall m vs,
+    R[RecE (vals2exprs vs), m ~~> RecV vs, m]
+
+| red_rec_get : forall n m vs v,
+    Nth n vs v ->
+    R[Get n (RecV vs), m ~~> v, m]
 
 | red_ref : forall m l (v : Value _),
     Is_fresh_label l m ->
@@ -302,8 +343,14 @@ Inductive red {V : Set} :
     R[BinOp k e1 e2, m ~~> BinOp k e1' e2, m']
 
 | red_binop2 : forall k m m' (v : Value _) e e',
-    red e m e' m' ->
-    red (BinOp k v e) m (BinOp k v e') m'
+    R[e, m ~~> e', m'] ->
+    R[BinOp k v e, m ~~> BinOp k v e', m']
+
+| red_rec_split : forall m m' es es' vs0 e (v : Value _) es0,
+    L[es  ~~> vals2exprs vs0 | e | es0] ->
+    L[es' ~~> vals2exprs vs0 | v | es0] ->
+    R[e, m ~~> v, m'] ->
+    R[RecE es, m ~~> RecE es', m']
 
 | red_ref_e : forall m m' e e',
     red e m e' m' ->
@@ -376,6 +423,10 @@ Inductive typing {V : Set} (G : env V) :
 
 | T_Bool : forall b, T[ G |- Bool b ::: BoolT ]
 
+| T_RecV : forall vs ts,
+    List.Forall2 (fun (v : Value _) t => T[ G |- v ::: t ]) vs ts ->
+    T[ G |- RecV vs ::: RecT ts ]
+
 | T_Lam : forall e t1 t2,
     T[ inc_fun G t1 |- e ::: t2 ] ->
     T[ G |- Lam e ::: Arrow t1 t2 ]
@@ -407,6 +458,15 @@ Inductive typing {V : Set} (G : env V) :
     T[ G |- e1 ::: IntT ] ->
     T[ G |- e2 ::: IntT ] ->
     T[ G |- BinOp (CBOp k) e1 e2 ::: BoolT ]
+
+| T_RecE : forall es ts,
+    List.Forall2 (fun e t => T[ G |- e ::: t ]) es ts ->
+    T[ G |- RecE es ::: RecT ts ]
+
+| T_Get : forall n e ts t,
+    Nth n ts t ->
+    T[ G |- e ::: RecT ts ] ->
+    T[ G |- Get n e ::: t ]
 
 | T_Ref : forall e t,
     T[ G |- e ::: t ] ->
