@@ -1,4 +1,5 @@
-.Makefile.coq*
+.Makefile.coq.d
+Makefile.coq*
 src/.*.aux
 src/*.glob
 src/*.vo
