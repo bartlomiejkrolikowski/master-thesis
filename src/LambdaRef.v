@@ -314,8 +314,8 @@ Inductive red {V : Set} :
     Assignment l v m m' ->
     R[Assign (Lab l) v, m ~~> U_val, m']
 
-| red_seq : forall m (v : Value _),
-    R[Seq U_val v, m ~~> v, m]
+| red_seq : forall m e,
+    R[Seq U_val e, m ~~> e, m]
 
 | red_if : forall b m e1 e2,
     R[If (Bool b) e1 e2, m ~~> if b then e1 else e2, m]
@@ -371,10 +371,6 @@ Inductive red {V : Set} :
 | red_seq1 : forall m m' e1 e1' e2,
     R[e1, m ~~> e1', m'] ->
     R[Seq e1 e2, m ~~> Seq e1' e2, m']
-
-| red_seq2 : forall m m' (v : Value _) e e',
-    R[e, m ~~> e', m'] ->
-    R[Seq v e, m ~~> Seq v e', m']
 
 | red_cond_if : forall m m' e1 e1' e2 e3,
     R[e1, m ~~> e1', m'] ->

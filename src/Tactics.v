@@ -37,7 +37,7 @@ Ltac solve_red :=
     | [ |- red (Ref (Val _)) _ _ _ ] => eapply red_ref
     | [ |- red (Deref (Val _)) _ _ _ ] => eapply red_deref
     | [ |- red (Assign (Val _) (Val _)) _ _ _ ] => eapply red_assign
-    | [ |- red (Seq (Val _) (Val _)) _ _ _ ] => eapply red_seq
+    | [ |- red (Seq (Val _) _) _ _ _ ] => eapply red_seq
     | [ |- red (If (Bool _) _ _) _ _ _ ] => eapply red_if
     | [ |- red (While (Bool _) _) _ _ _ ] => eapply red_while
     | [ |- red (App (Val _) _) _ _ _ ] => eapply red_app2
@@ -46,7 +46,6 @@ Ltac solve_red :=
     | [ |- red (Deref _) _ _ _ ] => eapply red_deref_e
     | [ |- red (Assign (Val _) _) _ _ _ ] => eapply red_assign2
     | [ |- red (Assign _ _) _ _ _ ] => eapply red_assign1
-    | [ |- red (Seq (Val _) _) _ _ _ ] => eapply red_seq2
     | [ |- red (Seq _ _) _ _ _ ] => eapply red_seq1
     | [ |- red (If _ _ _) _ _ _ ] => eapply red_cond_if
     end
