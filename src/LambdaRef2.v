@@ -320,10 +320,10 @@ Inductive red {V : Set} :
 | red_if : forall b m e1 e2,
     R[If (Bool b) e1 e2, m ~~> if b then e1 else e2, m]
 
-| red_while : forall m e1 e2,
-    R[While e1 e2, m
+| red_while : forall b m e,
+    R[While (Bool b) e, m
       ~~>
-      If e1 (Seq e2 (While e1 e2)) U_val, m]
+      if b then U_val else Seq e (While (Bool b) e), m]
 
 (* structural rules *)
 | red_app1 : forall m m' e1 e1' e2,
@@ -379,6 +379,10 @@ Inductive red {V : Set} :
 | red_cond_if : forall m m' e1 e1' e2 e3,
     R[e1, m ~~> e1', m'] ->
     R[If e1 e2 e3, m ~~> If e1' e2 e3, m']
+
+| red_cond_while : forall m m' e1 e1' e2,
+    R[e1, m ~~> e1', m'] ->
+    R[While e1 e2, m ~~> While e1' e2, m']
 
 where "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'" :=
   (@red _ e1 m1 e2 m2).
