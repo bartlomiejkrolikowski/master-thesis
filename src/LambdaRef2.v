@@ -79,14 +79,26 @@ with Expr (V : Set) :=
 | While : Expr V -> Expr V -> Expr V
 .
 
-Inductive type :=
-| Unit : type
-| IntT : type (* integer *)
-| BoolT : type (* bool *)
-| Arrow : type -> type -> type
-| RefT : type -> type (* reference *)
-| RecT : list type -> type (* record *)
+Inductive type (V : Set) :=
+| VarT : string -> type V
+| Unit : type V
+| IntT : type V (* integer *)
+| BoolT : type V (* bool *)
+| Arrow : type V -> type V -> type V
+| RefT : type V -> type V (* reference *)
+| RecT : list (type V) -> type V (* record *)
 .
+
+Definition Constructor (V : Set) : Set := string * list (type V).
+
+Definition ADT (V : Set) : Set := list (Constructor V).
+
+Inductive top_level_item V : Set :=
+| Named_Value : string -> Value V -> top_level_item V
+| Named_ADT : string -> ADT V -> top_level_item V
+.
+
+Definition top_level V : Set := list (top_level_item V).
 
 Arguments U_val {V}.
 Arguments Var {V}.
@@ -107,6 +119,13 @@ Arguments Assign {V}.
 Arguments Seq {V}.
 Arguments If {V}.
 Arguments While {V}.
+Arguments VarT {V}.
+Arguments Unit {V}.
+Arguments IntT {V}.
+Arguments BoolT {V}.
+Arguments Arrow {V}.
+Arguments RefT {V}.
+Arguments RecT {V}.
 
 Coercion Val : Value >-> Expr.
 
@@ -406,14 +425,14 @@ where "'C[' e1 ',' m1 '~~>' e2 ',' m2 '|' c ']'" :=
     (@cost_red _ e1 m1 e2 m2 c).
 
 (* type system *)
-Definition env (V : Set) : Set := V -> type.
-Definition env_empty : env Empty_set :=
+Definition env (V W : Set) : Set := V -> type W.
+Definition env_empty : env Empty_set Empty_set :=
   fun x => match x with end.
 
 Reserved Notation "'T[' G '|-' e ':::' t ']'".
 
-Inductive typing {V : Set} (G : env V) :
-  Expr V -> type -> Prop :=
+Inductive typing {V W : Set} (G : env V W) :
+  Expr V -> type W -> Prop :=
 
 | T_Unit : T[ G |- U_val ::: Unit ]
 
@@ -497,7 +516,7 @@ Inductive typing {V : Set} (G : env V) :
     T[ G |- e2 ::: Unit ] ->
     T[ G |- While e1 e2 ::: Unit ]
 
-where "T[ G |- e ::: t ]" := (@typing _ G e t).
+where "T[ G |- e ::: t ]" := (@typing _ _ G e t).
 
 (* NOTATIONS *)
 
@@ -597,7 +616,7 @@ Proof.
 Qed.
 *)
 (* weakening lemma *)
-Lemma weakening (V : Set) (G : env V) (e : Expr V) (t t' : type) :
+Lemma weakening (V W : Set) (G : env V W) (e : Expr V) (t t' : type W) :
   T[ G |- e ::: t ] ->
   T[ inc_fun G t' |- shift_e e ::: t].
 Proof.
