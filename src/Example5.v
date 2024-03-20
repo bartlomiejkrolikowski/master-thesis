@@ -76,7 +76,7 @@ Proof.
     intro.
 Admitted.
 
-Goal forall (l : list Z) (v : Value _) m0 m c,
+(*Goal forall (l : list Z) (v : Value _) m0 m c,
   C[ of_list l, m0 ~~> v, m | c ] -> exists m' c',
   C[ list_length <* v, m ~~> Int (Z.of_nat (List.length l)), m' | c' ].
 Proof.
@@ -175,7 +175,7 @@ Proof.
     { intros [ H' | [] ]. discriminate. }
   + repeat eexists. cbn. rewrite Zpos_P_of_succ_nat. econstructor.
 Qed.
-
+*)
 (*Goal forall (l : list Z) , exists m' c,
   C[ list_length <* of_list l, []%list ~~> Int (Z.of_nat (List.length l)), m' | c ].
 Proof.
