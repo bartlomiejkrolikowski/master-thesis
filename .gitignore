@@ -1,3 +1,4 @@
+.lia.cache
 .Makefile.coq.d
 Makefile.coq*
 src/.*.aux
