@@ -4,6 +4,7 @@ Require Import String.
 Require Import ZArith.
 
 Require Import src.LambdaRef.
+Require Import src.LamRefFacts.
 Require Import src.Tactics.
 
 (* lists *)
@@ -63,18 +64,6 @@ Definition list_length : Value string :=
       [end]
       [end]
   )%string.
-
-Definition get_fresh {V : Set} (m : Map V) : Label :=
-  List.fold_right
-    (fun '(OfNat l, _) '(OfNat acc) => OfNat (S (max l acc))) (OfNat 0) m.
-
-Lemma has_fresh : forall V (m : Map V), Is_fresh_label (get_fresh m) m.
-Proof.
-  induction m.
-  + unfold Is_fresh_label. cbn. easy.
-  + unfold Is_fresh_label. destruct a. destruct l. simpl. destruct (get_fresh m).
-    intro.
-Admitted.
 
 (*Goal forall (l : list Z) (v : Value _) m0 m c,
   C[ of_list l, m0 ~~> v, m | c ] -> exists m' c',

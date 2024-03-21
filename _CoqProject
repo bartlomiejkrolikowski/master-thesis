@@ -1,4 +1,5 @@
 -R . Top
+src/Aux.v
 src/Example1.v
 src/Example2.v
 src/Example3.v
@@ -7,4 +8,6 @@ src/Example5.v
 src/InferType.v
 src/LambdaRef.v
 src/LambdaRef2.v
+src/LamRefData.v
+src/LamRefFacts.v
 src/Tactics.v
