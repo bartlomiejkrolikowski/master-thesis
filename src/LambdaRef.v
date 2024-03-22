@@ -242,7 +242,7 @@ Inductive Nth {A : Set} : nat -> list A -> A -> Prop :=
     Nth n xs y -> Nth (S n) (x::xs) y
 .
 
-Inductive SplitAt {A : Set} :
+Inductive SplitAt {A : Type} :
   list A ->
   list A -> A -> list A -> Prop :=
 | SplitAt_hd (x : A) (xs : list A) :
@@ -346,27 +346,27 @@ Inductive red {V : Set} :
     R[e, m ~~> e', m'] ->
     R[BinOp k v e, m ~~> BinOp k v e', m']
 
-| red_rec_split : forall m m' es es' vs0 e (v : Value _) es0,
+| red_rec_split : forall m m' es es' vs0 e e' es0,
     L[es  ~~> vals2exprs vs0 | e | es0] ->
-    L[es' ~~> vals2exprs vs0 | v | es0] ->
-    R[e, m ~~> v, m'] ->
+    L[es' ~~> vals2exprs vs0 | e' | es0] ->
+    R[e, m ~~> e', m'] ->
     R[RecE es, m ~~> RecE es', m']
 
 | red_ref_e : forall m m' e e',
-    red e m e' m' ->
-    red (Ref e) m (Ref e') m'
+    R[e, m ~~> e', m'] ->
+    R[Ref e, m ~~> Ref e', m']
 
 | red_deref_e : forall m m' e e',
-    red e m e' m' ->
-    red (Deref e) m (Deref e') m'
+    R[e, m ~~> e', m'] ->
+    R[Deref e, m ~~> Deref e', m']
 
 | red_assign1 : forall m m' e1 e1' e2,
-    red e1 m e1' m' ->
-    red (Assign e1 e2) m (Assign e1' e2) m'
+    R[e1, m ~~> e1', m'] ->
+    R[Assign e1 e2, m ~~> Assign e1' e2, m']
 
 | red_assign2 : forall m m' (v : Value _) e e',
-    red e m e' m' ->
-    red (Assign v e) m (Assign v e') m'
+    R[e, m ~~> e', m'] ->
+    R[Assign v e, m ~~> Assign v e', m']
 
 | red_seq1 : forall m m' e1 e1' e2,
     R[e1, m ~~> e1', m'] ->
@@ -387,7 +387,7 @@ Inductive cost_red {V : Set}
   Expr V -> Map V ->
   nat -> Prop :=
 
-| no_red : cost_red e m e m 0
+| no_red : C[e, m ~~> e, m | 0]
 
 | S_red (c : nat) (e' e'' : Expr V) (m' m'' : Map V) :
     red e m e' m' ->

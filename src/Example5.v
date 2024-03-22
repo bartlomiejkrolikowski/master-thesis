@@ -65,6 +65,90 @@ Definition list_length : Value string :=
       [end]
   )%string.
 
+Goal forall n, list_0_expr n = of_list (List.repeat 0%Z n).
+Proof.
+  induction n.
+  - simpl. reflexivity.
+  - simpl. f_equal. f_equal. assumption.
+Qed.
+
+Fixpoint of_list_reduced {V} (l : list Z) : Expr V :=
+  match l with
+  | []%list => nil
+  | (x::xs)%list =>
+    RecE [
+      Val (Int 1);
+      Val (Int x);
+      Ref (of_list_reduced xs)
+    ]
+  end.
+
+Require Import src.LamRefFacts.
+
+Goal forall l m mm (v : Value _) mm' c,
+  C[ of_list_reduced l, mm ~~> v, mm' | c ] ->
+  exists m' c',
+  C[ of_list l, m ~~> v, m' | c' ].
+Proof.
+  intros l m mm v mm' c. generalize dependent v. induction l.
+  - simpl. intros v HCRed. apply cost_red_value in HCRed as [Hv [Hmm Hc]].
+    rewrite Hv. repeat eexists. econstructor.
+  - simpl. intros v HCRed. inversion HCRed. subst.
+    inversion H.
+    + subst. specialize vals2exprs_are_vals with _ vs as Hvs.
+      rewrite H2 in Hvs.
+      match goal with
+      | [H : List.Forall ?P ?l |- _] =>
+        destruct (List.Forall_forall P l) as [Hlemma _]
+      end.
+      apply Hlemma with (Ref (of_list_reduced l)) in Hvs as [v' Heqv'].
+      * discriminate.
+      * simpl. auto.
+    + subst. destruct is_value_or_not with (e := e) as [[v' Hisval] | Hnval].
+      * subst. apply red_value in H4. contradiction.
+      * apply SplitAt_spec_eq in H2.
+        specialize List.in_elt with _ e (vals2exprs vs0) es0 as Hin_elt.
+        simpl in H2. rewrite <- H2 in Hin_elt.
+        simpl in Hin_elt.
+        destruct Hin_elt as [He | [He | [He | He]]];
+        try match goal with
+        | [H : Val ?v = e |- _] => symmetry in H; apply Hnval in H
+        end;
+        try contradiction.
+        subst.
+        inversion H4.
+        -- subst.
+        assert (vs0 = [Int 1; Int a] /\ es0 = [])%list as [Hvs0 Hes0].
+        { admit. }
+        subst. simpl in H2.
+        eauto. discriminate.
+    destruct IHl as [m'' [c'' Hred'']].
+    + assumption.
+   repeat eexists. simpl.
+    eapply cost_red_comp.
+    { eapply cost_red_app1. eapply cost_red_comp.
+      { eapply cost_red_app2. econstructor. }
+      { eapply S_red.
+        { solve_red. }
+        { cbn. econstructor. }
+      }
+    }
+    { eapply cost_red_comp.
+      { eapply cost_red_app2. eapply cost_red_ref_e.
+        eapply Hred.
+      }
+      { (* TODO*) }
+    }
+Admitted.
+
+Goal forall (l : list Z) m, exists m' c,
+  C[ list_length <* of_list l, m ~~> Int (Z.of_nat (List.length l)), m' | c ].
+Proof.
+  repeat eexists.
+  eapply cost_red_comp.
+  { eapply cost_red_app2. admit. }
+Admitted.
+
 (*Goal forall (l : list Z) (v : Value _) m0 m c,
   C[ of_list l, m0 ~~> v, m | c ] -> exists m' c',
   C[ list_length <* v, m ~~> Int (Z.of_nat (List.length l)), m' | c' ].
