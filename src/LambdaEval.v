@@ -33,25 +33,6 @@ Definition eqb_label '(OfNat n : Label) '(OfNat m : Label) : bool :=
 
 Notation "l =? ll" := (eqb_label l ll).
 
-Fixpoint lookup {V : Set} (l : Label) (m : Map V) : option (Value V) :=
-  match m with
-  | nil => None
-  | (l', v) :: m' => if l =? l' then Some v else lookup l m'
-  end%list.
-
-Fixpoint update {V : Set} (l : Label) (v : Value V) (m : Map V) : Map V :=
-  match m with
-  | nil => [(l, v)]
-  | (l', v') :: m' =>
-    if l =? l' then ((l', v) :: m') else (l', v') :: (update l v m')
-  end%list.
-
-Definition list_max (l : list nat) : nat :=
-  List.fold_right max 0 l.
-
-Definition new_label {V : Set} (m : Map V) : Label :=
-  OfNat (1 + list_max (List.map (fun '(OfNat n) => n) (labels m))).
-
 Definition mnew {V : Set} : CompMonad V Label :=
   fun (s : Map V) => Some (new_label s, s).
 

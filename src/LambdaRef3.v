@@ -20,16 +20,7 @@ Inductive Label : Set :=
 | OfNat : nat -> Label.
 
 Definition label_eqb '(OfNat n) '(OfNat n') : bool := n =? n'.
-Definition label_ltb '(OfNat n) '(OfNat n') : bool := n <? n'.
-
-Definition label_lt '(OfNat n) '(OfNat n') : Prop := n < n'.
-
-Declare Scope label_scope.
-
-Notation "l =? l'" := (label_eqb l l') : label_scope.
-Notation "l <? l'" := (label_ltb l l') : label_scope.
-
-Notation "l < l'" := (label_lt l l') : label_scope.
+Notation "l =? l'" := (label_eqb l l').
 
 Inductive BoolUnOpKind : Set :=
 | BNeg (* Boolean negation *)
@@ -206,7 +197,8 @@ Definition subst_e {V : Set}
   (e : Expr (inc_set V)) (v' : Value V) : Expr V :=
   bind_e (inc_fun Var v') e.
 
-Definition Map (V : Set) : Set := list (Label * (Value V)).
+(* change between LambdaRef.v and LambdaRef3.v: map as function *)
+Definition Map (V : Set) : Set := Label -> option (Value V).
 
 (*Definition extend {V L : Set} (m : Map V L) (v : Value V L)
   : Map V (inc_set L) :=
@@ -224,29 +216,20 @@ Definition max_label {V : Set} (m : Map V) : Label :=
     (fun '(OfNat n, _) '(OfNat m) => OfNat (max n m)) (OfNat 0) m.
 *)
 
-Definition labels {V : Set} (m : Map V) : list Label :=
-  List.map fst m.
-
 Definition Is_fresh_label {V : Set} (l : Label) (m : Map V) : Prop :=
-  ~ List.In l (labels m).
+  m l = None.
 
-Definition Is_Valid_Map {V : Set} (m : Map V) : Prop :=
-  List.NoDup (labels m).
+Definition Lookup {V : Set} (l : Label) (m : Map V) (v : Value V) : Prop :=
+  m l = Some v.
 
-Inductive Lookup {V : Set} (l : Label) : Map V -> Value V -> Prop :=
-| Lookup_hd (m : Map V) (v : Value V) : Lookup l ((l,v) :: m)%list v
-| Lookup_tl (a : Label * Value V) (m : Map V) (v : Value V) :
-    Lookup l m v -> Lookup l (a :: m)%list v
-.
+Definition empty {V : Set} : Map V := fun l => None.
 
-Inductive Assignment {V : Set} (l : Label) (v : Value V) :
-  Map V -> Map V -> Prop :=
-| Assignment_hd (v0 : Value V) (m : Map V) :
-    Assignment l v ((l,v0) :: m)%list ((l,v) :: m)%list
-| Assignment_tl (a : Label * Value V) (m m' : Map V) :
-    Assignment l v m m' ->
-    Assignment l v (a :: m)%list (a :: m')%list
-.
+Definition update {V : Set} (l : Label) (m : Map V) (v : Value V) : Map V :=
+  fun l' => if l =? l' then Some v else m l.
+
+Definition Assignment {V : Set} (l : Label) (v : Value V)
+  (m m' : Map V) : Prop :=
+  forall l', m' l' = update l m v l'.
 
 Inductive Nth {A : Set} : nat -> list A -> A -> Prop :=
 | Nth_zero (x : A) (xs : list A) : Nth 0 (x::xs) x
@@ -265,27 +248,6 @@ Inductive SplitAt {A : Type} :
 .
 
 Notation "'L[' xs '~~>' ys '|' y '|' zs ']'" := (@SplitAt _ xs ys y zs).
-Section label_section.
-Open Scope label_scope.
-Fixpoint lookup {V : Set} (l : Label) (m : Map V) : option (Value V) :=
-  match m with
-  | nil => None
-  | (l', v) :: m' => if l =? l' then Some v else lookup l m'
-  end%list.
-
-Fixpoint update {V : Set} (l : Label) (v : Value V) (m : Map V) : Map V :=
-  match m with
-  | nil => [(l, v)]
-  | (l', v') :: m' =>
-    if l =? l' then ((l', v) :: m') else (l', v') :: (update l v m')
-  end%list.
-End label_section.
-
-Definition list_max (l : list nat) : nat :=
-  List.fold_right max 0 l.
-
-Definition new_label {V : Set} (m : Map V) : Label :=
-  OfNat (1 + list_max (List.map (fun '(OfNat n) => n) (labels m))).
 
 (* SOS semantics *)
 Reserved Notation "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'".
@@ -336,8 +298,8 @@ Inductive red {V : Set} :
     R[Get n (RecV vs), m ~~> v, m]
 
 | red_ref : forall m l (v : Value _),
-    l = new_label m ->
-    R[Ref v, m ~~> Lab l, ((l,v) :: m)%list]
+    Is_fresh_label l m ->
+    R[Ref v, m ~~> Lab l, update l m v]
 
 | red_deref : forall m l v,
     Lookup l m v ->
@@ -429,7 +391,7 @@ Inductive cost_red {V : Set}
 
 where "'C[' e1 ',' m1 '~~>' e2 ',' m2 '|' c ']'" :=
     (@cost_red _ e1 m1 e2 m2 c).
-
+(*
 (* type system *)
 Definition env (V : Set) : Set := V -> type.
 Definition env_empty : env Empty_set :=
@@ -523,7 +485,7 @@ Inductive typing {V : Set} (G : env V) :
     T[ G |- While e1 e2 ::: Unit ]
 
 where "T[ G |- e ::: t ]" := (@typing _ G e t).
-
+*)
 (* NOTATIONS *)
 
 Notation "'$' x" := (Some x) (at level 50).
@@ -605,9 +567,9 @@ Notation "'[let' x ']' e1 '[in]' e2 [end]" :=
   (([-\] x, e2) <* e1)
   (at level 50, no associativity).
 
-
 (* ------------------------LEMMAS-------------------------------------*)
 
+(*
 (*(* reordering in context *)
 Lemma reordering (V : Set) (G : env V) (e : Expr _) (t t' t'' : type) :
   T[ inc_fun (inc_fun G t'') t' |- shift_e e ::: t] ->
@@ -628,31 +590,4 @@ Lemma weakening (V : Set) (G : env V) (e : Expr V) (t t' : type) :
 Proof.
   intro H. induction H; cbn; econstructor; try eassumption.
 Abort.
-
-(*
-(* uniqueness of reduction results *)
-Lemma uniqueness (V : Set)
-  (e e' e'' : Expr V) (m m' m'' : Map V) :
-  red e m e' m' ->
-  red e m e'' m'' ->
-  e' = e'' /\ m' = m''.
-Proof.
-  intro H'. revert e'' m''. induction H'; intros e'' m'' H''.
-  - inversion H''; [ easy | | ];
-    match goal with
-    | [ H : red (Val _) _ _ _ |- _ ] => inversion H
-    end.
-  - inversion H''.
-    (* TODO *)
-Admitted.
-
-Lemma uniqueness_full (V : Set)
-  (e e' e'' : Expr V) (m m' m'' : Map V) (c' c'' : nat) :
-  cost_red e m e' m' c' ->
-  cost_red e m e'' m'' c'' ->
-  e' = e'' /\ m' = m'' /\ c' = c''.
-Proof.
-  intros H' H''.
-Admitted.
 *)
-

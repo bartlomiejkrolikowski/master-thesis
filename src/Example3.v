@@ -78,11 +78,4 @@ Goal exists l m c,
 Proof.
   unfold e.
   solve_computation.
-  Unshelve.
-  { econstructor. exact 0. }
-  { exact []%list. }
-  { econstructor. exact 1. }
-  { exact []%list. }
-  { exact []%list. }
-  { simpl. intros [ ? | [] ]. easy. }
 Qed.

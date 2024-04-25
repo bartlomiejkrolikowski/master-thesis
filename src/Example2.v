@@ -66,9 +66,7 @@ Proof.
   { econstructor.
     { econstructor. econstructor. }
     { cbn. econstructor.
-      { apply red_app2. econstructor. unfold Is_fresh_label.
-        simpl. easy.
-      }
+      { apply red_app2. econstructor. simpl. easy. }
       { econstructor.
         { econstructor. }
         { cbn. econstructor.
@@ -76,7 +74,7 @@ Proof.
           { econstructor.
             { econstructor. econstructor. }
             { cbn. econstructor.
-              { econstructor. unfold Is_fresh_label. simpl. shelve. }
+              { econstructor. reflexivity. }
               { econstructor. }
             }
           }
@@ -85,10 +83,6 @@ Proof.
     }
   }
   { econstructor. econstructor. }
-  Unshelve.
-  { constructor. exact 0. }
-  { constructor. exact 1. }
-  { intro H. destruct H as [H | []]. injection H. easy. }
 Qed.
 
 Definition ex' : Expr Empty_set := e' <* e_id <* e_ref_u.
@@ -141,7 +135,4 @@ Proof.
     }
   }
   { constructor. constructor. }
-  Unshelve.
-  { constructor. exact 0. }
-  { exact []%list. }
 Qed.

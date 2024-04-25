@@ -47,11 +47,4 @@ Goal exists l m c,
 Proof.
   unfold e.
   solve_computation.
-  Unshelve.
-  { constructor. exact 0. }
-  { exact []%list. }
-  { constructor. exact 1. }
-  { exact []%list. }
-  { exact []%list. }
-  { simpl. intros [H | []]. easy. }
 Qed.

@@ -6,10 +6,13 @@ src/Example3.v
 src/Example4.v
 # src/Example5.v
 src/InferType.v
+src/LambdaAssertions.v
 src/LambdaEval.v
 src/LambdaParse.v
 src/LambdaRef.v
 src/LambdaRef2.v
+src/LambdaRef3.v
 src/LamRefData.v
 src/LamRefFacts.v
+src/LamRefFacts2.v
 src/Tactics.v

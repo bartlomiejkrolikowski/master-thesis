@@ -3,8 +3,7 @@ Import List.ListNotations.
 Require Import String.
 Require Import ZArith.
 
-Require Import src.LambdaRef.
-Require Import Lia.
+Require Import src.LambdaRef3.
 
 Lemma SplitAt_spec_eq :
   forall A xs ys (y : A) zs,
@@ -24,42 +23,6 @@ Proof.
   intros A ys y zs. induction ys; simpl.
   - constructor.
   - now constructor.
-Qed.
-
-Lemma SplitAt_2ways :
-  forall A xs ys (y : A) zs ys' (y' : A) zs',
-    L[xs ~~> ys | y | zs] ->
-    L[xs ~~> ys' | y' | zs'] ->
-    List.In y ys'
-    \/ (ys = ys' /\ y = y' /\ zs = zs')
-    \/ List.In y' ys.
-Proof.
-  intros ? ? ? ? ? ? ? ? Hsplit1 Hsplit2.
-  revert ys' y' zs' Hsplit2.
-  induction Hsplit1 as [| x xs ys y zs Hsplit1' IH1 ]; intros.
-  - remember (x :: xs)%list as xs' eqn:Hxs'.
-    revert x xs Hxs'.
-    induction Hsplit2 as [| x' xs' ys' y' zs' Hsplit2' IH2 ];
-      intros; injection Hxs' as [] [].
-    + auto.
-    + destruct Hsplit2'; simpl; auto.
-  - inversion Hsplit2; subst; simpl.
-    + auto.
-    + edestruct IH1 as [Hin | [[Hys [Hy Hzs]] | Hin]]; eauto.
-      subst. auto.
-Qed.
-
-Lemma SplitAt_deterministic :
-  forall A xs ys (y : A) zs ys' (y' : A) zs',
-    L[xs ~~> ys | y | zs] ->
-    L[xs ~~> ys' | y' | zs'] ->
-    ~ List.In y ys' ->
-    ~ List.In y' ys ->
-    (ys = ys' /\ y = y' /\ zs = zs').
-Proof.
-  intros ? ? ? ? ? ? ? ? Hsplit1 Hsplit2 Hin Hin'.
-  edestruct SplitAt_2ways as [? | [? | ?]];
-    [| | | eassumption |]; eauto; contradiction.
 Qed.
 
 Lemma Nth_spec (A : Set) n l (a : A) :
@@ -86,164 +49,18 @@ Proof.
   apply list_map_inj. intros x y Heq. injection Heq. easy.
 Qed.
 
-Lemma Is_Valid_Map_cons_fresh (V : Set) (l : Label) v (m : Map V) :
-  Is_fresh_label l m ->
-  Is_Valid_Map m ->
-  Is_Valid_Map ((l, v) :: m)%list.
-Proof.
-  unfold Is_fresh_label, Is_Valid_Map. intros. now constructor.
-Qed.
-
-Lemma max_list_max ns :
-  List.Forall (fun n => n <= list_max ns) ns.
-Proof.
-  induction ns as [| n ns' IH ]; constructor;
-  try eapply List.Forall_impl; try eassumption; simpl; lia.
-Qed.
-
-Section label_section.
-Open Scope label_scope.
-Lemma new_label_spec_lt (V : Set) (m : Map V) :
-  List.Forall (fun l => l < new_label m) (labels m).
-Proof.
-  specialize (max_list_max (List.map (fun '(OfNat n) => n) (labels m))) as H.
-  eapply List.Forall_map, List.Forall_impl in H.
-  - eassumption.
-  - destruct a. simpl. lia.
-Qed.
-End label_section.
-
-Lemma new_label_is_fresh (V : Set) (m : Map V) :
-  Is_fresh_label (new_label m) m.
-Proof.
-  intro Hin. specialize new_label_spec_lt with V m as H.
-  eapply List.Forall_forall in H; [| eassumption ].
-  destruct new_label. simpl in *. lia.
-Qed.
-
-Lemma Is_Valid_Map_cons_new (V : Set) v (m : Map V) :
-  Is_Valid_Map m ->
-  Is_Valid_Map ((new_label m, v) :: m)%list.
-Proof.
-  auto using Is_Valid_Map_cons_fresh, new_label_is_fresh.
-Qed.
-
-Lemma Lookup_success (V : Set) (l : Label) (m : Map V) v :
-  Lookup l m v -> List.In l (labels m).
-Proof.
-  induction 1 as [| [l' v'] m' v Hlookup' IH]; simpl; auto.
-Qed.
-
-Lemma Lookup_spec (V : Set) (l : Label) (m : Map V) v :
-  Is_Valid_Map m ->
-  Lookup l m v ->
-  lookup l m = Some v.
-Proof.
-  destruct l as [n]. intros Hvalid Hlookup.
-  induction Hlookup as [| [[n'] v'] m' v Hlookup' IH ]; simpl.
-  - now rewrite Nat.eqb_refl.
-  - inversion Hvalid. destruct Nat.eqb_spec with n n'.
-    + subst. apply Lookup_success in Hlookup'.
-      contradiction.
-    + auto.
-Qed.
-
-Lemma Assignment_success (V : Set) (l : Label) v (m m' : Map V) :
-  Assignment l v m m' -> List.In l (labels m).
-Proof.
-  induction 1 as [| [l' v'] m m' Hlookup' IH]; simpl; auto.
-Qed.
-
-Lemma update_in (V : Set) (l : Label) v (m : Map V) :
-  List.In l (labels m) ->
-  labels (update l v m) = labels m.
-Proof.
-  destruct l as [n]. intros Hin. induction m as [| [[n'] v'] m' IH]; simpl.
-  - contradiction.
-  - destruct Nat.eqb_spec with n n'; simpl in *.
-    + reflexivity.
-    + f_equal. destruct Hin as [Heq | Hin].
-      * congruence.
-      * auto.
-Qed.
-
-Lemma valid_labels (V : Set) (m m' : Map V) :
-  labels m = labels m' ->
-  Is_Valid_Map m ->
-  Is_Valid_Map m'.
-Proof.
-  unfold Is_Valid_Map. revert m'.
-  induction m as [| [l v] m IH]; destruct m' as [| [l' v'] m'];
-    simpl; intros Heq Hvalid; try discriminate; try injection Heq as [] [];
-    assumption.
-Qed.
-
-Lemma Assignment_spec (V : Set) (l : Label) v (m m' : Map V) :
-  Is_Valid_Map m ->
-  Assignment l v m m' ->
-  m' = update l v m /\ Is_Valid_Map m'.
-Proof.
-  destruct l as [n]. intros Hvalid Hassign.
-  induction Hassign as [| [[n'] v'] m m' Hassign IH]; simpl.
-  - now rewrite Nat.eqb_refl.
-  - inversion Hvalid. destruct Nat.eqb_spec with n n'.
-    + subst. apply Assignment_success in Hassign.
-      contradiction.
-    + destruct IH as [Hupdate Hvalid']; [| subst; split]; auto.
-      eapply valid_labels with ((_, _) :: m)%list.
-      * simpl. f_equal. symmetry. apply update_in.
-        eapply Assignment_success. eassumption.
-      * eassumption.
-Qed.
-
-(*
-Fixpoint value_eq_dec (V : Set) (v v' : Value V) {struct v} :
-  (forall x x' : V, x = x' \/ x <> x') ->
-  v = v' \/ v <> v'
-with expr_eq_dec (V : Set) (e e' : Expr V) {struct e} :
-  (forall x x' : V, x = x' \/ x <> x') ->
-  e = e' \/ e <> e'.
-Proof.
-  - intro Hdec. destruct v, v'; try (right; discriminate).
-    + left. reflexivity.
-    + destruct Hdec with v v0.
-  - destruct e, e'; auto.
-Qed.
-*)
-
-Lemma in_vals2expr (V : Set) (e : Expr V) vs :
-  List.In e (vals2exprs vs) ->
-  exists v : Value V, e = v.
-Proof.
-  induction vs; simpl; intros H; destruct H; eauto.
-Qed.
-
 (* uniqueness of reduction results *)
-Theorem uniqueness (V : Set)
+Lemma uniqueness (V : Set)
   (e e' e'' : Expr V) (m m' m'' : Map V) :
-  Is_Valid_Map m ->
   red e m e' m' ->
   red e m e'' m'' ->
-  e' = e'' /\ m' = m'' /\ Is_Valid_Map m'.
+  e' = e'' /\ m' = m''.
 Proof.
-  intros H H'. revert e'' m''. induction H'; intros e'' m'' H'';
-  try (inversion H''; subst;
-    try apply Is_Valid_Map_cons_new with (v := v) in H as Hmap;
-    try easy;
+  intro H'. revert e'' m''. induction H'; intros e'' m'' H'';
+  try now (inversion H''; try easy;
     match goal with
     | [ H : red (Val _) _ _ _ |- _ ] => inversion H
-    | [ H : Assignment _ _ _ _,
-        H' : Assignment _ _ _ _ |- _ ] =>
-        apply Assignment_spec in H as [? ?]; [|assumption];
-        apply Assignment_spec in H' as [? ?]; [|assumption];
-        repeat split; congruence
-    end);
-    try (inversion H''; subst;
-      try match goal with
-      | [ H : red (Val _) _ _ _ |- _ ] => inversion H
-      end;
-      edestruct IHH' as [He1 [Hm' Hvalid]]; eauto;
-      subst; easy).
+    end).
   - inversion H'';
       match goal with
       | [ H : vals2exprs _ = vals2exprs _ |- _ ] =>
@@ -260,72 +77,19 @@ Proof.
     repeat match goal with
     | [ H : Nth _ _ _ |- _ ] => apply Nth_spec in H; try rewrite H in *
     end.
-    repeat split; congruence.
-  - inversion H''; subst.
-    + repeat match goal with
-      | [ H : Lookup _ _ _ |- _ ] =>
-        apply Lookup_spec in H; try assumption
-      end.
-      repeat split; congruence.
-    + match goal with
-      | [ H : red (Val _) _ _ _ |- _ ] => inversion H
-      end.
-  - inversion H''; subst.
-    + match goal with
-      | [ H  : L[ vals2exprs _ ~~> vals2exprs _ | ?e | _ ],
-          HR : R[ ?e, _ ~~> _, _] |- _ ] =>
-        unfold vals2exprs in H; apply SplitAt_spec_eq in H;
-        apply List.map_eq_app in H; destruct H as [? [? [_ [_ H]]]];
-        simpl in H; apply List.map_eq_cons in H;
-        destruct H as [? [? [_ [H _]]]];
-        subst; inversion HR
-      end.
-    + edestruct SplitAt_deterministic with (y := e) (y' := e0) as [? [? ?]];
-        eauto;
-        try match goal with
-        | [|- ~ List.In _ _] =>
-          intros Hin; apply in_vals2expr in Hin as [? ?]; subst
-        end;
-        try match goal with
-        | [ H : red (Val _) _ _ _ |- _ ] => inversion H
-        end.
-      subst.
-      match goal with
-      | [H : vals2exprs _ = vals2exprs _ |- _] =>
-        rewrite H2 in *
-      end.
-      match goal with
-      | [ Hvalid : Is_Valid_Map _,
-          Hred : red _ _ _ _
-          |- _] =>
-        destruct (IHH' Hvalid _ _ Hred) as [? [? ?]]
-      end.
-      repeat match goal with
-      | [H : SplitAt ?es1 _ _ _ |- _ ] => apply SplitAt_spec_eq in H
-      end.
-      subst. auto.
-Qed.
+    split; congruence.
+  - inversion H''.
+Admitted.
 
 (*
-Lemma no_red_val (V : Set) (e e' : Expr V) (m m' : Map V) :
-  C[e, m ~~> e', m' | 0] ->
-  (exists v : Value V, e = v)
-  /\ e = e' /\ m = m'.
-Proof.
-  inversion 1.
-Abort.
-
-Theorem uniqueness_full (V : Set)
+Lemma uniqueness_full (V : Set)
   (e e' e'' : Expr V) (m m' m'' : Map V) (c' c'' : nat) :
   cost_red e m e' m' c' ->
   cost_red e m e'' m'' c'' ->
   e' = e'' /\ m' = m'' /\ c' = c''.
 Proof.
-  intros Hred1 Hred2. induction Hred1.
-  - inversion Hred2.
-    + auto.
-    + subst.
-Qed.
+  intros H' H''.
+Admitted.
 *)
 
 Theorem cost_red_comp :
