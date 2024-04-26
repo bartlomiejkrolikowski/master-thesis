@@ -148,6 +148,18 @@ Proof.
     + auto.
 Qed.
 
+Lemma Lookup_spec_eq (V : Set) (l : Label) (m : Map V) v :
+  lookup l m = Some v ->
+  Lookup l m v.
+Proof.
+  destruct l as [n]. intros Hlookup.
+  induction m as [| [[n'] v'] m' IH].
+  - discriminate.
+  - simpl in *. destruct Nat.eqb_spec with n n'.
+    + injection Hlookup as []. subst. constructor 1.
+    + constructor 2. auto.
+Qed.
+
 Lemma Assignment_success (V : Set) (l : Label) v (m m' : Map V) :
   Assignment l v m m' -> List.In l (labels m).
 Proof.
@@ -165,6 +177,29 @@ Proof.
     + f_equal. destruct Hin as [Heq | Hin].
       * congruence.
       * auto.
+Qed.
+
+Lemma lookup_same (V : Set) (l : Label) v (m : Map V) :
+  lookup l (update l v m) = Some v.
+Proof.
+  destruct l as [n]. induction m as [| [[n'] v'] m' IH]; simpl.
+  - now rewrite Nat.eqb_refl.
+  - destruct Nat.eqb_spec with n n'; simpl.
+    + apply Nat.eqb_eq in e. now rewrite e.
+    + apply Nat.eqb_neq in n0. now rewrite n0.
+Qed.
+
+Lemma Lookup_update (V : Set) (l l' : Label) v v' (m : Map V) :
+  l <> l' ->
+  Lookup l m v ->
+  Lookup l (update l' v' m) v.
+Proof.
+  destruct l as [n], l' as [n']. intros Hneq Hlookup.
+  induction Hlookup as [| [[n''] v''] m' v Hlookup' IH ]; simpl.
+  - destruct Nat.eqb_spec with n' n.
+    + congruence.
+    + constructor.
+  - destruct Nat.eqb; constructor; auto.
 Qed.
 
 Lemma valid_labels (V : Set) (m m' : Map V) :
