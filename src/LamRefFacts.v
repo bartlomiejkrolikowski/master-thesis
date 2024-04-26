@@ -306,27 +306,30 @@ Proof.
       subst. auto.
 Qed.
 
-(*
 Lemma no_red_val (V : Set) (e e' : Expr V) (m m' : Map V) :
   C[e, m ~~> e', m' | 0] ->
-  (exists v : Value V, e = v)
-  /\ e = e' /\ m = m'.
+  e = e' /\ m = m'.
 Proof.
-  inversion 1.
-Abort.
-
-Theorem uniqueness_full (V : Set)
-  (e e' e'' : Expr V) (m m' m'' : Map V) (c' c'' : nat) :
-  cost_red e m e' m' c' ->
-  cost_red e m e'' m'' c'' ->
-  e' = e'' /\ m' = m'' /\ c' = c''.
-Proof.
-  intros Hred1 Hred2. induction Hred1.
-  - inversion Hred2.
-    + auto.
-    + subst.
+  inversion 1. auto.
 Qed.
-*)
+
+(* TODO *)
+Fixpoint uniqueness_full (V : Set)
+  (e : Expr V) (v1 v2 : Value V) (m m1 m2 : Map V) (c1 c2 : nat)
+  (Hvalid : Is_Valid_Map m)
+  (Hred1 : C[e, m ~~> v1, m1 | c1])
+  (Hred2 : C[e, m ~~> v2, m2 | c2])
+  : v1 = v2 /\ m1 = m2 /\ Is_Valid_Map m1.
+Proof.
+  inversion Hred1.
+  - clear uniqueness_full. inversion Hred2; subst.
+    + injection H2. auto.
+    + inversion H2.
+  - inversion Hred2; subst.
+    + inversion H.
+    + destruct (uniqueness _ _ _ _ _ _ _ Hvalid H H4) as [He' [Hm' Hvalid']].
+      subst. apply (uniqueness_full _ _ _ _ _ _ _ _ _ Hvalid' H0 H5).
+Qed.
 
 Theorem cost_red_comp :
   forall V (e : _ V) m e' m' c e'' m'' c',
