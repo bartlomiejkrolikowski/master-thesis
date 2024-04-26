@@ -253,6 +253,20 @@ Proof.
   induction vs; simpl; intros H; destruct H; eauto.
 Qed.
 
+(*Theorem extend_state (V : Set)
+  (e e' : Expr V) (m m' : Map V) :
+  red e nil e' m' ->
+  red e m e' (m' ++ m)%list.
+Proof.
+  induction 1; simpl; try constructor.
+(**  - eapply red_lam. econstructor.*)
+Admitted.
+*)
+Ltac discriminate_red_Val :=
+  match goal with
+  | [ H : red (Val _) _ _ _ |- _ ] => inversion H
+  end.
+
 (* uniqueness of reduction results *)
 Theorem uniqueness (V : Set)
   (e e' e'' : Expr V) (m m' m'' : Map V) :
@@ -274,9 +288,7 @@ Proof.
         repeat split; congruence
     end);
     try (inversion H''; subst;
-      try match goal with
-      | [ H : red (Val _) _ _ _ |- _ ] => inversion H
-      end;
+      try discriminate_red_Val;
       edestruct IHH' as [He1 [Hm' Hvalid]]; eauto;
       subst; easy).
   - inversion H'';
@@ -302,9 +314,7 @@ Proof.
         apply Lookup_spec in H; try assumption
       end.
       repeat split; congruence.
-    + match goal with
-      | [ H : red (Val _) _ _ _ |- _ ] => inversion H
-      end.
+    + discriminate_red_Val.
   - inversion H''; subst.
     + match goal with
       | [ H  : L[ vals2exprs _ ~~> vals2exprs _ | ?e | _ ],
@@ -321,9 +331,7 @@ Proof.
         | [|- ~ List.In _ _] =>
           intros Hin; apply in_vals2expr in Hin as [? ?]; subst
         end;
-        try match goal with
-        | [ H : red (Val _) _ _ _ |- _ ] => inversion H
-        end.
+        try discriminate_red_Val.
       subst.
       match goal with
       | [H : vals2exprs _ = vals2exprs _ |- _] =>
@@ -573,27 +581,85 @@ Proof.
   all: right; discriminate.
 Qed.
 
+(* reductions from last to first *)
+Lemma cost_red_last :
+  forall V (e : _ V) m e' m' e'' m'' c,
+    C[e, m ~~> e', m' | c] ->
+    R[e', m' ~~> e'', m''] ->
+    C[e, m ~~> e'', m'' | S c].
+Proof with eauto.
+  intros V e m e' m' e'' m'' c Hcost_red Hred. induction Hcost_red.
+  - repeat econstructor...
+  - econstructor...
+Qed.
+
 (* inversions of lemmas above *)
 Lemma cost_red_split1 :
-  forall V (e : _ V) m e' m' c e'' m'' c',
+  forall V (e : _ V) m e' m' e'' m'' c,
+    Is_Valid_Map m ->
     R[e, m ~~> e', m'] ->
-    C[e, m ~~> e'', m'' | c + c'] ->
-    C[e', m' ~~> e'', m'' | c'].
+    C[e, m ~~> e'', m'' | S c] ->
+    C[e', m' ~~> e'', m'' | c].
 Proof.
-  intros V e m e' m' c e'' m'' c' Hred. (* TODO *)
-Abort.
+  intros V e m e' m' e'' m'' c Hvalid Hred Hcost_red.
+  inversion Hcost_red.
+  match goal with
+  | [ Hred1 : red _ _ _ _,
+      Hred2 : red _ _ _ _
+      |- _ ] =>
+    destruct (uniqueness _ _ _ _ _ _ _ Hvalid Hred1 Hred2) as [He' [Hm' Hvalid']]
+  end.
+  subst. auto.
+Qed.
+
+Lemma cost_red_split1_exists :
+  forall V (e : _ V) m e' m' (v : Value V) m'' c,
+    Is_Valid_Map m ->
+    R[e, m ~~> e', m'] ->
+    C[e, m ~~> v, m'' | c] ->
+    exists c', C[e', m' ~~> v, m'' | c'].
+Proof.
+  intros V e m e' m' v m'' c Hvalid Hred Hcost_red.
+  inversion Hcost_red; subst; try discriminate_red_Val.
+  match goal with
+  | [ Hred1 : red _ _ _ _,
+      Hred2 : red _ _ _ _
+      |- _ ] =>
+    destruct (uniqueness _ _ _ _ _ _ _ Hvalid Hred1 Hred2) as [He' [Hm' Hvalid']]
+  end.
+  subst. eauto.
+Qed.
 
 Theorem cost_red_split :
   forall V (e : _ V) m e' m' c e'' m'' c',
+    Is_Valid_Map m ->
     C[e, m ~~> e', m' | c] ->
     C[e, m ~~> e'', m'' | c + c'] ->
     C[e', m' ~~> e'', m'' | c'].
 Proof.
-  intros V e m e' m' c e'' m'' c' Hred1.
+  intros V e m e' m' c e'' m'' c' Hvalid Hred1.
   induction Hred1 as [| ? ? ? ? e''' ? m''' HR ? ? ].
   - easy.
-  - simpl. intro HredComp. apply IHHred1. (* TODO *)
-Abort.
+  - simpl. intro HredComp. apply IHHred1. eapply uniqueness; eauto.
+    eapply cost_red_split1; eauto.
+Qed.
+
+Theorem cost_red_split_exists :
+  forall V (e : _ V) m e' m' c (v : Value V) m'' c',
+    Is_Valid_Map m ->
+    C[e, m ~~> e', m' | c] ->
+    C[e, m ~~> v, m'' | c'] ->
+    exists c'', C[e', m' ~~> v, m'' | c''].
+Proof.
+  intros V e m e' m' c v m'' c' Hvalid Hred1.
+  generalize dependent c'.
+  induction Hred1 as [| ? ? ? ? e''' ? m''' HR ? ? ].
+  - eauto.
+  - simpl. intros c' HredComp. inversion HredComp; subst.
+    + discriminate_red_Val.
+    + eapply IHHred1. eapply uniqueness; eauto.
+      eapply cost_red_split1; eauto.
+Qed.
 
 Theorem cost_red_app1_inv :
   forall V (m : _ V) m' e1 e1' e2 c,

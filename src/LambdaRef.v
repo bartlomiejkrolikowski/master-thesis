@@ -607,6 +607,17 @@ Notation "'[let' x ']' e1 '[in]' e2 [end]" :=
 
 
 (* ------------------------LEMMAS-------------------------------------*)
+(*Fixpoint bind_shift_v (A : Set) x (a : _ A) :
+  bind_v (inc_fun Var x) (shift_v a) = a
+with bind_shift_e (A : Set) x (a : _ A) :
+  bind_e (inc_fun Var x) (shift_e a) = a.
+Proof.
+  - destruct a; simpl; try reflexivity.
+    + f_equal. induction l; simpl.
+      * reflexivity.
+      * f_equal; eauto.
+    + f_equal. Print liftS. eapply bind_shift_e.
+*)
 
 (*(* reordering in context *)
 Lemma reordering (V : Set) (G : env V) (e : Expr _) (t t' t'' : type) :
@@ -620,7 +631,6 @@ Proof.
   intro H. induction H.
   - econstructor.
 Qed.
-*)
 (* weakening lemma *)
 Lemma weakening (V : Set) (G : env V) (e : Expr V) (t t' : type) :
   T[ G |- e ::: t ] ->
@@ -628,31 +638,4 @@ Lemma weakening (V : Set) (G : env V) (e : Expr V) (t t' : type) :
 Proof.
   intro H. induction H; cbn; econstructor; try eassumption.
 Abort.
-
-(*
-(* uniqueness of reduction results *)
-Lemma uniqueness (V : Set)
-  (e e' e'' : Expr V) (m m' m'' : Map V) :
-  red e m e' m' ->
-  red e m e'' m'' ->
-  e' = e'' /\ m' = m''.
-Proof.
-  intro H'. revert e'' m''. induction H'; intros e'' m'' H''.
-  - inversion H''; [ easy | | ];
-    match goal with
-    | [ H : red (Val _) _ _ _ |- _ ] => inversion H
-    end.
-  - inversion H''.
-    (* TODO *)
-Admitted.
-
-Lemma uniqueness_full (V : Set)
-  (e e' e'' : Expr V) (m m' m'' : Map V) (c' c'' : nat) :
-  cost_red e m e' m' c' ->
-  cost_red e m e'' m'' c'' ->
-  e' = e'' /\ m' = m'' /\ c' = c''.
-Proof.
-  intros H' H''.
-Admitted.
 *)
-
