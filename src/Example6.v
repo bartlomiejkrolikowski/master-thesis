@@ -71,6 +71,7 @@ Proof with auto.
       * eassumption.
 Qed.
 
+(* goal 1 *)
 Lemma v_of_list_is_list :
   forall (A : Set) xs (v : Value A) (m : Map A),
     v_of_list xs = (v, m) ->
@@ -83,4 +84,42 @@ Proof.
     econstructor.
     + apply Lookup_spec_eq. apply lookup_same.
     + apply is_list_update; auto. apply new_label_is_fresh.
+Qed.
+
+Lemma is_list_cons_map (A : Set) (v : Value A) (m : Map A) l v' :
+  Is_fresh_label l m ->
+  is_list v m ->
+  is_list v ((l, v') :: m)%list.
+Proof with auto.
+  intros Hfresh His_list. induction His_list.
+  - constructor.
+  - econstructor...
+    + constructor...
+Qed.
+
+(* goal 2 *)
+Lemma f_cons_is_list :
+  forall (v vl vl' : Value _) (m m' : Map _) c,
+    C[f_cons <* v <* (Ref vl), m ~~> vl', m' | c] ->
+    is_list vl m ->
+    is_list vl' m'.
+Proof.
+  intros v vl vl' m m' c Hred. (*remember (f_cons <* v <* vl) as e eqn:He.*)
+  repeat match goal with
+  | [Hred : cost_red _ _ _ _ _ |- _] =>
+    inversion Hred;
+    repeat match goal with
+    | [H : red _ _ _ _ |- _] => inversion H; subst; clear H
+    end;
+    cbn in *;
+    clear Hred
+  end.
+  intro His_list.
+  fold
+    (v_cons
+      (bind_v (inc_fun Var (Lab (new_label m'0))) (shift_v v))
+      (new_label m'0)).
+  econstructor.
+  - constructor 1.
+  - auto using is_list_cons_map, new_label_is_fresh.
 Qed.
