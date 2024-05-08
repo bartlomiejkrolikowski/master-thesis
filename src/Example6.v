@@ -167,13 +167,13 @@ Proof.
     as Hred''''''.
   { subst. econstructor 2; repeat econstructor. }
   assert (Is_Valid_Map m') as Hvalid'.
-  { edestruct uniqueness_full as [? [? ?]].
+  { edestruct uniqueness_full as [? [? [? ?]]].
     + eassumption.
     + apply Hred1.
     + eassumption.
     + assumption. }
   assert (Is_Valid_Map m'') as Hvalid''.
-  { edestruct uniqueness_full as [? [? ?]].
+  { edestruct uniqueness_full as [? [? [? ?]]].
     + eassumption.
     + apply Hred2.
     + eassumption.
@@ -198,13 +198,13 @@ Proof.
   intros e el l v vl vl' m m' m'' m''' m'''' c c' c'' c'''
     Hvalid Hred Hred1 Hred2 Hred3 His_list.
   assert (Is_Valid_Map m') as Hvalid'.
-  { edestruct uniqueness_full as [? [? ?]].
+  { edestruct uniqueness_full as [? [? [? ?]]].
     + eassumption.
     + apply Hred.
     + eassumption.
     + assumption. }
   assert (Is_Valid_Map m'') as Hvalid''.
-  { edestruct uniqueness_full as [? [? ?]].
+  { edestruct uniqueness_full as [? [? [? ?]]].
     + eassumption.
     + apply Hred1.
     + eassumption.
@@ -275,10 +275,11 @@ Proof.
   intros xs v m m' c Hvalid Hred.
   destruct (v_of_list xs) eqn:Hxs.
   destruct e_of_list_v_of_list with xs v0 m0. specialize (H Hxs).
+(*
   eapply extend_state in H.
   - inversion Hred; [constructor | discriminate_red_Val].
   - eapply f_cons_red_to_list.
-(*
+
   induction xs; simpl; intros v m m' c Hvalid Hred.
   - inversion Hred; [constructor | discriminate_red_Val].
   - eapply f_cons_red_to_list.

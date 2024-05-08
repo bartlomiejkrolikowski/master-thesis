@@ -202,6 +202,43 @@ Proof.
   - destruct Nat.eqb; constructor; auto.
 Qed.
 
+Lemma lookup_fresh (V : Set) (l : Label) (m : Map V) :
+  Is_fresh_label l m ->
+  lookup l m = None.
+Proof.
+  unfold Is_fresh_label. destruct l as [n].
+  induction m as [| [[n'] v] m' IHm']; simpl.
+  - reflexivity.
+  - intros Hfresh. destruct Nat.eqb_spec with n n'; subst.
+    + exfalso. auto.
+    + auto.
+Qed.
+
+Lemma lookup_None (V : Set) (l : Label) (m : Map V) :
+  lookup l m = None ->
+  Is_fresh_label l m.
+Proof.
+  unfold Is_fresh_label, not. destruct l as [n].
+  induction m as [| [[n'] v] m' IHm']; simpl.
+  - auto.
+  - intros HNone. destruct Nat.eqb_spec with n n'; subst.
+    + discriminate.
+    + intros [Heq | Hin]; [injection Heq |]; auto.
+Qed.
+
+Lemma lookup_fresh_equiv (V : Set) (l : Label) (m : Map V) :
+  Is_fresh_label l m <-> lookup l m = None.
+Proof. split; auto using lookup_fresh, lookup_None. Qed.
+
+Lemma lookup_not_fresh (V : Set) (l : Label) (m : Map V) :
+  ~ Is_fresh_label l m ->
+  exists v : Value V, lookup l m = Some v.
+Proof.
+  rewrite lookup_fresh_equiv. destruct lookup.
+  - eauto.
+  - contradiction.
+Qed.
+
 Lemma valid_labels (V : Set) (m m' : Map V) :
   labels m = labels m' ->
   Is_Valid_Map m ->
@@ -252,16 +289,194 @@ Lemma in_vals2expr (V : Set) (e : Expr V) vs :
 Proof.
   induction vs; simpl; intros H; destruct H; eauto.
 Qed.
+(*
+Inductive equiv_v :
+  forall {V : Set}, Map V -> Map V -> Value V -> Value V -> Prop :=
+| equiv_U_val V m m'  : @equiv_v V m m' U_val U_val
+| equiv_Var V m m' v  : @equiv_v V m m' (Var v) (Var v)
+| equiv_Int V m m' i  : @equiv_v V m m' (Int i) (Int i)
+| equiv_Bool V m m' b : @equiv_v V m m' (Bool b) (Bool b)
+| equiv_LabNone V m m' l l' :
+  Is_fresh_label l m ->
+  Is_fresh_label l' m' ->
+  @equiv_v V m m' (Lab l) (Lab l')
+| equiv_LabSome V m m' l l' v v' :
+  Lookup l m v ->
+  Lookup l' m' v' ->
+  @equiv_v V m m' v v' ->
+  @equiv_v V m m' (Lab l) (Lab l')
+| equiv_RecV V m m' vs vs' :
+  List.Forall2 (@equiv_v V m m') vs vs' ->
+  @equiv_v V m m' (RecV vs) (RecV vs')
+| equiv_Lam V m m' e e' :
+  @equiv_e (inc_set V)
+    (List.map (fun '(l, v) => (l, shift_v v)) m)
+    (List.map (fun '(l, v) => (l, shift_v v)) m')
+    e e' ->
+  @equiv_v V m m' (Lam e) (Lam e')
+with equiv_e :
+  forall {V : Set}, Map V -> Map V -> Expr V -> Expr V -> Prop :=
+| equiv_Val V m m' v v' :
+  @equiv_v V m m' v v' ->
+  @equiv_e V m m' (Val v) (Val v')
+| equiv_App V m m' e1 e2 e1' e2' :
+  @equiv_e V m m' e1 e1' ->
+  @equiv_e V m m' e2 e2' ->
+  @equiv_e V m m' (App e1 e2) (App e1' e2')
+| equiv_UnOp V m m' k e e' :
+  @equiv_e V m m' e e' ->
+  @equiv_e V m m' (UnOp k e) (UnOp k e')
+| equiv_BinOp V m m' k e1 e2 e1' e2' :
+  @equiv_e V m m' e1 e1' ->
+  @equiv_e V m m' e2 e2' ->
+  @equiv_e V m m' (BinOp k e1 e2) (BinOp k e1' e2')
+| equiv_RecE V m m' es es' :
+  List.Forall2 (@equiv_e V m m') es es' ->
+  @equiv_e V m m' (RecE es) (RecE es')
+| equiv_Get V m m' n e e' :
+  @equiv_e V m m' e e' ->
+  @equiv_e V m m' (Get n e) (Get n e')
+| equiv_Ref V m m' e e' :
+  @equiv_e V m m' e e' ->
+  @equiv_e V m m' (Ref e) (Ref e')
+| equiv_Deref V m m' e e' :
+  @equiv_e V m m' e e' ->
+  @equiv_e V m m' (Deref e) (Deref e')
+| equiv_Assign V m m' e1 e2 e1' e2' :
+  @equiv_e V m m' e1 e1' ->
+  @equiv_e V m m' e2 e2' ->
+  @equiv_e V m m' (Assign e1 e2) (Assign e1' e2')
+| equiv_Seq V m m' e1 e2 e1' e2' :
+  @equiv_e V m m' e1 e1' ->
+  @equiv_e V m m' e2 e2' ->
+  @equiv_e V m m' (Seq e1 e2) (Seq e1' e2')
+| equiv_If V m m' e1 e2 e3 e1' e2' e3' :
+  @equiv_e V m m' e1 e1' ->
+  @equiv_e V m m' e2 e2' ->
+  @equiv_e V m m' e3 e3' ->
+  @equiv_e V m m' (If e1 e2 e3) (If e1' e2' e3')
+| equiv_While V m m' e1 e2 e1' e2' :
+  @equiv_e V m m' e1 e1' ->
+  @equiv_e V m m' e2 e2' ->
+  @equiv_e V m m' (While e1 e2) (While e1' e2')
+.
 
-(*Theorem extend_state (V : Set)
+Lemma is_fresh_label_decidable (V : Set) (l : Label) (m : Map V) :
+  Is_fresh_label l m \/ ~ Is_fresh_label l m.
+Proof.
+  unfold Is_fresh_label, not. destruct l as [n].
+  induction m as [| [[n'] v'] m' [IHm' | IHm']]; simpl; auto.
+  destruct Nat.eq_dec with n n'; subst; auto.
+  left. intuition.
+  match goal with [H:OfNat _ = OfNat _ |- _] => injection H end.
+  auto.
+Qed.
+
+Fixpoint equiv_v_refl_empty {V : Set} (v : Value V) {struct v} :
+  equiv_v nil nil v v
+with equiv_e_refl_empty {V : Set} (e : Expr V) {struct e} :
+  equiv_e nil nil e e.
+Proof.
+  - destruct v; constructor; unfold Is_fresh_label; simpl; auto.
+    revert l. fix Hall 1.
+    destruct l; constructor; auto.
+  - destruct e; constructor; unfold Is_fresh_label; simpl; auto.
+    revert l. fix Hall 1.
+    destruct l; constructor; auto.
+Qed.
+
+Fixpoint equiv_v_refl_cons {V : Set}
+  (p : Label * Value V) (m : Map V) (v : Value V)
+  (Hequiv : equiv_v m m v v) {struct Hequiv} :
+  equiv_v (p::m)%list (p::m)%list v v
+with equiv_e_refl_cons {V : Set}
+  (p : Label * Value V) (m : Map V) (e : Expr V)
+  (Hequiv : equiv_e m m e e) {struct Hequiv} :
+  equiv_e (p::m)%list (p::m)%list e e.
+Proof.
+  - destruct p as [[n''] v''].
+    destruct Hequiv.
+    + constructor.
+    + constructor.
+    + constructor.
+    + constructor.
+    + destruct l as [n], l' as [n'].
+      destruct Nat.eq_dec with n n'', Nat.eq_dec with n' n''; subst.
+      * (*TODO*) constructor.
+     destruct is_fresh_label_decidable with V l (m). constructor.
+    ; constructor; unfold Is_fresh_label in *; simpl; auto.
+    revert l. fix Hall 1.
+    destruct l; constructor; auto.
+  - destruct e; constructor; unfold Is_fresh_label; simpl; auto.
+    revert l. fix Hall 1.
+    destruct l; constructor; auto.
+Qed.
+
+Theorem equiv_v_refl {V : Set} (m : Map V) :
+  (forall (v : Value V), equiv_v m m v v)
+  /\ (forall (e : Expr V), equiv_e m m e e).
+Proof.
+  induction m as [| ? ? [IHm_v IHm_e]].
+  - split.
+    + apply equiv_v_refl_empty.
+    + apply equiv_e_refl_empty.
+  - split.
+    + destruct v.
+  5:{ destruct is_fresh_label_decidable with (l := l) (m := (a::m)%list).
+    - apply equiv_LabNone; auto.
+    - apply lookup_not_fresh in H as [v H].
+      eapply equiv_LabSome; eauto using Lookup_spec_eq.
+  }
+    + apply equiv_e_refl_empty.
+Qed.
+
+(*
+Fixpoint equiv_v_refl_in {V : Set}
+  (l : Label) (m : Map V) (v : Value V) {struct v} :
+  Lookup l m v ->
+  equiv_v m m v v.
+Proof.
+  destruct v.
+  - constructor.
+  - constructor.
+  - constructor.
+  - constructor.
+  - admit.
+  - constructor.
+    generalize dependent l0. fix Hall 1.
+    destruct l0; constructor.
+    + inversion H; subst. eapply equiv_v_refl_in. auto.
+*)
+Fixpoint equiv_v_refl {V : Set} (m : Map V) (v : Value V) {struct v} :
+  equiv_v m m v v
+with equiv_e_refl {V : Set} (m : Map V) (e : Expr V) {struct e} :
+  equiv_e m m e e.
+Proof.
+  - destruct v.
+  5:{ destruct is_fresh_label_decidable with (l := l) (m := m).
+    - apply equiv_LabNone; auto.
+    - apply lookup_not_fresh in H as [v H].
+      eapply equiv_LabSome; eauto using Lookup_spec_eq.
+  }
+  all: constructor; auto.
+    revert l. fix Hall 1.
+    destruct l; constructor; auto.
+  - destruct e; try constructor; auto.
+    revert l. fix Hall 1.
+    destruct l; constructor; auto.
+Qed.
+
+Theorem extend_state (V : Set)
   (e e' : Expr V) (m m' : Map V) :
   red e nil e' m' ->
   red e m e' (m' ++ m)%list.
 Proof.
-  induction 1; simpl; try constructor.
-(**  - eapply red_lam. econstructor.*)
+  intros Hred. remember []%list as m0 eqn:Hm0.
+  induction Hred; simpl; subst; try constructor; eauto; try now inversion H.
+  2:{ eapply red_rec_split; eauto. }
 Admitted.
 *)
+
 Ltac discriminate_red_Val :=
   match goal with
   | [ H : red (Val _) _ _ _ |- _ ] => inversion H
