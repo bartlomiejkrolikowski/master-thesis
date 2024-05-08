@@ -339,22 +339,24 @@ Proof.
   inversion 1. auto.
 Qed.
 
-(* TODO *)
 Fixpoint uniqueness_full (V : Set)
   (e : Expr V) (v1 v2 : Value V) (m m1 m2 : Map V) (c1 c2 : nat)
   (Hvalid : Is_Valid_Map m)
   (Hred1 : C[e, m ~~> v1, m1 | c1])
   (Hred2 : C[e, m ~~> v2, m2 | c2])
-  : v1 = v2 /\ m1 = m2 /\ Is_Valid_Map m1.
+  : v1 = v2 /\ m1 = m2 /\ c1 = c2 /\ Is_Valid_Map m1.
 Proof.
-  inversion Hred1.
+  remember (Val v1) as e1 eqn:He1. destruct Hred1.
   - clear uniqueness_full. inversion Hred2; subst.
-    + injection H2. auto.
-    + inversion H2.
+    + injection H. auto.
+    + inversion H.
   - inversion Hred2; subst.
     + inversion H.
-    + destruct (uniqueness _ _ _ _ _ _ _ Hvalid H H4) as [He' [Hm' Hvalid']].
-      subst. apply (uniqueness_full _ _ _ _ _ _ _ _ _ Hvalid' H0 H5).
+    + destruct (uniqueness _ _ _ _ _ _ _ Hvalid H H0) as [He' [Hm' Hvalid']].
+      subst.
+      destruct (uniqueness_full _ _ _ _ _ _ _ _ _ Hvalid' Hred1 H1)
+        as [? [? [? ?]]].
+      auto.
 Qed.
 
 Theorem cost_red_comp :
