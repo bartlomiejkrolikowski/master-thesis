@@ -287,66 +287,49 @@ Proof.
         apply Assignment_spec in H' as [? ?]; [|assumption];
         repeat split; congruence
     end);
-    try (inversion H''; subst;
-      try discriminate_red_Val;
+    inversion H''; subst;
+    try (try discriminate_red_Val;
       edestruct IHH' as [He1 [Hm' Hvalid]]; eauto;
-      subst; easy).
-  - inversion H'';
-      match goal with
-      | [ H : vals2exprs _ = vals2exprs _ |- _ ] =>
-        apply vals2exprs_inj in H; subst; easy
-      | [ H  : L[ vals2exprs _ ~~> vals2exprs _ | ?e | _ ],
-          HR : R[ ?e, _ ~~> _, _] |- _ ] =>
-        unfold vals2exprs in H; apply SplitAt_spec_eq in H;
-        apply List.map_eq_app in H; destruct H as [? [? [_ [_ H]]]];
-        simpl in H; apply List.map_eq_cons in H;
-        destruct H as [? [? [_ [H _]]]];
-        subst; inversion HR
-      end.
-  - inversion H''.
+      subst; easy);
+    try match goal with
+    | [ H : vals2exprs _ = vals2exprs _ |- _ ] =>
+      apply vals2exprs_inj in H; subst; easy
+    | [ H  : L[ vals2exprs _ ~~> vals2exprs _ | ?e | _ ],
+        HR : R[ ?e, _ ~~> _, _] |- _ ] =>
+      unfold vals2exprs in H; apply SplitAt_spec_eq in H;
+      apply List.map_eq_app in H; destruct H as [? [? [_ [_ H]]]];
+      simpl in H; apply List.map_eq_cons in H;
+      destruct H as [? [? [_ [H _]]]];
+      subst; inversion HR
+    end;
     repeat match goal with
     | [ H : Nth _ _ _ |- _ ] => apply Nth_spec in H; try rewrite H in *
+    | [ H : Lookup _ _ _ |- _ ] =>
+      apply Lookup_spec in H; try assumption
+    end;
+    try (repeat split; congruence).
+  - edestruct SplitAt_deterministic with (y := e) (y' := e0) as [? [? ?]];
+      eauto;
+      try match goal with
+      | [|- ~ List.In _ _] =>
+        intros Hin; apply in_vals2expr in Hin as [? ?]; subst
+      end;
+      try discriminate_red_Val.
+    subst.
+    match goal with
+    | [H : vals2exprs _ = vals2exprs _ |- _] =>
+      rewrite H2 in *
     end.
-    repeat split; congruence.
-  - inversion H''; subst.
-    + repeat match goal with
-      | [ H : Lookup _ _ _ |- _ ] =>
-        apply Lookup_spec in H; try assumption
-      end.
-      repeat split; congruence.
-    + discriminate_red_Val.
-  - inversion H''; subst.
-    + match goal with
-      | [ H  : L[ vals2exprs _ ~~> vals2exprs _ | ?e | _ ],
-          HR : R[ ?e, _ ~~> _, _] |- _ ] =>
-        unfold vals2exprs in H; apply SplitAt_spec_eq in H;
-        apply List.map_eq_app in H; destruct H as [? [? [_ [_ H]]]];
-        simpl in H; apply List.map_eq_cons in H;
-        destruct H as [? [? [_ [H _]]]];
-        subst; inversion HR
-      end.
-    + edestruct SplitAt_deterministic with (y := e) (y' := e0) as [? [? ?]];
-        eauto;
-        try match goal with
-        | [|- ~ List.In _ _] =>
-          intros Hin; apply in_vals2expr in Hin as [? ?]; subst
-        end;
-        try discriminate_red_Val.
-      subst.
-      match goal with
-      | [H : vals2exprs _ = vals2exprs _ |- _] =>
-        rewrite H2 in *
-      end.
-      match goal with
-      | [ Hvalid : Is_Valid_Map _,
-          Hred : red _ _ _ _
-          |- _] =>
-        destruct (IHH' Hvalid _ _ Hred) as [? [? ?]]
-      end.
-      repeat match goal with
-      | [H : SplitAt ?es1 _ _ _ |- _ ] => apply SplitAt_spec_eq in H
-      end.
-      subst. auto.
+    match goal with
+    | [ Hvalid : Is_Valid_Map _,
+        Hred : red _ _ _ _
+        |- _] =>
+      destruct (IHH' Hvalid _ _ Hred) as [? [? ?]]
+    end.
+    repeat match goal with
+    | [H : SplitAt ?es1 _ _ _ |- _ ] => apply SplitAt_spec_eq in H
+    end.
+    subst. auto.
 Qed.
 
 Lemma no_red_val (V : Set) (e e' : Expr V) (m m' : Map V) :
