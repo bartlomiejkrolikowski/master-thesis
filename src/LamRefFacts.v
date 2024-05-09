@@ -19,6 +19,12 @@ Proof.
   destruct x; simpl; intro Hext; [f_equal|]; auto.
 Qed.
 
+Fact liftS_Var V (x : inc_set V) :
+  liftS Var x = Var x.
+Proof.
+  destruct x; reflexivity.
+Qed.
+
 Fixpoint bind_v_ext (V V' : Set) (f g : V -> Value V') v {struct v} :
   (forall x, f x = g x) ->
   bind_v f v = bind_v g v
@@ -58,6 +64,18 @@ Proof.
       * apply bind_e_map_e.
       * destruct x; reflexivity.
   - destruct e; simpl; f_equal; eauto. unfold shift_e in *.
+    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Fixpoint bind_v_id (V : Set) (v : Value V) {struct v} :
+  bind_v Var v = v
+with bind_e_id (V : Set) (e : Expr V) {struct e} :
+  bind_e Var e = e.
+Proof.
+  - destruct v; simpl; trivial; f_equal.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + erewrite bind_e_ext; auto using liftS_Var.
+  - destruct e; simpl; f_equal; auto.
     revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
 Qed.
 

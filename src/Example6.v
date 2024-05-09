@@ -48,7 +48,7 @@ Inductive is_list {A : Set} : Value A -> StateAssertion A :=
 
 Definition v_of_list {A : Set} (xs : list (Value A)) : Value A * Map A :=
   List.fold_right
-    (fun x '(v, m) => let l := new_label m in (v_cons x l, update l v m))
+    (fun x '(v, m) => let l := new_label m in (v_cons x l, cons (l, v) m))
     (v_nil, nil)
     xs.
 
@@ -71,6 +71,17 @@ Proof with auto.
       * eassumption.
 Qed.
 
+Lemma is_list_cons_map (A : Set) (v : Value A) (m : Map A) l v' :
+  Is_fresh_label l m ->
+  is_list v m ->
+  is_list v ((l, v') :: m)%list.
+Proof with auto.
+  intros Hfresh His_list. induction His_list.
+  - constructor.
+  - econstructor...
+    + constructor...
+Qed.
+
 (* goal 1 *)
 Lemma v_of_list_is_list :
   forall (A : Set) xs (v : Value A) (m : Map A),
@@ -82,19 +93,8 @@ Proof.
   - injection Heq as [] []. constructor.
   - destruct v_of_list. injection Heq as [] [].
     econstructor.
-    + apply Lookup_spec_eq. apply lookup_same.
-    + apply is_list_update; auto. apply new_label_is_fresh.
-Qed.
-
-Lemma is_list_cons_map (A : Set) (v : Value A) (m : Map A) l v' :
-  Is_fresh_label l m ->
-  is_list v m ->
-  is_list v ((l, v') :: m)%list.
-Proof with auto.
-  intros Hfresh His_list. induction His_list.
-  - constructor.
-  - econstructor...
-    + constructor...
+    + apply Lookup_spec_eq. simpl. rewrite Nat.eqb_refl. reflexivity.
+    + apply is_list_cons_map; auto. apply new_label_is_fresh.
 Qed.
 
 (* goal 2 *)
@@ -262,8 +262,9 @@ Proof.
         -- eapply red_app2. econstructor. reflexivity.
         -- econstructor 2.
           ++ econstructor.
-          ++ cbn. unfold v_cons. admit. (* econstructor 1.*)
-Admitted.
+          ++ cbn. unfold v_cons. rewrite bind_v_shift, bind_v_id.
+            econstructor.
+Qed.
 
 (* goal 4 *)
 Lemma e_of_list_is_list :
