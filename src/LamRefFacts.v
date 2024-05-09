@@ -6,6 +6,63 @@ Require Import ZArith.
 Require Import src.LambdaRef.
 Require Import Lia.
 
+Fact liftS_inc (V V' : Set) (f : V -> Value V') x v' :
+  liftS (inc_fun f v') (option_map Some x) = liftS f x.
+Proof.
+  destruct x; reflexivity.
+Qed.
+
+Fact liftS_ext (V V' : Set) (f g : V -> Value V') x :
+  (forall x, f x = g x) ->
+  liftS f x = liftS g x.
+Proof.
+  destruct x; simpl; intro Hext; [f_equal|]; auto.
+Qed.
+
+Fixpoint bind_v_ext (V V' : Set) (f g : V -> Value V') v {struct v} :
+  (forall x, f x = g x) ->
+  bind_v f v = bind_v g v
+with bind_e_ext (V V' : Set) (f g : V -> Value V') e {struct e} :
+  (forall x, f x = g x) ->
+  bind_e f e = bind_e g e.
+Proof.
+  - destruct v; simpl; trivial; intro Hext; f_equal.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + auto using liftS_ext.
+  - destruct e; simpl; intro; f_equal; auto.
+    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Fixpoint bind_v_map_v (V V' V'' : Set) (f : V' -> Value V'') (g : V -> V') v {struct v} :
+  bind_v f (map_v g v) = bind_v (fun x => f (g x)) v
+with bind_e_map_e (V V' V'' : Set) (f : V' -> Value V'') (g : V -> V') e {struct e} :
+  bind_e f (map_e g e) = bind_e (fun x => f (g x)) e.
+Proof.
+  - destruct v; simpl; trivial; f_equal.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + erewrite bind_e_ext with (f := liftS (fun x => f (g x)));
+        [|destruct x]; eauto.
+  - destruct e; simpl; f_equal; eauto.
+    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Fixpoint bind_v_shift (V V' : Set) (f : V -> Value V') v v' {struct v} :
+  bind_v (inc_fun f v') (shift_v v) = bind_v f v
+with bind_e_shift (V V' : Set) (f : V -> Value V') e v' {struct e} :
+  bind_e (inc_fun f v') (shift_e e) = bind_e f e.
+Proof.
+  - destruct v; simpl; trivial; f_equal.
+    + unfold shift_v in *.
+      revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + erewrite bind_e_ext with (f := liftS f).
+      * apply bind_e_map_e.
+      * destruct x; reflexivity.
+  - destruct e; simpl; f_equal; eauto. unfold shift_e in *.
+    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+(** OTHER LEMMAS *)
+
 Lemma SplitAt_spec_eq :
   forall A xs ys (y : A) zs,
     L[xs ~~> ys | y | zs] ->
