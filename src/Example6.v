@@ -244,6 +244,7 @@ Proof.
     subst. econstructor; eauto.
 Qed.
 
+(* alternative goal 4 *)
 Lemma e_of_list_v_of_list :
   forall xs v m, exists c,
     v_of_list xs = (v, m) ->
