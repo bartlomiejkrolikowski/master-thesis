@@ -81,6 +81,14 @@ Qed.
 
 (** OTHER LEMMAS *)
 
+Fact lift_inj A (f : nat -> A) l l' :
+  (forall n n', f n = f n' -> n = n') ->
+  lift f l = lift f l' ->
+  l = l'.
+Proof.
+  destruct l as [n], l' as [l']. auto.
+Qed.
+
 Lemma SplitAt_spec_eq :
   forall A xs ys (y : A) zs,
     L[xs ~~> ys | y | zs] ->
@@ -502,6 +510,28 @@ Proof.
   - destruct e; cbn; f_equal; eauto.
     revert l. fix Hall 1.
     destruct l; cbn; repeat f_equal; eauto using bind_e_shift_labels.
+Qed.
+
+Fixpoint shift_inj_v (V : Set) f (v v' : Value V) :
+  (forall l l', f l = f l' -> l = l') ->
+  map_labels_v f v = map_labels_v f v' ->
+  v = v'
+with shift_inj_e (V : Set) f (e e' : Expr V) :
+  (forall l l', f l = f l' -> l = l') ->
+  map_labels_e f e = map_labels_e f e' ->
+  e = e'.
+Proof.
+  all: intros Hinj Heq.
+  - destruct v, v'; simpl in *; trivial; try discriminate;
+      injection Heq as Heq; f_equal; eauto.
+    generalize dependent l. revert l0. fix Hall 1.
+    destruct l; simpl; destruct l0; simpl; intro; f_equal; try discriminate;
+      injection Heq; eauto.
+  - destruct e, e'; simpl in *; trivial; try discriminate;
+      injection Heq as Heq; f_equal; eauto.
+    generalize dependent l. revert l0. fix Hall 1.
+    destruct l; simpl; destruct l0; simpl; intro; f_equal; try discriminate;
+      injection Heq; eauto.
 Qed.
 
 Lemma vals2expr_shift (V : Set) f (vs : list (Value V)) :

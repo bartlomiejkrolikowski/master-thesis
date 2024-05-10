@@ -6,6 +6,7 @@ Require Import ZArith.
 Require Import src.LambdaRef.
 Require Import src.LamRefFacts.
 Require Import src.LambdaAssertions.
+Require Import Lia.
 Require Import src.Tactics.
 
 (* lists *)
@@ -247,19 +248,19 @@ Qed.
 
 (* alternative goal 4 *)
 Lemma e_of_list_v_of_list :
-  forall xs v m, exists c,
+  forall xs v m,
     v_of_list xs = (v, m) ->
-    C[e_of_list xs, nil ~~> v, m | c].
+    exists c, C[e_of_list xs, nil ~~> v, m | c].
 Proof.
-  induction xs; simpl.
-  - intros v m. eexists. intros Heq. injection Heq as [] []. constructor.
-  - intros v m. destruct v_of_list. destruct (IHxs v0 m0). eexists. intros Heq.
+  induction xs; simpl; intros v m Heq.
+  - eexists. injection Heq as [] []. constructor.
+  - destruct v_of_list. destruct (IHxs v0 m0); trivial. eexists.
     injection Heq as [] []. eapply cost_red_comp.
     + eapply cost_red_app1. econstructor 2.
       * econstructor.
       * cbn. econstructor.
     + eapply cost_red_comp.
-      * eapply cost_red_app2, cost_red_ref_e. auto.
+      * eapply cost_red_app2, cost_red_ref_e. eauto.
       * econstructor 2.
         -- eapply red_app2. econstructor. reflexivity.
         -- econstructor 2.
@@ -268,14 +269,80 @@ Proof.
             econstructor.
 Qed.
 
+Lemma e_of_list_shift f xs :
+  map_labels_e f (e_of_list xs) = e_of_list (List.map (map_labels_v f) xs).
+Proof.
+  induction xs; simpl; repeat f_equal. assumption.
+Qed.
+
+Corollary v_of_list_e_of_list :
+  forall xs (v : Value _) m c,
+    C[e_of_list xs, nil ~~> v, m | c] ->
+    v_of_list xs = (v, m).
+Proof.
+  intros xs v m c Hred. destruct v_of_list as (v', m') eqn:Heq.
+  apply e_of_list_v_of_list in Heq as [c' Hred'].
+  eapply uniqueness_full in Hred as [? [? [? ?]]];
+    [| constructor | eassumption].
+  now subst.
+Qed.
+
+Corollary e_of_list_v_of_list_general :
+  forall xs xs2 n v v2 m m' m2,
+    v_of_list xs = (v, m) ->
+    S n = of_label (new_label m') ->
+    xs2 = List.map (map_labels_v (lift (fun n' => OfNat (plus n n')))) xs ->
+    m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m ->
+    v2 = map_labels_v (lift (fun n' => OfNat (plus n n'))) v ->
+    exists c, C[e_of_list xs2, m' ~~> v2, m2 ++ m' | c]%list.
+Proof.
+  intros xs xs2 n v v2 m m' m2 Heq. intros. subst.
+  apply e_of_list_v_of_list in Heq as [c Hred].
+  eexists.
+  match goal with
+  | [|- cost_red ?e ?m ?e' ?m' ?c] => change (cost_red e ([]++m)%list e' m' c)
+  end.
+  eapply cost_red_shift; eauto; simpl; trivial.
+  now rewrite e_of_list_shift.
+Qed.
+
+Corollary v_of_list_e_of_list_general :
+  forall xs xs2 n (v v2 : Value _) m m' m2 c,
+    Is_Valid_Map m' ->
+    C[e_of_list xs2, m' ~~> v2, m2 ++ m' | c]%list ->
+    S n = of_label (new_label m') ->
+    xs2 = List.map (map_labels_v (lift (fun n' => OfNat (plus n n')))) xs ->
+    m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m ->
+    v2 = map_labels_v (lift (fun n' => OfNat (plus n n'))) v ->
+    v_of_list xs = (v, m).
+Proof.
+  intros xs xs2 n v v2 m m'' m2 c Hvalid Hred. intros. subst.
+  destruct v_of_list as (v', m') eqn:Heq.
+  eapply e_of_list_v_of_list_general in Heq as [c' Hred']; eauto.
+  eapply uniqueness_full in Hred as [Hv [Hm [Hc ?]]]; try eassumption.
+  apply shift_inj_v in Hv; [|
+    intros ? ? Heq'; apply lift_inj in Heq'; auto; intros ? ? Heq''; injection Heq''; lia
+  ].
+  apply List.app_inv_tail, list_map_inj in Hm.
+  - now subst.
+  - intros [[n0] v0] [[n0'] v0'] Heq. injection Heq as Hn0 Hv0.
+    apply shift_inj_v in Hv0; [|
+      intros ? ? Heq'; apply lift_inj in Heq'; auto; intros ? ? Heq''; injection Heq''; lia
+    ].
+    subst; repeat f_equal. lia.
+Qed.
+
 (* goal 4 *)
 Lemma e_of_list_is_list :
-  forall xs (v : Value _) (m m' : Map _) c,
+  forall xs xs2 n (v : Value _) (m m' : Map _) c,
     Is_Valid_Map m ->
-    C[e_of_list xs, m ~~> v, m' | c] ->
+    C[e_of_list xs2, m ~~> v, m' | c] ->
+    S n = of_label (new_label m) ->
+    xs2 = List.map (map_labels_v (lift (fun n' => OfNat (plus n n')))) xs ->
     is_list v m'.
 Proof.
-  intros xs v m m' c Hvalid Hred.
+  intros xs xs2 n v m m' c Hvalid Hred. intros; subst.
+  eapply v_of_list_e_of_list_general in Hred as Heq.
   destruct (v_of_list xs) eqn:Hxs.
   destruct e_of_list_v_of_list with xs v0 m0. specialize (H Hxs).
 (*
