@@ -564,6 +564,19 @@ Proof.
       eassumption.
 Qed.
 
+Theorem cost_red_shift (V : Set) n m m' m'' m2 m2' (e e' e2 e2' : Expr V) c :
+  S n = of_label (new_label m'') ->
+  m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m ->
+  m2' = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m' ->
+  e2 = map_labels_e (lift (fun n' => OfNat (plus n n'))) e ->
+  e2' = map_labels_e (lift (fun n' => OfNat (plus n n'))) e' ->
+  C[e, m ~~> e', m' | c] ->
+  C[e2, m2 ++ m'' ~~> e2', m2' ++ m'' | c]%list.
+Proof.
+  intros Hn Hm2 Hm2' He2 He2' Hred. subst.
+  induction Hred; econstructor; eauto using red_shift.
+Qed.
+
 (*
 Inductive equiv_v :
   forall {V : Set}, Map V -> Map V -> Value V -> Value V -> Prop :=
