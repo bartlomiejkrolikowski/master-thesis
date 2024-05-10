@@ -93,7 +93,8 @@ Proof.
   - injection Heq as [] []. constructor.
   - destruct v_of_list. injection Heq as [] [].
     econstructor.
-    + apply Lookup_spec_eq. simpl. rewrite Nat.eqb_refl. reflexivity.
+    + apply Lookup_spec_eq. simpl. unfold_all_lab.
+      rewrite Nat.eqb_refl. reflexivity.
     + apply is_list_cons_map; auto. apply new_label_is_fresh.
 Qed.
 
