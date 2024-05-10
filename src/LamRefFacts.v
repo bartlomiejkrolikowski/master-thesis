@@ -143,6 +143,12 @@ Proof.
   now induction 1.
 Qed.
 
+Lemma Nth_map (A B : Set) (f : A -> B) n l a :
+  Nth n l a -> Nth n (List.map f l) (f a).
+Proof.
+  intros Hnth. induction Hnth; constructor; auto.
+Qed.
+
 Lemma list_map_inj (A B : Type) (f : A -> B) (xs ys : list A) :
   (forall x y, f x = f y -> x = y) ->
   List.map f xs = List.map f ys ->
@@ -176,6 +182,9 @@ Proof.
   try eapply List.Forall_impl; try eassumption; simpl; lia.
 Qed.
 
+Ltac unfold_all_lab :=
+  unfold label_lt, label_ltb, label_eqb, lift2, lift, of_label in *.
+
 Section label_section.
 Open Scope label_scope.
 Lemma new_label_spec_lt (V : Set) (m : Map V) :
@@ -184,7 +193,9 @@ Proof.
   specialize (max_list_max (List.map (fun '(OfNat n) => n) (labels m))) as H.
   eapply List.Forall_map, List.Forall_impl in H.
   - eassumption.
-  - destruct a. simpl. lia.
+  - destruct a. unfold_all_lab.
+    unfold new_label, labels, of_label in *.
+    simpl. lia.
 Qed.
 End label_section.
 
@@ -193,7 +204,7 @@ Lemma new_label_is_fresh (V : Set) (m : Map V) :
 Proof.
   intro Hin. specialize new_label_spec_lt with V m as H.
   eapply List.Forall_forall in H; [| eassumption ].
-  destruct new_label. simpl in *. lia.
+  destruct new_label. unfold_all_lab. simpl in *. lia.
 Qed.
 
 Lemma Is_Valid_Map_cons_new (V : Set) v (m : Map V) :
@@ -216,8 +227,9 @@ Lemma Lookup_spec (V : Set) (l : Label) (m : Map V) v :
 Proof.
   destruct l as [n]. intros Hvalid Hlookup.
   induction Hlookup as [| [[n'] v'] m' v Hlookup' IH ]; simpl.
-  - now rewrite Nat.eqb_refl.
-  - inversion Hvalid. destruct Nat.eqb_spec with n n'.
+  - unfold_all_lab. now rewrite Nat.eqb_refl.
+  - inversion Hvalid. unfold_all_lab.
+    destruct Nat.eqb_spec with n n'.
     + subst. apply Lookup_success in Hlookup'.
       contradiction.
     + auto.
@@ -230,7 +242,8 @@ Proof.
   destruct l as [n]. intros Hlookup.
   induction m as [| [[n'] v'] m' IH].
   - discriminate.
-  - simpl in *. destruct Nat.eqb_spec with n n'.
+  - simpl in *. unfold_all_lab.
+    destruct Nat.eqb_spec with n n'.
     + injection Hlookup as []. subst. constructor 1.
     + constructor 2. auto.
 Qed.
@@ -247,7 +260,8 @@ Lemma update_in (V : Set) (l : Label) v (m : Map V) :
 Proof.
   destruct l as [n]. intros Hin. induction m as [| [[n'] v'] m' IH]; simpl.
   - contradiction.
-  - destruct Nat.eqb_spec with n n'; simpl in *.
+  - unfold_all_lab.
+    destruct Nat.eqb_spec with n n'; simpl in *.
     + reflexivity.
     + f_equal. destruct Hin as [Heq | Hin].
       * congruence.
@@ -257,9 +271,10 @@ Qed.
 Lemma lookup_same (V : Set) (l : Label) v (m : Map V) :
   lookup l (update l v m) = Some v.
 Proof.
-  destruct l as [n]. induction m as [| [[n'] v'] m' IH]; simpl.
+  destruct l as [n].
+  induction m as [| [[n'] v'] m' IH]; simpl; unfold_all_lab.
   - now rewrite Nat.eqb_refl.
-  - destruct Nat.eqb_spec with n n'; simpl.
+  - destruct Nat.eqb_spec with n n'; simpl; unfold_all_lab.
     + apply Nat.eqb_eq in e. now rewrite e.
     + apply Nat.eqb_neq in n0. now rewrite n0.
 Qed.
@@ -270,7 +285,8 @@ Lemma Lookup_update (V : Set) (l l' : Label) v v' (m : Map V) :
   Lookup l (update l' v' m) v.
 Proof.
   destruct l as [n], l' as [n']. intros Hneq Hlookup.
-  induction Hlookup as [| [[n''] v''] m' v Hlookup' IH ]; simpl.
+  induction Hlookup as [| [[n''] v''] m' v Hlookup' IH ];
+    simpl; unfold_all_lab.
   - destruct Nat.eqb_spec with n' n.
     + congruence.
     + constructor.
@@ -284,7 +300,8 @@ Proof.
   unfold Is_fresh_label. destruct l as [n].
   induction m as [| [[n'] v] m' IHm']; simpl.
   - reflexivity.
-  - intros Hfresh. destruct Nat.eqb_spec with n n'; subst.
+  - intros Hfresh. unfold_all_lab.
+    destruct Nat.eqb_spec with n n'; subst.
     + exfalso. auto.
     + auto.
 Qed.
@@ -296,7 +313,8 @@ Proof.
   unfold Is_fresh_label, not. destruct l as [n].
   induction m as [| [[n'] v] m' IHm']; simpl.
   - auto.
-  - intros HNone. destruct Nat.eqb_spec with n n'; subst.
+  - intros HNone. unfold_all_lab.
+    destruct Nat.eqb_spec with n n'; subst.
     + discriminate.
     + intros [Heq | Hin]; [injection Heq |]; auto.
 Qed.
@@ -331,7 +349,7 @@ Lemma Assignment_spec (V : Set) (l : Label) v (m m' : Map V) :
   m' = update l v m /\ Is_Valid_Map m'.
 Proof.
   destruct l as [n]. intros Hvalid Hassign.
-  induction Hassign as [| [[n'] v'] m m' Hassign IH]; simpl.
+  induction Hassign as [| [[n'] v'] m m' Hassign IH]; simpl; unfold_all_lab.
   - now rewrite Nat.eqb_refl.
   - inversion Hvalid. destruct Nat.eqb_spec with n n'.
     + subst. apply Assignment_success in Hassign.
@@ -364,6 +382,120 @@ Lemma in_vals2expr (V : Set) (e : Expr V) vs :
 Proof.
   induction vs; simpl; intros H; destruct H; eauto.
 Qed.
+
+Fixpoint map_v_shift_labels (V V' : Set) f (g : V -> V') (v : Value V) :
+  map_labels_v f (map_v g v) = map_v g (map_labels_v f v)
+with map_e_shift_labels (V V' : Set) f (g : V -> V') (e : Expr V) :
+  map_labels_e f (map_e g e) = map_e g (map_labels_e f e).
+Proof.
+  - destruct v; simpl; eauto.
+    + destruct l; cbn; repeat f_equal; eauto.
+      revert l. fix Hall 1.
+      destruct l; cbn; repeat f_equal; eauto.
+    + f_equal. eauto.
+  - destruct e; simpl; f_equal; eauto.
+    revert l. fix Hall 1.
+    destruct l; cbn; repeat f_equal; eauto.
+Qed.
+
+Fixpoint shift_v_shift_labels (V : Set) f (v : Value V) :
+  map_labels_v f (shift_v v) = shift_v (map_labels_v f v)
+with shift_e_shift_labels (V : Set) f (e : Expr V) :
+  map_labels_e f (shift_e e) = shift_e (map_labels_e f e).
+Proof.
+  - destruct v; cbn; eauto using f_equal, map_e_shift_labels.
+    destruct l; cbn; repeat f_equal; auto.
+    revert l. fix Hall 1.
+    destruct l; cbn; repeat f_equal; auto.
+  - destruct e; cbn; f_equal; eauto.
+    revert l. fix Hall 1.
+    destruct l; cbn; repeat f_equal; auto.
+Qed.
+
+Fixpoint bind_v_shift_labels (V V' : Set) f (g : V -> Value V') (v : Value V) :
+  map_labels_v f (bind_v g v) =
+    bind_v (fun x => map_labels_v f (g x)) (map_labels_v f v)
+with bind_e_shift_labels (V V' : Set) f (g : V -> Value V') (e : Expr V) :
+  map_labels_e f (bind_e g e) =
+    bind_e (fun x => map_labels_v f (g x)) (map_labels_e f e).
+Proof.
+  - destruct v; simpl; auto.
+    + f_equal. revert l. fix Hall 1.
+      destruct l; simpl; f_equal; auto.
+    + f_equal.
+      rewrite bind_e_ext with
+        (f := liftS (fun x => map_labels_v f (g x)))
+        (g := fun x => map_labels_v f (liftS g x));
+        [|destruct x]; eauto using shift_v_shift_labels.
+  - destruct e; simpl; f_equal; auto.
+    revert l. fix Hall 1.
+    destruct l; cbn; repeat f_equal; auto.
+Qed.
+
+Fixpoint subst_v_shift_labels (V : Set) f (v : Value (inc_set V)) v' :
+  map_labels_v f (subst_v v v') = subst_v (map_labels_v f v) (map_labels_v f v')
+with subst_e_shift_labels (V : Set) f (e : Expr (inc_set V)) v' :
+  map_labels_e f (subst_e e v') = subst_e (map_labels_e f e) (map_labels_v f v').
+Proof.
+  - destruct v; cbn; auto.
+    + destruct i; simpl; reflexivity.
+    + f_equal. revert l. fix Hall 1.
+      destruct l; simpl; f_equal; eauto.
+    + f_equal. rewrite bind_e_shift_labels. apply bind_e_ext.
+      destruct x; simpl; trivial.
+      destruct i; simpl; auto using shift_v_shift_labels.
+  - destruct e; cbn; f_equal; eauto.
+    revert l. fix Hall 1.
+    destruct l; cbn; repeat f_equal; eauto using bind_e_shift_labels.
+Qed.
+
+Lemma vals2expr_shift (V : Set) f (vs : list (Value V)) :
+  vals2exprs (List.map (map_labels_v f) vs) =
+    List.map (map_labels_e f) (vals2exprs vs).
+Proof.
+  induction vs; simpl; f_equal. assumption.
+Qed.
+
+(*
+Lemma new_label_plus V n (m : Map V) m' m2 :
+  n = of_label (new_label m') ->
+  m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), v)) m ->
+  new_label (m2 ++ m')%list = OfNat (lift2 plus (new_label m) (new_label m')).
+Proof.
+  intros. subst. unfold_all_lab. unfold new_label. induction m; simpl; try lia.
+Qed.
+*)
+
+Lemma map_fst_map_pair A' B B' (f : nat -> A') (g : B -> B') l :
+  List.map fst (List.map (fun '(OfNat a,b) => (f a,g b)) l) =
+    List.map f (List.map of_label (List.map fst l)).
+Proof.
+  unfold_all_lab.
+  induction l; simpl; f_equal; destruct a as [[]]; auto.
+Qed.
+
+Theorem red_shift (V : Set) n m m' m'' m2 m2' (e e' e2 e2' : Expr V) :
+  n = of_label (new_label m'') ->
+  m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m ->
+  m2' = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m' ->
+  e2 = map_labels_e (lift (fun n' => OfNat (plus n n'))) e ->
+  e2' = map_labels_e (lift (fun n' => OfNat (plus n n'))) e' ->
+  R[e, m ~~> e', m'] ->
+  R[e2, m2 ++ m'' ~~> e2', m2' ++ m'']%list.
+Proof.
+  intros Hn Hm2 Hm2' He2 He2' Hred. subst.
+  induction Hred; simpl; try now econstructor.
+  - rewrite subst_e_shift_labels. econstructor.
+  - rewrite <- vals2expr_shift. eapply red_rec_e2v.
+  - apply red_rec_get. apply Nth_map. assumption.
+  - subst. apply red_ref. unfold new_label, lift. simpl.
+    repeat f_equal. unfold labels. (*rewrite map_fst_map_pair. repeat rewrite List.map_map. simpl.
+    match goal with
+    | [|- red ?e0 ?m0 ?e1 ((?v :: ?m) ++ ?m')%list ] =>
+      change (red e0 m0 e1 (v :: (m ++ m')))%list
+    end.*)
+Admitted.
+
 (*
 Inductive equiv_v :
   forall {V : Set}, Map V -> Map V -> Value V -> Value V -> Prop :=

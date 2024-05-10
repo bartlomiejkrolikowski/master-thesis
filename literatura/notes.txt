@@ -23,10 +23,27 @@ MachCheckUnionFind:
 - measures the number of function calls during execution
 - measurement: functions consume time credits (similar to a use of fuel)
 - used to verify Union-Find
+- time credits are a part of the state - combined by simple addition
 
 CoqLibVeriRunTimes:
 - a library for writing programs in Coq with verified complexity
 - a transparent (not included in extracted code) monad for measuring running times
 - automatic insertion of running time computation in the code (after running a tool)
 - programs written in Coq (may be extracted to OCaml)
+
+Verified Textbook Algorithms (atva20.pdf): 8.3. Shortest Paths: Dijkstra Algorithm
+- a survey of the state of the art of verifying Dijkstra algorithm
+
+Hoare Logics for Time Bounds (tacas18.pdf):
+- a study of three different Hoare logics for reasoning about time bounds of imperative programs:
+  * Nielson style:
+    Hoare logic with time big-O upper bound
+    besides program variables it uses logical variables to model time bounds
+  * Quantitative Hoare Logic:
+    Hoare triples are of the form {P}c{Q} where P and Q are potentials (i.e. functions: state -> N + infinity)
+    (P s) is valid iff it is finite
+    difference of potentials P and Q is the upper bound on the actual running time
+    (similar to step-indexing with Kripke models ?)
+  * Separation Logic with Time Credits:
+    time credits just like in [MachCheckUnionFind]
 

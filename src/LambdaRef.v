@@ -19,10 +19,15 @@ Definition inc_fun {A B : Set}
 Inductive Label : Set :=
 | OfNat : nat -> Label.
 
-Definition label_eqb '(OfNat n) '(OfNat n') : bool := n =? n'.
-Definition label_ltb '(OfNat n) '(OfNat n') : bool := n <? n'.
+Definition of_label '(OfNat n) := n.
+Definition lift {A} (f : nat -> A) (l : Label) : A := f (of_label l).
+Definition lift2 {A} (f : nat -> nat -> A) (l l' : Label) : A :=
+  lift (lift f l) l'.
 
-Definition label_lt '(OfNat n) '(OfNat n') : Prop := n < n'.
+Definition label_eqb : Label -> Label -> bool := lift2 Nat.eqb.
+Definition label_ltb : Label -> Label -> bool  := lift2 Nat.ltb.
+
+Definition label_lt : Label -> Label -> Prop  := lift2 Nat.lt.
 
 Declare Scope label_scope.
 
@@ -30,6 +35,13 @@ Notation "l =? l'" := (label_eqb l l') : label_scope.
 Notation "l <? l'" := (label_ltb l l') : label_scope.
 
 Notation "l < l'" := (label_lt l l') : label_scope.
+
+Hint Unfold of_label : label.
+Hint Unfold lift2 : label.
+Hint Unfold lift  : label.
+Hint Unfold label_eqb : label.
+Hint Unfold label_ltb : label.
+Hint Unfold label_lt  : label.
 
 Inductive BoolUnOpKind : Set :=
 | BNeg (* Boolean negation *)
@@ -206,6 +218,34 @@ Definition subst_e {V : Set}
   (e : Expr (inc_set V)) (v' : Value V) : Expr V :=
   bind_e (inc_fun Var v') e.
 
+(* transformation on labels *)
+Fixpoint map_labels_v {V : Set} (f : Label -> Label) (v : Value V) : Value V :=
+  match v with
+  | U_val => U_val
+  | Var x => Var x
+  | Int i => Int i
+  | Bool i => Bool i
+  | Lab l => Lab (f l)
+  | RecV vs => RecV (List.map (map_labels_v f) vs)
+  | Lam e => Lam (map_labels_e f e)
+  end
+with map_labels_e {V : Set} (f : Label -> Label) (e : Expr V) : Expr V :=
+  match e with
+  | Val v => map_labels_v f v
+  | App e1 e2 => App (map_labels_e f e1) (map_labels_e f e2)
+  | UnOp k e => UnOp k (map_labels_e f e)
+  | BinOp k e1 e2 => BinOp k (map_labels_e f e1) (map_labels_e f e2)
+  | RecE es => RecE (List.map (map_labels_e f) es)
+  | Get n e => Get n (map_labels_e f e)
+  | Ref e => Ref (map_labels_e f e)
+  | Deref e => Deref (map_labels_e f e)
+  | Assign e1 e2 => Assign (map_labels_e f e1) (map_labels_e f e2)
+  | Seq e1 e2 => Seq (map_labels_e f e1) (map_labels_e f e2)
+  | If e1 e2 e3 =>
+    If (map_labels_e f e1) (map_labels_e f e2) (map_labels_e f e3)
+  | While e1 e2 => While (map_labels_e f e1) (map_labels_e f e2)
+  end.
+
 Definition Map (V : Set) : Set := list (Label * (Value V)).
 
 (*Definition extend {V L : Set} (m : Map V L) (v : Value V L)
@@ -285,7 +325,7 @@ Definition list_max (l : list nat) : nat :=
   List.fold_right max 0 l.
 
 Definition new_label {V : Set} (m : Map V) : Label :=
-  OfNat (1 + list_max (List.map (fun '(OfNat n) => n) (labels m))).
+  OfNat (1 + list_max (List.map of_label (labels m))).
 
 (* SOS semantics *)
 Reserved Notation "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'".
