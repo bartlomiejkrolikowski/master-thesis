@@ -342,9 +342,9 @@ Lemma e_of_list_is_list :
     is_list v m'.
 Proof.
   intros xs xs2 n v m m' c Hvalid Hred. intros; subst.
-  eapply v_of_list_e_of_list_general in Hred as Heq.
+(*  eapply v_of_list_e_of_list_general in Hred as Heq.
   destruct (v_of_list xs) eqn:Hxs.
-  destruct e_of_list_v_of_list with xs v0 m0. specialize (H Hxs).
+  destruct e_of_list_v_of_list with xs v0 m0. specialize (H Hxs).*)
 (*
   eapply extend_state in H.
   - inversion Hred; [constructor | discriminate_red_Val].
