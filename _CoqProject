@@ -16,4 +16,5 @@ src/LambdaRef3.v
 src/LamRefData.v
 src/LamRefFacts.v
 src/LamRefFacts2.v
+src/LamRefLogicFacts.v
 src/Tactics.v

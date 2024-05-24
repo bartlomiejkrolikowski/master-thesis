@@ -8,6 +8,13 @@ Require Import src.LambdaRef.
 Definition StateAssertion (V : Set) :=
   Map V -> Prop.
 
+Definition subst_map {V : Set} (m : Map (inc_set V)) (v : Value V) : Map V :=
+  List.map (fun '(l,v') => (l, subst_v v' v)) m.
+
+Definition subst_sa {V : Set} (A : StateAssertion V) (v : Value V) :
+  StateAssertion (inc_set V) :=
+  fun m => A (subst_map m v).
+
 Definition sa_empty {V : Set} : StateAssertion V :=
   fun m => m = []%list.
 
@@ -23,12 +30,15 @@ Definition disjoint_maps {V : Set} (m1 m2 : Map V) : Prop :=
 Definition sa_star {V : Set} (A1 A2 : StateAssertion V) : StateAssertion V :=
   fun m => exists m1 m2,
     A1 m1 /\
-    A2 m1 /\
+    A2 m2 /\
     disjoint_maps m1 m2 /\
     m = (m1 ++ m2)%list.
 
 Definition sa_exists {V T : Set} (F : T -> StateAssertion V) : StateAssertion V :=
   fun m => exists x : T, F x m.
+
+Definition sa_implies {V : Set} (A1 A2 : StateAssertion V) : Prop :=
+  forall m, A1 m -> A2 m.
 
 (* hoare triple for one step of reduction *)
 Definition step_hoare_triple {V : Set}
