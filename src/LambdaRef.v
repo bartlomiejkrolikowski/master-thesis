@@ -6,6 +6,7 @@ Import List.ListNotations.
 Require Import String.
 Require Import ZArith.
 
+(*
 Definition inc_set (A : Set) : Set :=
   option A.
 
@@ -15,6 +16,7 @@ Definition inc_fun {A B : Set}
   | None => y
   | Some x' => f x'
   end.
+*)
 
 Inductive Label : Set :=
 | OfNat : nat -> Label.
@@ -80,27 +82,27 @@ Inductive BinOpKind : Set :=
 | CBOp : CondBinOpKind -> BinOpKind
 .
 
-Inductive Value (V : Set) :=
-| U_val : Value V
-| Var : V -> Value V
-| Int : Z -> Value V (* integer *)
-| Bool : bool -> Value V
-| Lab : Label -> Value V (* label *)
-| RecV : list (Value V) -> Value V (* record value *)
-| Lam : Expr (inc_set V) -> Value V
-with Expr (V : Set) :=
-| Val : Value V -> Expr V
-| App : Expr V -> Expr V -> Expr V
-| UnOp : UnOpKind -> Expr V -> Expr V
-| BinOp : BinOpKind -> Expr V -> Expr V -> Expr V
-| RecE : list (Expr V) -> Expr V (* record expression *)
-| Get : nat -> Expr V -> Expr V (* get nth field of a record *)
-| Ref : Expr V -> Expr V (* mutable reference *)
-| Deref : Expr V -> Expr V
-| Assign : Expr V -> Expr V -> Expr V
-| Seq : Expr V -> Expr V -> Expr V
-| If : Expr V -> Expr V -> Expr V -> Expr V
-| While : Expr V -> Expr V -> Expr V
+Inductive Value :=
+| U_val : Value
+| Var : string -> Value
+| Int : Z -> Value (* integer *)
+| Bool : bool -> Value
+| Lab : Label -> Value (* label *)
+| RecV : list Value -> Value (* record value *)
+| Lam : string -> Expr -> Value
+with Expr :=
+| Val : Value -> Expr
+| App : Expr -> Expr -> Expr
+| UnOp : UnOpKind -> Expr -> Expr
+| BinOp : BinOpKind -> Expr -> Expr -> Expr
+| RecE : list Expr -> Expr (* record expression *)
+| Get : nat -> Expr -> Expr (* get nth field of a record *)
+| Ref : Expr -> Expr (* mutable reference *)
+| Deref : Expr -> Expr
+| Assign : Expr -> Expr -> Expr
+| Seq : Expr -> Expr -> Expr
+| If : Expr -> Expr -> Expr -> Expr
+| While : Expr -> Expr -> Expr
 .
 
 Inductive type :=
@@ -112,31 +114,11 @@ Inductive type :=
 | RecT : list type -> type (* record *)
 .
 
-Arguments U_val {V}.
-Arguments Var {V}.
-Arguments Int {V}.
-Arguments Bool {V}.
-Arguments Lab {V}.
-Arguments RecV {V}.
-Arguments Lam {V}.
-Arguments Ref {V}.
-Arguments Val {V}.
-Arguments App {V}.
-Arguments UnOp {V}.
-Arguments BinOp {V}.
-Arguments RecE {V}.
-Arguments Get {V}.
-Arguments Deref {V}.
-Arguments Assign {V}.
-Arguments Seq {V}.
-Arguments If {V}.
-Arguments While {V}.
-
 Coercion Val : Value >-> Expr.
 
-Definition vals2exprs {V : Set} : list (Value V) -> list (Expr V) :=
+Definition vals2exprs : list Value -> list Expr :=
   List.map Val.
-
+(*
 Fixpoint map_v {A B : Set} (f : A -> B) (v : Value A) : Value B :=
   match v with
   | U_val => U_val
@@ -209,17 +191,39 @@ with bind_e {A B : Set}
   | If e1 e2 e3 => If (bind_e f e1) (bind_e f e2) (bind_e f e3)
   | While e1 e2 => While (bind_e f e1) (bind_e f e2)
   end.
+*)
 
-Definition subst_v {V : Set}
-  (v : Value (inc_set V)) (v' : Value V) : Value V :=
-  bind_v (inc_fun Var v') v.
-
-Definition subst_e {V : Set}
-  (e : Expr (inc_set V)) (v' : Value V) : Expr V :=
-  bind_e (inc_fun Var v') e.
+(* variable substitution (unsafe) *)
+Fixpoint subst_v
+  (v : Value) (x : string) (v' : Value) : Value :=
+  match v with
+  | U_val => U_val
+  | Var x' => if x =? x' then v' else Var x'
+  | Int i => Int i
+  | Bool i => Bool i
+  | Lab l => Lab l
+  | RecV vs => RecV (List.map (fun v => subst_v v x v') vs)
+  | Lam x' e => if x =? x' then Lam x' e else Lam x' (subst_e e x v')
+  end%string
+with subst_e
+  (e : Expr) (x : string) (v' : Value) : Expr :=
+  match e with
+  | Val v => subst_v v x v'
+  | App e1 e2 => App (subst_e e1 x v') (subst_e e2 x v')
+  | UnOp k e => UnOp k (subst_e e x v')
+  | BinOp k e1 e2 => BinOp k (subst_e e1 x v') (subst_e e2 x v')
+  | RecE es => RecE (List.map (fun e => subst_e e x v') es)
+  | Get n e => Get n (subst_e e x v')
+  | Ref e => Ref (subst_e e x v')
+  | Deref e => Deref (subst_e e x v')
+  | Assign e1 e2 => Assign (subst_e e1 x v') (subst_e e2 x v')
+  | Seq e1 e2 => Seq (subst_e e1 x v') (subst_e e2 x v')
+  | If e1 e2 e3 => If (subst_e e1 x v') (subst_e e2 x v') (subst_e e3 x v')
+  | While e1 e2 => While (subst_e e1 x v') (subst_e e2 x v')
+  end.
 
 (* transformation on labels *)
-Fixpoint map_labels_v {V : Set} (f : Label -> Label) (v : Value V) : Value V :=
+Fixpoint map_labels_v (f : Label -> Label) (v : Value) : Value :=
   match v with
   | U_val => U_val
   | Var x => Var x
@@ -227,9 +231,9 @@ Fixpoint map_labels_v {V : Set} (f : Label -> Label) (v : Value V) : Value V :=
   | Bool i => Bool i
   | Lab l => Lab (f l)
   | RecV vs => RecV (List.map (map_labels_v f) vs)
-  | Lam e => Lam (map_labels_e f e)
+  | Lam x e => Lam x (map_labels_e f e)
   end
-with map_labels_e {V : Set} (f : Label -> Label) (e : Expr V) : Expr V :=
+with map_labels_e (f : Label -> Label) (e : Expr) : Expr :=
   match e with
   | Val v => map_labels_v f v
   | App e1 e2 => App (map_labels_e f e1) (map_labels_e f e2)
@@ -246,7 +250,7 @@ with map_labels_e {V : Set} (f : Label -> Label) (e : Expr V) : Expr V :=
   | While e1 e2 => While (map_labels_e f e1) (map_labels_e f e2)
   end.
 
-Definition Map (V : Set) : Set := list (Label * (Value V)).
+Definition Map : Set := list (Label * Value).
 
 (*Definition extend {V L : Set} (m : Map V L) (v : Value V L)
   : Map V (inc_set L) :=
@@ -264,26 +268,26 @@ Definition max_label {V : Set} (m : Map V) : Label :=
     (fun '(OfNat n, _) '(OfNat m) => OfNat (max n m)) (OfNat 0) m.
 *)
 
-Definition labels {V : Set} (m : Map V) : list Label :=
+Definition labels (m : Map) : list Label :=
   List.map fst m.
 
-Definition Is_fresh_label {V : Set} (l : Label) (m : Map V) : Prop :=
+Definition Is_fresh_label (l : Label) (m : Map) : Prop :=
   ~ List.In l (labels m).
 
-Definition Is_Valid_Map {V : Set} (m : Map V) : Prop :=
+Definition Is_Valid_Map (m : Map) : Prop :=
   List.NoDup (labels m).
 
-Inductive Lookup {V : Set} (l : Label) : Map V -> Value V -> Prop :=
-| Lookup_hd (m : Map V) (v : Value V) : Lookup l ((l,v) :: m)%list v
-| Lookup_tl (a : Label * Value V) (m : Map V) (v : Value V) :
+Inductive Lookup (l : Label) : Map -> Value -> Prop :=
+| Lookup_hd (m : Map) (v : Value) : Lookup l ((l,v) :: m)%list v
+| Lookup_tl (a : Label * Value) (m : Map) (v : Value) :
     Lookup l m v -> Lookup l (a :: m)%list v
 .
 
-Inductive Assignment {V : Set} (l : Label) (v : Value V) :
-  Map V -> Map V -> Prop :=
-| Assignment_hd (v0 : Value V) (m : Map V) :
+Inductive Assignment (l : Label) (v : Value) :
+  Map -> Map -> Prop :=
+| Assignment_hd (v0 : Value) (m : Map) :
     Assignment l v ((l,v0) :: m)%list ((l,v) :: m)%list
-| Assignment_tl (a : Label * Value V) (m m' : Map V) :
+| Assignment_tl (a : Label * Value) (m m' : Map) :
     Assignment l v m m' ->
     Assignment l v (a :: m)%list (a :: m')%list
 .
@@ -307,13 +311,13 @@ Inductive SplitAt {A : Type} :
 Notation "'L[' xs '~~>' ys '|' y '|' zs ']'" := (@SplitAt _ xs ys y zs).
 Section label_section.
 Open Scope label_scope.
-Fixpoint lookup {V : Set} (l : Label) (m : Map V) : option (Value V) :=
+Fixpoint lookup (l : Label) (m : Map) : option Value :=
   match m with
   | nil => None
   | (l', v) :: m' => if l =? l' then Some v else lookup l m'
   end%list.
 
-Fixpoint update {V : Set} (l : Label) (v : Value V) (m : Map V) : Map V :=
+Fixpoint update (l : Label) (v : Value) (m : Map) : Map :=
   match m with
   | nil => [(l, v)]
   | (l', v') :: m' =>
@@ -324,19 +328,19 @@ End label_section.
 Definition list_max (l : list nat) : nat :=
   List.fold_right max 0 l.
 
-Definition new_label {V : Set} (m : Map V) : Label :=
+Definition new_label (m : Map) : Label :=
   OfNat (1 + list_max (List.map of_label (labels m))).
 
 (* SOS semantics *)
 Reserved Notation "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'".
 
-Inductive red {V : Set} :
-  Expr V -> Map V ->
-  Expr V -> Map V ->
+Inductive red :
+  Expr -> Map ->
+  Expr -> Map ->
   Prop :=
 
-| red_lam : forall m e (v : Value _),
-    R[App (Lam e) v , m ~~> subst_e e v , m]
+| red_lam : forall m x e (v : Value),
+    R[App (Lam x e) v , m ~~> subst_e e x v , m]
 
 | red_bneg : forall m b,
     R[UnOp (BUOp BNeg) (Bool b), m ~~> Bool (negb b), m]
@@ -375,7 +379,7 @@ Inductive red {V : Set} :
     Nth n vs v ->
     R[Get n (RecV vs), m ~~> v, m]
 
-| red_ref : forall m l (v : Value _),
+| red_ref : forall m l (v : Value),
     l = new_label m ->
     R[Ref v, m ~~> Lab l, ((l,v) :: m)%list]
 
@@ -403,7 +407,7 @@ Inductive red {V : Set} :
     R[e1, m ~~> e1', m'] ->
     R[App e1 e2, m ~~> App e1' e2, m']
 
-| red_app2 : forall m m' (v : Value _) e e',
+| red_app2 : forall m m' (v : Value) e e',
     R[e, m ~~> e', m'] ->
     R[App v e, m ~~> App v e', m']
 
@@ -415,7 +419,7 @@ Inductive red {V : Set} :
     R[e1, m ~~> e1', m'] ->
     R[BinOp k e1 e2, m ~~> BinOp k e1' e2, m']
 
-| red_binop2 : forall k m m' (v : Value _) e e',
+| red_binop2 : forall k m m' (v : Value) e e',
     R[e, m ~~> e', m'] ->
     R[BinOp k v e, m ~~> BinOp k v e', m']
 
@@ -437,7 +441,7 @@ Inductive red {V : Set} :
     R[e1, m ~~> e1', m'] ->
     R[Assign e1 e2, m ~~> Assign e1' e2, m']
 
-| red_assign2 : forall m m' (v : Value _) e e',
+| red_assign2 : forall m m' (v : Value) e e',
     R[e, m ~~> e', m'] ->
     R[Assign v e, m ~~> Assign v e', m']
 
@@ -450,26 +454,27 @@ Inductive red {V : Set} :
     R[If e1 e2 e3, m ~~> If e1' e2 e3, m']
 
 where "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'" :=
-  (@red _ e1 m1 e2 m2).
+  (red e1 m1 e2 m2).
 
 (* cost semantics *)
 Reserved Notation "'C[' e1 ',' m1 '~~>' e2 ',' m2 '|' c ']'".
 
-Inductive cost_red {V : Set}
-  (e : Expr V)  (m : Map V) :
-  Expr V -> Map V ->
+Inductive cost_red
+  (e : Expr)  (m : Map) :
+  Expr -> Map ->
   nat -> Prop :=
 
 | no_red : C[e, m ~~> e, m | 0]
 
-| S_red (c : nat) (e' e'' : Expr V) (m' m'' : Map V) :
+| S_red (c : nat) (e' e'' : Expr) (m' m'' : Map) :
     red e m e' m' ->
     cost_red e' m' e'' m'' c ->
     cost_red e m e'' m'' (S c)
 
 where "'C[' e1 ',' m1 '~~>' e2 ',' m2 '|' c ']'" :=
-    (@cost_red _ e1 m1 e2 m2 c).
+    (cost_red e1 m1 e2 m2 c).
 
+(*
 (* type system *)
 Definition env (V : Set) : Set := V -> type.
 Definition env_empty : env Empty_set :=
@@ -563,12 +568,11 @@ Inductive typing {V : Set} (G : env V) :
     T[ G |- While e1 e2 ::: Unit ]
 
 where "T[ G |- e ::: t ]" := (@typing _ G e t).
+*)
 
 (* NOTATIONS *)
 
-Notation "'$' x" := (Some x) (at level 50).
-
-Notation "'-\' e" := (Lam e) (at level 100).
+Notation "'[-\]' x ',' e" := (Lam x e) (at level 100, no associativity).
 
 Notation "e1 '<*' e2" :=
   (App e1 e2)
@@ -597,8 +601,8 @@ Notation "t1 --> t2" :=
   (Arrow t1 t2)
   (at level 60, right associativity).
 
-Notation "[let] e1 [in] e2 [end]" :=
-  ((-\ e2) <* e1)
+Notation "[let] x ':=' e1 [in] e2 [end]" :=
+  (([-\] x , e2) <* e1)
   (at level 50, no associativity).
 
 Notation "[if] e1 [then] e2 [else] e3 [end]" :=
@@ -608,74 +612,3 @@ Notation "[if] e1 [then] e2 [else] e3 [end]" :=
 Notation "[while] e1 [do] e2 [end]" :=
   (While e1 e2)
   (at level 50, no associativity).
-
-
-Definition StringLam (x : string) (e : Expr string) :
-  Value string :=
-  Lam (map_e (fun y => if x =? y then None else $ y)%string e).
-
-(*
-Class EqBool (A : Set) : Set := {
-  eqB : A -> A -> bool;
-}.
-
-Global Instance StringEqB : EqBool string := {|
-  eqB := eqb;
-|}.
-
-Global Instance OptionEqB (A : Set) `{EqBool A} :
-  EqBool (option A) := {|
-  eqB x y := match x, y with
-  | None, None => true
-  | Some x', Some y' => eqB x' y'
-  | _, _ => false
-  end;
-|}.
-
-Definition StringLam' {A : Set} `{EqBool A} (x : A) (e : Expr A) :
-  Value A :=
-  Lam (map_e (fun y => if eqB x y then None else $ y) e).
-*)
-
-Notation "'[-\]' x ',' e" :=
-  (StringLam x e)
-  (at level 100, no associativity).
-
-Notation "'[let' x ']' e1 '[in]' e2 [end]" :=
-  (([-\] x, e2) <* e1)
-  (at level 50, no associativity).
-
-
-(* ------------------------LEMMAS-------------------------------------*)
-(*Fixpoint bind_shift_v (A : Set) x (a : _ A) :
-  bind_v (inc_fun Var x) (shift_v a) = a
-with bind_shift_e (A : Set) x (a : _ A) :
-  bind_e (inc_fun Var x) (shift_e a) = a.
-Proof.
-  - destruct a; simpl; try reflexivity.
-    + f_equal. induction l; simpl.
-      * reflexivity.
-      * f_equal; eauto.
-    + f_equal. Print liftS. eapply bind_shift_e.
-*)
-
-(*(* reordering in context *)
-Lemma reordering (V : Set) (G : env V) (e : Expr _) (t t' t'' : type) :
-  T[ inc_fun (inc_fun G t'') t' |- shift_e e ::: t] ->
-  T[ inc_fun (inc_fun G t') t'' |- map_e (option_map Some) e ::: t].
-Proof.
-  (*remember (inc_fun (inc_fun G t') t'') as G'.*)
-  remember (inc_fun (inc_fun G t'') t') as G''.
-  (*remember (map_e (option_map Some) e) as e'.*)
-  remember (shift_e e) as e''.
-  intro H. induction H.
-  - econstructor.
-Qed.
-(* weakening lemma *)
-Lemma weakening (V : Set) (G : env V) (e : Expr V) (t t' : type) :
-  T[ G |- e ::: t ] ->
-  T[ inc_fun G t' |- shift_e e ::: t].
-Proof.
-  intro H. induction H; cbn; econstructor; try eassumption.
-Abort.
-*)

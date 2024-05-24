@@ -5,10 +5,10 @@ Require Import String.
 Require Import src.LambdaRef.
 Require Import src.Tactics.
 Compute (
-  [let "y"]
+  [let] "y" :=
   Ref U_val
   [in]
-  [let "x"]
+  [let] "x" :=
   ([-\] "x", [-\] "y", [-\] "z", [-\] "u", [-\] "v", [-\] "w",
     [-\] "t", (
     (Var "y" <* Var "z") <* Var "u";;
@@ -21,21 +21,21 @@ Compute (
     U_val;;
     Var "x"
     <* Var "y"
-    <* (-\ Var None)
-    <* (-\ Var ($ "y") <- ! (Var None);; U_val)
+    <* ([-\] "z", Var "z")
+    <* ([-\] "u", Var "y" <- ! (Var "u");; U_val)
     <* Var "y"
-    <* Ref (-\ U_val)
+    <* Ref ([-\] "v", U_val)
     <* (! Var "y")
     <* Var "y"
   )
   [end]
   [end]
 )%string.
-Definition e : Expr _ := (
-  [let "y"]
+Definition e : Expr := (
+  [let] "y" :=
   Ref U_val
   [in]
-  [let "x"]
+  [let] "x" :=
   ([-\] "x", [-\] "y", [-\] "z", [-\] "u", [-\] "v", [-\] "w",
     [-\] "t", (
     (Var "y" <* Var "z") <* Var "u";;
@@ -48,22 +48,16 @@ Definition e : Expr _ := (
     U_val;;
     Var "x"
     <* Var "y"
-    <* (-\ Var None)
-    <* (-\ Var ($ "y") <- ! (Var None);; U_val)
+    <* ([-\] "z", Var "z")
+    <* ([-\] "u", Var "y" <- ! (Var "u");; U_val)
     <* Var "y"
-    <* Ref (-\ U_val)
+    <* Ref ([-\] "v", U_val)
     <* (! Var "y")
     <* Var "y"
   )
   [end]
   [end]
 )%string.
-
-(* e typechecks *)
-Goal forall G, T[ G |- e ::: RefT Unit ].
-Proof.
-  solve_typing.
-Qed.
 
 (* trivial proof: e can be reduced to e *)
 Goal forall m, exists c, cost_red e m e m c.

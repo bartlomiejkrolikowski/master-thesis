@@ -6,81 +6,6 @@ Require Import ZArith.
 Require Import src.LambdaRef.
 Require Import Lia.
 
-Fact liftS_inc (V V' : Set) (f : V -> Value V') x v' :
-  liftS (inc_fun f v') (option_map Some x) = liftS f x.
-Proof.
-  destruct x; reflexivity.
-Qed.
-
-Fact liftS_ext (V V' : Set) (f g : V -> Value V') x :
-  (forall x, f x = g x) ->
-  liftS f x = liftS g x.
-Proof.
-  destruct x; simpl; intro Hext; [f_equal|]; auto.
-Qed.
-
-Fact liftS_Var V (x : inc_set V) :
-  liftS Var x = Var x.
-Proof.
-  destruct x; reflexivity.
-Qed.
-
-Fixpoint bind_v_ext (V V' : Set) (f g : V -> Value V') v {struct v} :
-  (forall x, f x = g x) ->
-  bind_v f v = bind_v g v
-with bind_e_ext (V V' : Set) (f g : V -> Value V') e {struct e} :
-  (forall x, f x = g x) ->
-  bind_e f e = bind_e g e.
-Proof.
-  - destruct v; simpl; trivial; intro Hext; f_equal.
-    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
-    + auto using liftS_ext.
-  - destruct e; simpl; intro; f_equal; auto.
-    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
-Qed.
-
-Fixpoint bind_v_map_v (V V' V'' : Set) (f : V' -> Value V'') (g : V -> V') v {struct v} :
-  bind_v f (map_v g v) = bind_v (fun x => f (g x)) v
-with bind_e_map_e (V V' V'' : Set) (f : V' -> Value V'') (g : V -> V') e {struct e} :
-  bind_e f (map_e g e) = bind_e (fun x => f (g x)) e.
-Proof.
-  - destruct v; simpl; trivial; f_equal.
-    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
-    + erewrite bind_e_ext with (f := liftS (fun x => f (g x)));
-        [|destruct x]; eauto.
-  - destruct e; simpl; f_equal; eauto.
-    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
-Qed.
-
-Fixpoint bind_v_shift (V V' : Set) (f : V -> Value V') v v' {struct v} :
-  bind_v (inc_fun f v') (shift_v v) = bind_v f v
-with bind_e_shift (V V' : Set) (f : V -> Value V') e v' {struct e} :
-  bind_e (inc_fun f v') (shift_e e) = bind_e f e.
-Proof.
-  - destruct v; simpl; trivial; f_equal.
-    + unfold shift_v in *.
-      revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
-    + erewrite bind_e_ext with (f := liftS f).
-      * apply bind_e_map_e.
-      * destruct x; reflexivity.
-  - destruct e; simpl; f_equal; eauto. unfold shift_e in *.
-    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
-Qed.
-
-Fixpoint bind_v_id (V : Set) (v : Value V) {struct v} :
-  bind_v Var v = v
-with bind_e_id (V : Set) (e : Expr V) {struct e} :
-  bind_e Var e = e.
-Proof.
-  - destruct v; simpl; trivial; f_equal.
-    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
-    + erewrite bind_e_ext; auto using liftS_Var.
-  - destruct e; simpl; f_equal; auto.
-    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
-Qed.
-
-(** OTHER LEMMAS *)
-
 Fact lift_inj A (f : nat -> A) l l' :
   (forall n n', f n = f n' -> n = n') ->
   lift f l = lift f l' ->
@@ -176,13 +101,13 @@ Proof.
   - injection Heq; intros. f_equal; auto.
 Qed.
 
-Lemma vals2exprs_inj (V : Set) (vs vs' : list (Value V)) :
+Lemma vals2exprs_inj (vs vs' : list Value) :
   vals2exprs vs = vals2exprs vs' -> vs = vs'.
 Proof.
   apply list_map_inj. intros x y Heq. injection Heq. easy.
 Qed.
 
-Lemma Is_Valid_Map_cons_fresh (V : Set) (l : Label) v (m : Map V) :
+Lemma Is_Valid_Map_cons_fresh (l : Label) v (m : Map) :
   Is_fresh_label l m ->
   Is_Valid_Map m ->
   Is_Valid_Map ((l, v) :: m)%list.
@@ -222,7 +147,7 @@ Ltac unfold_all_lab :=
 
 Section label_section.
 Open Scope label_scope.
-Lemma new_label_spec_lt (V : Set) (m : Map V) :
+Lemma new_label_spec_lt (m : Map) :
   List.Forall (fun l => l < new_label m) (labels m).
 Proof.
   specialize (max_list_max (List.map (fun '(OfNat n) => n) (labels m))) as H.
@@ -234,28 +159,28 @@ Proof.
 Qed.
 End label_section.
 
-Lemma new_label_is_fresh (V : Set) (m : Map V) :
+Lemma new_label_is_fresh (m : Map) :
   Is_fresh_label (new_label m) m.
 Proof.
-  intro Hin. specialize new_label_spec_lt with V m as H.
+  intro Hin. specialize new_label_spec_lt with m as H.
   eapply List.Forall_forall in H; [| eassumption ].
   destruct new_label. unfold_all_lab. simpl in *. lia.
 Qed.
 
-Lemma Is_Valid_Map_cons_new (V : Set) v (m : Map V) :
+Lemma Is_Valid_Map_cons_new v (m : Map) :
   Is_Valid_Map m ->
   Is_Valid_Map ((new_label m, v) :: m)%list.
 Proof.
   auto using Is_Valid_Map_cons_fresh, new_label_is_fresh.
 Qed.
 
-Lemma Lookup_success (V : Set) (l : Label) (m : Map V) v :
+Lemma Lookup_success (l : Label) (m : Map) v :
   Lookup l m v -> List.In l (labels m).
 Proof.
   induction 1 as [| [l' v'] m' v Hlookup' IH]; simpl; auto.
 Qed.
 
-Lemma Lookup_spec (V : Set) (l : Label) (m : Map V) v :
+Lemma Lookup_spec (l : Label) (m : Map) v :
   Is_Valid_Map m ->
   Lookup l m v ->
   lookup l m = Some v.
@@ -270,7 +195,7 @@ Proof.
     + auto.
 Qed.
 
-Lemma Lookup_spec_eq (V : Set) (l : Label) (m : Map V) v :
+Lemma Lookup_spec_eq (l : Label) (m : Map) v :
   lookup l m = Some v ->
   Lookup l m v.
 Proof.
@@ -283,16 +208,16 @@ Proof.
     + constructor 2. auto.
 Qed.
 
-Lemma Lookup_map (V V' : Set)
-  f (g : Value V -> Value V') (l : Label) (m : Map V) m' v :
+Lemma Lookup_map
+  f (g : Value -> Value) (l : Label) (m : Map) m' v :
   Lookup l m v ->
   Lookup (f l) (List.map (fun '(l', v') => (f l', g v')) m ++ m')%list (g v).
 Proof.
   intro Hlookup. induction Hlookup; simpl; constructor. assumption.
 Qed.
 
-Lemma Lookup_map_nat (V V' : Set)
-  f (g : Value V -> Value V') (l : Label) (m : Map V) m' v :
+Lemma Lookup_map_nat
+  f (g : Value -> Value) (l : Label) (m : Map) m' v :
   Lookup l m v ->
   Lookup (lift f l)
     (List.map (fun '(OfNat n', v') => (f n', g v')) m ++ m')%list (g v).
@@ -301,14 +226,14 @@ Proof.
   induction Hlookup; simpl; constructor. assumption.
 Qed.
 
-Lemma Assignment_success (V : Set) (l : Label) v (m m' : Map V) :
+Lemma Assignment_success (l : Label) v (m m' : Map) :
   Assignment l v m m' -> List.In l (labels m).
 Proof.
   induction 1 as [| [l' v'] m m' Hassign' IH]; simpl; auto.
 Qed.
 
-Lemma Assignment_map_nat (V V' : Set)
-  f (g : Value V -> Value V') (l : Label) (m : Map V) m' m'' v :
+Lemma Assignment_map_nat
+  f (g : Value -> Value) (l : Label) (m : Map) m' m'' v :
   Assignment l v m m' ->
   Assignment (lift f l) (g v)
     (List.map (fun '(OfNat n', v') => (f n', g v')) m ++ m'')%list
@@ -318,7 +243,7 @@ Proof.
   induction Hassign; simpl; constructor. assumption.
 Qed.
 
-Lemma update_in (V : Set) (l : Label) v (m : Map V) :
+Lemma update_in (l : Label) v (m : Map) :
   List.In l (labels m) ->
   labels (update l v m) = labels m.
 Proof.
@@ -332,7 +257,7 @@ Proof.
       * auto.
 Qed.
 
-Lemma lookup_same (V : Set) (l : Label) v (m : Map V) :
+Lemma lookup_same (l : Label) v (m : Map) :
   lookup l (update l v m) = Some v.
 Proof.
   destruct l as [n].
@@ -343,7 +268,7 @@ Proof.
     + apply Nat.eqb_neq in n0. now rewrite n0.
 Qed.
 
-Lemma Lookup_update (V : Set) (l l' : Label) v v' (m : Map V) :
+Lemma Lookup_update (l l' : Label) v v' (m : Map) :
   l <> l' ->
   Lookup l m v ->
   Lookup l (update l' v' m) v.
@@ -357,7 +282,7 @@ Proof.
   - destruct Nat.eqb; constructor; auto.
 Qed.
 
-Lemma lookup_fresh (V : Set) (l : Label) (m : Map V) :
+Lemma lookup_fresh (l : Label) (m : Map) :
   Is_fresh_label l m ->
   lookup l m = None.
 Proof.
@@ -370,7 +295,7 @@ Proof.
     + auto.
 Qed.
 
-Lemma lookup_None (V : Set) (l : Label) (m : Map V) :
+Lemma lookup_None (l : Label) (m : Map) :
   lookup l m = None ->
   Is_fresh_label l m.
 Proof.
@@ -383,20 +308,20 @@ Proof.
     + intros [Heq | Hin]; [injection Heq |]; auto.
 Qed.
 
-Lemma lookup_fresh_equiv (V : Set) (l : Label) (m : Map V) :
+Lemma lookup_fresh_equiv (l : Label) (m : Map) :
   Is_fresh_label l m <-> lookup l m = None.
 Proof. split; auto using lookup_fresh, lookup_None. Qed.
 
-Lemma lookup_not_fresh (V : Set) (l : Label) (m : Map V) :
+Lemma lookup_not_fresh (l : Label) (m : Map) :
   ~ Is_fresh_label l m ->
-  exists v : Value V, lookup l m = Some v.
+  exists v : Value, lookup l m = Some v.
 Proof.
   rewrite lookup_fresh_equiv. destruct lookup.
   - eauto.
   - contradiction.
 Qed.
 
-Lemma valid_labels (V : Set) (m m' : Map V) :
+Lemma valid_labels (m m' : Map) :
   labels m = labels m' ->
   Is_Valid_Map m ->
   Is_Valid_Map m'.

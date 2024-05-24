@@ -1,38 +1,33 @@
 Require List.
 Import List.ListNotations.
+Require Import String.
 
 Require Import src.LambdaRef.
 Require Import src.Tactics.
 
-Definition e : Expr Empty_set := (
-  ([let]
-  (-\ -\ -\ -\ -\ -\ -\ (
-    (Var ($ $ $ $ $ None) <* Var ($ $ $ $ None)) <* Var ($ $ $ None);;
-    Var ($ $ $ $ $ $ None) <- (! Var ($ $ None)) <* Var ($ None);;
-    Var None
+Definition e : Expr := (
+  ([let] "s" :=
+  ([-\] "x", [-\] "y", [-\] "z", [-\] "u", [-\] "v", [-\] "w", [-\] "t", (
+    (Var "y" <* Var "z") <* Var "u";;
+    Var "x" <- (! Var "v") <* Var "w";;
+    Var "t"
   ))
   [in]
-  (-\ (
-    Var None <- ! Var None;;
+  ([-\] "x", (
+    Var "x" <- ! Var "x";;
     U_val;;
-    Var ($ None)
-    <* Var None
-    <* (-\ Var None)
-    <* (-\ Var ($ None) <- ! (Var None);; U_val)
-    <* Var None
-    <* Ref (-\ U_val)
-    <* (! Var None)
-    <* Var None
+    Var "s"
+    <* Var "x"
+    <* ([-\] "y", Var "y")
+    <* ([-\] "z", Var "x" <- ! (Var "z");; U_val)
+    <* Var "x"
+    <* Ref ([-\] "u", U_val)
+    <* (! Var "x")
+    <* Var "x"
   ))
   <* Ref U_val
   [end])
 ).
-
-(* e typechecks *)
-Goal T[ env_empty |- e ::: RefT Unit ].
-Proof.
-  solve_typing.
-Qed.
 
 (* trivial proof: e can be reduced to e *)
 Goal forall m, exists c, cost_red e m e m c.

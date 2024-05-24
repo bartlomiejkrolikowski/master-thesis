@@ -1,62 +1,31 @@
 Require List.
 Import List.ListNotations.
+Require Import String.
 
 Require Import src.LambdaRef.
 Require Import src.Tactics.
 
 (* map for Ref *)
-Definition e : Expr Empty_set := (
-  -\ -\ Ref (Var ($ None) <* ! Var None)
+Definition e : Expr := (
+  [-\] "x", [-\] "y",  Ref (Var "x" <* ! Var "y")
 ).
-
-(* e typechecks *)
-Fact type_e (t1 t2 : type) :
-  T[ env_empty |- e ::: (t1 --> t2) --> (RefT t1) --> (RefT t2) ].
-Proof.
-  solve_typing.
-Qed.
 
 (* map for Ref in place *)
-Definition e' : Expr Empty_set := (
-  -\ -\ Var None <- (Var ($ None) <* ! Var None)
+Definition e' : Expr := (
+  [-\] "x", [-\] "y", Var "y" <- (Var "x" <* ! Var "y")
 ).
 
-(* e' typechecks *)
-Fact type_e' (t : type) :
-  T[ env_empty |- e' ::: (t --> t) --> (RefT t) --> Unit ].
-Proof.
-  solve_typing.
-Qed.
-
-Definition e_id : Expr Empty_set := (
-  -\ Var None
+Definition e_id : Expr := (
+  [-\] "x", Var "x"
 ).
 
-(* e_id typechecks *)
-Fact type_e_id (t : type) :
-  T[ env_empty |- e_id ::: t --> t ].
-Proof.
-  solve_typing.
-Qed.
-
-Definition e_ref_u : Expr Empty_set := (
+Definition e_ref_u : Expr := (
   Ref U_val
 ).
 
-(* e_ref_u typechecks *)
-Fact type_e_ref_u : T[ env_empty |- e_ref_u ::: RefT Unit ].
-Proof.
-  solve_typing.
-Qed.
-
 (* -------------------------------------------------------- *)
 
-Definition ex : Expr Empty_set := e <* e_id <* e_ref_u.
-
-Fact type_ex : T[ env_empty |- ex ::: RefT Unit ].
-Proof.
-  solve_typing.
-Qed.
+Definition ex : Expr := e <* e_id <* e_ref_u.
 
 Goal exists l m c,
   cost_red ex []%list (Lab l) m c /\
@@ -85,20 +54,10 @@ Proof.
   { econstructor. econstructor. }
 Qed.
 
-Definition ex' : Expr Empty_set := e' <* e_id <* e_ref_u.
+Definition ex' : Expr := e' <* e_id <* e_ref_u.
 
-Fact type_ex' : T[ env_empty |- ex' ::: Unit ].
-Proof.
-  solve_typing.
-Qed.
-
-Definition ex'' : Expr Empty_set :=
-  (-\ shift_e e' <* shift_e e_id <* Var None ;; Var None) <* e_ref_u.
-
-Fact type_ex'' : T[ env_empty |- ex'' ::: RefT Unit ].
-Proof.
-  solve_typing.
-Qed.
+Definition ex'' : Expr :=
+  ([-\] "x", e' <* e_id <* Var "x" ;; Var "x") <* e_ref_u.
 
 Goal exists l m c,
   cost_red ex'' []%list (Lab l) m c /\

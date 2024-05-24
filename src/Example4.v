@@ -17,7 +17,7 @@ Fixpoint fl_type (n : nat) : type :=
   ]
   end.
 
-Definition cons : Value string :=
+Definition cons : Value :=
   (
     [-\] "x",
       [-\] "xs",
@@ -27,14 +27,7 @@ Definition cons : Value string :=
         ]
   )%string.
 
-Fact cons_type :
-  forall G n,
-    T[ G |- cons ::: IntT --> fl_type n --> fl_type (S n)].
-Proof.
-  solve_typing.
-Qed.
-
-Fixpoint finite_list_value {V : Set} (n : nat) : Value V :=
+Fixpoint finite_list_value (n : nat) : Value :=
   match n with
   | 0 => U_val
   | S n' => RecV [
@@ -43,31 +36,11 @@ Fixpoint finite_list_value {V : Set} (n : nat) : Value V :=
   ]
   end.
 
-Goal forall V G n,
-  T[ G |- finite_list_value (V := V) n ::: fl_type n ].
-Proof.
-  intros ? ? ?. induction n.
-  - solve_typing.
-  - cbn. repeat constructor. assumption.
-Qed.
-
-Fixpoint finite_list_expr (n : nat) : Expr string :=
+Fixpoint finite_list_expr (n : nat) : Expr :=
   match n with
   | 0 => U_val
   | S n' => cons <* Int 0 <* finite_list_expr n'
   end.
-
-Goal forall G n,
-  T[ G |- finite_list_expr n ::: fl_type n ].
-Proof.
-  intros ? ?. induction n.
-  - solve_typing.
-  - cbn. econstructor.
-    + econstructor.
-      * apply cons_type.
-      * constructor.
-    + assumption.
-Qed.
 
 Goal forall n m,
   exists c, C[finite_list_expr n, m ~~> finite_list_value n, m | c].
