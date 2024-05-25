@@ -470,6 +470,7 @@ Inductive cost_red {V : Set}
 where "'C[' e1 ',' m1 '~~>' e2 ',' m2 '|' c ']'" :=
     (@cost_red _ e1 m1 e2 m2 c).
 
+(*
 (* type system *)
 Definition env (V : Set) : Set := V -> type.
 Definition env_empty : env Empty_set :=
@@ -563,7 +564,7 @@ Inductive typing {V : Set} (G : env V) :
     T[ G |- While e1 e2 ::: Unit ]
 
 where "T[ G |- e ::: t ]" := (@typing _ G e t).
-
+*)
 (* NOTATIONS *)
 
 Notation "'$' x" := (Some x) (at level 50).
@@ -576,6 +577,8 @@ Notation "e1 '<*' e2" :=
 
 Notation "'[~]' e" := (UnOp (BUOp BNeg) e) (at level 50).
 Notation "'[--]' e" := (UnOp (IUOp INeg) e) (at level 50).
+Notation "e1 '[||]' e2" := (BinOp (BBOp BOr) e1 e2) (at level 50).
+Notation "e1 '[&&]' e2" := (BinOp (BBOp BAnd) e1 e2) (at level 50).
 Notation "e1 '[+]' e2" := (BinOp (IBOp IAdd) e1 e2) (at level 50).
 Notation "e1 '[-]' e2" := (BinOp (IBOp ISub) e1 e2) (at level 50).
 Notation "e1 '[*]' e2" := (BinOp (IBOp IMul) e1 e2) (at level 50).

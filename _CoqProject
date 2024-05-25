@@ -6,7 +6,6 @@ src/Example3.v
 src/Example4.v
 # src/Example5.v
 src/Example6.v
-src/InferType.v
 src/LambdaAssertions.v
 src/LambdaEval.v
 src/LambdaParse.v

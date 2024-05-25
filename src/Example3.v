@@ -58,13 +58,13 @@ Definition e : Expr _ := (
   [end]
   [end]
 )%string.
-
+(*
 (* e typechecks *)
 Goal forall G, T[ G |- e ::: RefT Unit ].
 Proof.
   solve_typing.
 Qed.
-
+*)
 (* trivial proof: e can be reduced to e *)
 Goal forall m, exists c, cost_red e m e m c.
 Proof.

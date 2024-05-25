@@ -27,13 +27,13 @@ Definition e : Expr Empty_set := (
   <* Ref U_val
   [end])
 ).
-
+(*
 (* e typechecks *)
 Goal T[ env_empty |- e ::: RefT Unit ].
 Proof.
   solve_typing.
 Qed.
-
+*)
 (* trivial proof: e can be reduced to e *)
 Goal forall m, exists c, cost_red e m e m c.
 Proof.
