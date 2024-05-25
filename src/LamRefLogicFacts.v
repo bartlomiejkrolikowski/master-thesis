@@ -79,18 +79,32 @@ Proof.
   eapply Hhoare. inversion H; subst; auto; discriminate_red_Val.
 Qed.
 
-Ltac magic :=
-  unfold hoare_triple, sa_pure, sa_empty; intros v c m m' Hred p;
-  inversion Hred; subst; inversion H; subst; try discriminate_red_Val;
-  inversion H0; subst; auto; discriminate_red_Val
-.
+Ltac inversion_red :=
+  match goal with
+  | [H : red _ _ _ _ |- _] =>
+    inversion H; subst; clear H; try discriminate_red_Val
+  end.
+
+Ltac inversion_cost_red :=
+  match goal with
+  | [H : cost_red _ _ _ _ _ |- _] =>
+    inversion H; subst; clear H; try discriminate_red_Val
+  end.
+
+Ltac find_red_cases :=
+  unfold hoare_triple, sa_exists, sa_star, sa_single, sa_pure, sa_empty,
+    disjoint_maps; intros;
+  inversion_cost_red; inversion_red.
+
+Ltac solve_red_cases :=
+  find_red_cases; inversion_cost_red; subst; auto; discriminate_red_Val.
 
 Theorem triple_bneg (V : Set) (b : bool) :
   @hoare_triple V ([~] (Bool b))
     <[]>
     (fun v c => <[v = Bool (negb b) /\ c = 1]>).
 Proof.
-  magic.
+  solve_red_cases.
 Qed.
 
 Theorem triple_ineg (V : Set) (i : Z) :
@@ -98,7 +112,7 @@ Theorem triple_ineg (V : Set) (i : Z) :
     <[]>
     (fun v c => <[v = Int (- i) /\ c = 1]>).
 Proof.
-  magic.
+  solve_red_cases.
 Qed.
 
 Theorem triple_bor (V : Set) (b1 b2 : bool) :
@@ -106,7 +120,7 @@ Theorem triple_bor (V : Set) (b1 b2 : bool) :
     <[]>
     (fun v c => <[v = Bool (b1 || b2) /\ c = 1]>).
 Proof.
-  magic.
+  solve_red_cases.
 Qed.
 
 Theorem triple_band (V : Set) (b1 b2 : bool) :
@@ -114,7 +128,7 @@ Theorem triple_band (V : Set) (b1 b2 : bool) :
     <[]>
     (fun v c => <[v = Bool (b1 && b2) /\ c = 1]>).
 Proof.
-  magic.
+  solve_red_cases.
 Qed.
 
 Theorem triple_iadd (V : Set) (i1 i2 : Z) :
@@ -122,7 +136,7 @@ Theorem triple_iadd (V : Set) (i1 i2 : Z) :
     <[]>
     (fun v c => <[v = Int (i1 + i2) /\ c = 1]>).
 Proof.
-  magic.
+  solve_red_cases.
 Qed.
 
 Theorem triple_isub (V : Set) (i1 i2 : Z) :
@@ -130,7 +144,7 @@ Theorem triple_isub (V : Set) (i1 i2 : Z) :
     <[]>
     (fun v c => <[v = Int (i1 - i2) /\ c = 1]>).
 Proof.
-  magic.
+  solve_red_cases.
 Qed.
 
 Theorem triple_imul (V : Set) (i1 i2 : Z) :
@@ -138,7 +152,7 @@ Theorem triple_imul (V : Set) (i1 i2 : Z) :
     <[]>
     (fun v c => <[v = Int (i1 * i2) /\ c = 1]>).
 Proof.
-  magic.
+  solve_red_cases.
 Qed.
 
 Theorem triple_idiv (V : Set) (i1 i2 : Z) :
@@ -146,7 +160,7 @@ Theorem triple_idiv (V : Set) (i1 i2 : Z) :
     <[]>
     (fun v c => <[v = Int (i1 / i2) /\ c = 1]>).
 Proof.
-  magic.
+  solve_red_cases.
 Qed.
 
 Theorem triple_clt (V : Set) (i1 i2 : Z) :
@@ -154,7 +168,7 @@ Theorem triple_clt (V : Set) (i1 i2 : Z) :
     <[]>
     (fun v c => <[v = Bool (i1 <? i2)%Z /\ c = 1]>).
 Proof.
-  magic.
+  solve_red_cases.
 Qed.
 
 Theorem triple_ceq (V : Set) (i1 i2 : Z) :
@@ -162,7 +176,7 @@ Theorem triple_ceq (V : Set) (i1 i2 : Z) :
     <[]>
     (fun v c => <[v = Bool (i1 =? i2)%Z /\ c = 1]>).
 Proof.
-  magic.
+  solve_red_cases.
 Qed.
 
 Theorem triple_rec_e2v (V : Set) (vs : list (Value V)) :
@@ -170,13 +184,11 @@ Theorem triple_rec_e2v (V : Set) (vs : list (Value V)) :
     <[]>
     (fun v c => <[v = RecV vs /\ c = 1]>).
 Proof.
-  unfold hoare_triple, sa_pure, sa_empty. intros v c m m' Hred p.
-  inversion Hred. subst. inversion H; subst.
-  - apply vals2exprs_inj in H2. subst. inversion H0; subst; auto.
-    discriminate_red_Val.
-  - apply SplitAt_spec_eq in H2. unfold vals2exprs in *.
-    apply List.map_eq_app in H2 as [? [? [? [? ?]]]].
-    destruct x0; try discriminate; simpl in *. injection H5 as ? ?. subst.
+  find_red_cases.
+  - apply vals2exprs_inj in H0. subst. inversion_cost_red. auto.
+  - apply SplitAt_spec_eq in H0. unfold vals2exprs in *.
+    apply List.map_eq_app in H0 as [? [? [? [? ?]]]].
+    destruct x0; try discriminate; simpl in *. injection H1 as ? ?. subst.
     discriminate_red_Val.
 Qed.
 
@@ -186,10 +198,9 @@ Theorem triple_get (V : Set) (n : nat) (vs : list (Value V)) v :
     <[]>
     (fun v' c => <[v' = v /\ c = 1]>).
 Proof.
-  unfold hoare_triple, sa_pure, sa_empty. intros Hnth v' c m m' Hred p.
-  inversion Hred. subst. inversion H; subst. apply Nth_spec in Hnth, H6.
-  rewrite Hnth in *. injection H6 as ?. subst.
-  inversion H0; subst; auto. discriminate_red_Val.
+  find_red_cases. apply Nth_spec in H, H7.
+  rewrite H in *. injection H7 as ?. subst.
+  inversion_cost_red. auto.
 Qed.
 
 Theorem triple_ref (V : Set) (v : Value V) :
@@ -197,12 +208,7 @@ Theorem triple_ref (V : Set) (v : Value V) :
     <[]>
     (fun v' c => <exists> l, <[v' = Lab l /\ c = 1]> <*> <( l :== v )>).
 Proof.
-  unfold hoare_triple, sa_exists, sa_star, sa_single, sa_pure, sa_empty,
-    disjoint_maps.
-  intros v' c m m' Hred p. inversion Hred. subst.
-  inversion H; subst; try discriminate_red_Val.
-  inversion H0; subst; try discriminate_red_Val.
-  repeat eexists. auto.
+  find_red_cases. inversion_cost_red. repeat eexists. auto.
 Qed.
 
 Theorem triple_deref (V : Set) l (v : Value V) :
@@ -210,12 +216,10 @@ Theorem triple_deref (V : Set) l (v : Value V) :
     <(l :== v)>
     (fun v' c => <[v' = v /\ c = 1]> <*> <(l :== v)>).
 Proof.
-  unfold hoare_triple, sa_star, sa_single, sa_pure, sa_empty, disjoint_maps.
-  intros v' c m m' Hred p. inversion Hred. subst.
-  inversion H; subst; try discriminate_red_Val. apply Lookup_spec in H2.
+  find_red_cases.
+  inversion_cost_red. apply Lookup_spec in H0.
   - simpl in *. destruct l as [n]. unfold label_eqb, lift2, lift in *.
-    rewrite Nat.eqb_refl in *. injection H2 as ?. subst.
-    inversion H0; subst; try discriminate_red_Val.
+    rewrite Nat.eqb_refl in *. injection H0 as ?. subst.
     repeat eexists. auto.
   - unfold Is_Valid_Map. simpl. repeat econstructor. auto.
 Qed.
@@ -225,13 +229,10 @@ Theorem triple_assign (V : Set) l (v v' : Value V) :
     <(l :== v')>
     (fun v'' c => <[v'' = U_val /\ c = 1]> <*> <(l :== v)>).
 Proof.
-  unfold hoare_triple, sa_star, sa_single, sa_pure, sa_empty, disjoint_maps.
-  intros v'' c m m' Hred p. inversion Hred. subst.
-  inversion H; subst; try discriminate_red_Val. apply Assignment_spec in H6 as [? ?].
+  find_red_cases. apply Assignment_spec in H6 as [? ?].
   - simpl in *. destruct l as [n]. unfold label_eqb, lift2, lift in *.
     rewrite Nat.eqb_refl in *. subst.
-    inversion H0; subst; try discriminate_red_Val.
-    repeat eexists. auto.
+    inversion_cost_red. repeat eexists. auto.
   - unfold Is_Valid_Map. simpl. repeat econstructor. auto.
 Qed.
 
@@ -239,8 +240,7 @@ Theorem triple_seq (V : Set) (e : Expr V) P Q :
   hoare_triple e P (fun v c => Q v (1+c)) ->
   hoare_triple (Seq U_val e) P Q.
 Proof.
-  unfold hoare_triple. intros Hhoare v' c m m' Hred. inversion Hred. subst.
-  apply Hhoare. inversion H; subst; auto. discriminate_red_Val.
+  find_red_cases. eauto.
 Qed.
 
 Theorem triple_if (V : Set) (b : bool) (e1 e2 : Expr V) P Q :
@@ -248,10 +248,9 @@ Theorem triple_if (V : Set) (b : bool) (e1 e2 : Expr V) P Q :
   hoare_triple e2 (<[~ is_true b]> <*> P) (fun v c => Q v (1+c)) ->
   hoare_triple (If (Bool b) e1 e2) P Q.
 Proof.
-  unfold hoare_triple, sa_star, is_true, sa_pure, sa_empty, disjoint_maps.
-  intros Hhoare1 Hhoare2 v' c m m' Hred p. inversion Hred. subst.
-  destruct b; [eapply Hhoare1 | eapply Hhoare2]; try (repeat eexists; eauto);
-    simpl; inversion H; subst; auto; discriminate_red_Val.
+  find_red_cases.
+  destruct b; [eapply H | eapply H0]; try (repeat eexists; eauto);
+    simpl; inversion_cost_red; auto with *.
 Qed.
 
 Theorem triple_while (V : Set) (c1 c2 : nat) (e1 e2 : Expr V) P Q :
