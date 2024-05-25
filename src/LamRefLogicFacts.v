@@ -6,7 +6,7 @@ Require Import ZArith.
 
 Require Import src.LambdaRef.
 Require Import src.LamRefFacts.
-Require Import src.LambdaAssertions.
+Require Import src.LambdaPartialTriple.
 
 (*
 (*total correctness*)

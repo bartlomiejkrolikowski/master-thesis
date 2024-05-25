@@ -9,9 +9,11 @@ src/Example6.v
 src/LambdaAssertions.v
 src/LambdaEval.v
 src/LambdaParse.v
+src/LambdaPartialTriple.v
 src/LambdaRef.v
 src/LambdaRef2.v
 src/LambdaRef3.v
+src/LambdaTotalTriple.v
 src/LamRefData.v
 src/LamRefFacts.v
 src/LamRefFacts2.v
