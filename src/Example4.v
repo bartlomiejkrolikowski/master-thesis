@@ -7,7 +7,7 @@ Require Import src.LambdaRef.
 Require Import src.Tactics.
 
 (* finite list *)
-
+(*
 Fixpoint fl_type (n : nat) : type :=
   match n with
   | 0 => Unit
@@ -16,7 +16,7 @@ Fixpoint fl_type (n : nat) : type :=
     fl_type n'
   ]
   end.
-
+*)
 Definition cons : Value string :=
   (
     [-\] "x",

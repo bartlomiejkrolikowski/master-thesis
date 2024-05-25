@@ -39,3 +39,14 @@ Definition sa_exists {V T : Set} (F : T -> StateAssertion V) : StateAssertion V 
 
 Definition sa_implies {V : Set} (A1 A2 : StateAssertion V) : Prop :=
   forall m, A1 m -> A2 m.
+
+Notation "<[]>" := (sa_empty).
+Notation "<[ P ]>" := (sa_pure P).
+Notation "<( l :== v )>" := (sa_single l v).
+Notation "P <*> Q" := (sa_star P Q) (at level 50).
+Notation "'<exists>' x .. y , p" :=
+  (sa_exists (fun x => .. (sa_exists (fun y => p)) ..))
+  (at level 200, x binder, right associativity,
+   format "'[' '<exists>' '/ ' x .. y , '/ ' p ']'")
+  : type_scope.
+Notation "P ->> Q" := (sa_implies P Q) (at level 50).

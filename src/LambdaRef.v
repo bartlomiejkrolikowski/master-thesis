@@ -36,12 +36,12 @@ Notation "l <? l'" := (label_ltb l l') : label_scope.
 
 Notation "l < l'" := (label_lt l l') : label_scope.
 
-Hint Unfold of_label : label.
-Hint Unfold lift2 : label.
-Hint Unfold lift  : label.
-Hint Unfold label_eqb : label.
-Hint Unfold label_ltb : label.
-Hint Unfold label_lt  : label.
+Global Hint Unfold of_label : label.
+Global Hint Unfold lift2 : label.
+Global Hint Unfold lift  : label.
+Global Hint Unfold label_eqb : label.
+Global Hint Unfold label_ltb : label.
+Global Hint Unfold label_lt  : label.
 
 Inductive BoolUnOpKind : Set :=
 | BNeg (* Boolean negation *)
@@ -102,7 +102,7 @@ with Expr (V : Set) :=
 | If : Expr V -> Expr V -> Expr V -> Expr V
 | While : Expr V -> Expr V -> Expr V
 .
-
+(*
 Inductive type :=
 | Unit : type
 | IntT : type (* integer *)
@@ -111,6 +111,7 @@ Inductive type :=
 | RefT : type -> type (* reference *)
 | RecT : list type -> type (* record *)
 .
+*)
 
 Arguments U_val {V}.
 Arguments Var {V}.
@@ -133,6 +134,9 @@ Arguments If {V}.
 Arguments While {V}.
 
 Coercion Val : Value >-> Expr.
+
+Global Hint Constructors Value : lamref.
+Global Hint Constructors Expr : lamref.
 
 Definition vals2exprs {V : Set} : list (Value V) -> list (Expr V) :=
   List.map Val.
@@ -452,6 +456,8 @@ Inductive red {V : Set} :
 where "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'" :=
   (@red _ e1 m1 e2 m2).
 
+Global Hint Constructors red : lamref.
+
 (* cost semantics *)
 Reserved Notation "'C[' e1 ',' m1 '~~>' e2 ',' m2 '|' c ']'".
 
@@ -469,6 +475,8 @@ Inductive cost_red {V : Set}
 
 where "'C[' e1 ',' m1 '~~>' e2 ',' m2 '|' c ']'" :=
     (@cost_red _ e1 m1 e2 m2 c).
+
+Global Hint Constructors cost_red : lamref.
 
 (*
 (* type system *)
@@ -595,11 +603,11 @@ Notation "e1 '<-' e2" :=
 Notation "e1 ';;' e2" :=
   (Seq e1 e2)
   (at level 90, right associativity).
-
+(*
 Notation "t1 --> t2" :=
   (Arrow t1 t2)
   (at level 60, right associativity).
-
+*)
 Notation "[let] e1 [in] e2 [end]" :=
   ((-\ e2) <* e1)
   (at level 50, no associativity).
