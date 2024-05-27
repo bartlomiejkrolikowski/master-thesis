@@ -1179,60 +1179,77 @@ Proof.
       eapply cost_red_split1; eauto.
 Qed.
 
+Ltac cut_values H :=
+  exfalso; eapply H; [apply Nat.lt_0_succ| |]; auto with lamref.
+
+Ltac finish_inversion_proof IH H :=
+  econstructor; eauto; eapply IH; auto; unfold not; intros;
+  match goal with
+  | [Hlt : _ < _ |- _] =>
+    eapply H; [apply -> Nat.succ_lt_mono; apply Hlt| |]
+  end; eauto with lamref.
+
 Theorem cost_red_app1_inv :
   forall V (m : _ V) m' e1 e1' e2 c,
     C[App e1 e2, m ~~> App e1' e2, m' | c] ->
-    (forall v : Value V, e1 <> Val v) ->
+    (forall e1'' m'' c'' (v : Value V),
+      c'' < c ->
+      C[e1, m ~~> e1'', m'' | c''] ->
+      e1'' <> Val v) ->
     C[e1, m ~~> e1', m' | c].
 Proof.
   intros V m m' e1 e1' e2 c Hred Hnvalue.
-  inversion Hred.
-  - constructor.
-  - subst. inversion H.
-    + subst. specialize Hnvalue with (-\ e). contradiction.
-    + subst. (* TODO *)
-Abort.
+  remember (e1 <* e2) as e eqn:He. remember (e1' <* e2) as e' eqn:He'.
+  generalize dependent e2. generalize dependent e1'.
+  generalize dependent e1.
+  induction Hred; intros; subst.
+  - injection He'. intros. subst. constructor.
+  - inversion H; subst; try now (cut_values Hnvalue).
+    finish_inversion_proof IHHred Hnvalue.
+Qed.
 
 Theorem cost_red_app2_inv :
   forall V m m' (v : Value V) e e' c,
     C[App v e, m ~~> App v e', m' | c] ->
-    (forall v : Value V, e <> Val v) ->
+    (forall e'' m'' c'' (v : Value V),
+      c'' < c ->
+      C[e, m ~~> e'', m'' | c''] ->
+      e'' <> Val v) ->
     C[e, m ~~> e', m' | c].
 Proof.
   intros V m m' v e e' c Hred.
-  remember (App v e) as eApp.
-  remember (App v e') as eApp'.
+  remember (App v e) as eApp eqn:HeApp.
+  remember (App v e') as eApp' eqn:HeApp'.
   generalize dependent v.
   generalize dependent e. generalize dependent e'.
   induction Hred as [| ? ? ? ? ? ? ? HR ? ? ];
-    intros e''' e'''' v HeqeApp HeqeApp' Hnvalue;
+    intros e''' e'''' v ? ? Hnvalue;
     subst.
-  - injection HeqeApp' as He''''. subst. constructor.
-  - inversion HR.
-    + subst. specialize Hnvalue with v0. contradiction.
-    + subst. apply red_value in H4. contradiction.
-    + subst. econstructor.
-      * eassumption.
-      * eapply IHHred.
-        -- reflexivity.
-        -- reflexivity.
-        -- (* TODO *)
-Admitted.
-
-(*
-Theorem cost_red_unop :
-  forall V k (m : _ V) m' e e' c,
-    C[e, m ~~> e', m' | c] ->
-    C[UnOp k e, m ~~> UnOp k e', m' | c].
-Proof.
-  intros V k m m' e e' c Hred.
-  induction Hred as [| ? ? ? ? ? ? ? HR ? ? ].
-  - constructor.
-  - econstructor.
-    + constructor. exact HR.
-    + assumption.
+  - injection HeApp'. intros. subst. constructor.
+  - inversion HR; subst;
+      try now (discriminate_red_Val || cut_values Hnvalue).
+    finish_inversion_proof IHHred Hnvalue.
 Qed.
 
+Theorem cost_red_unop_inv :
+  forall V k (m : _ V) m' e e' c,
+    C[UnOp k e, m ~~> UnOp k e', m' | c] ->
+    (forall e'' m'' c'' (v : Value V),
+      c'' < c ->
+      C[e, m ~~> e'', m'' | c''] ->
+      e'' <> Val v) ->
+    C[e, m ~~> e', m' | c].
+Proof.
+  intros V k m m' e e' c Hred Hnvalue.
+  remember (UnOp k e) as e1 eqn:He1. remember (UnOp k e') as e1' eqn:He1'.
+  generalize dependent e'. generalize dependent e.
+  induction Hred as [| ? ? ? ? ? ? ? HR ? ? ]; intros; subst.
+  - injection He1'. intros. subst. constructor.
+  - inversion HR; subst; try now (cut_values Hnvalue).
+    finish_inversion_proof IHHred Hnvalue.
+Qed.
+
+(*
 Theorem cost_red_binop1 :
   forall V k (m : _ V) m' e1 e1' e2 c,
     C[e1, m ~~> e1', m' | c] ->
