@@ -35,50 +35,6 @@ Proof.
 Qed.
 *)
 
-Theorem triple_weaken (V : Set) (e : Expr V) P P' Q Q' :
-  P' ->> P ->
-  (forall v c, (Q v c) ->> (Q' v c)) ->
-  hoare_triple e P Q ->
-  hoare_triple e P' Q'.
-Proof.
-  unfold hoare_triple, sa_implies. eauto.
-Qed.
-
-Theorem triple_value (V : Set) (v : Value V) (P : StateAssertion V) :
-  hoare_triple v P (fun _ c => <[c = 0]> <*> P).
-Proof.
-  unfold hoare_triple, sa_star, sa_pure, sa_empty, disjoint_maps.
-  intros v' c m m' Hred. inversion Hred.
-  - intro p. repeat eexists; eauto.
-  - discriminate_red_Val.
-Qed.
-
-Theorem triple_value' (V : Set) (v : Value V) :
-  hoare_triple v <[]> (fun _ c => <[c = 0]>).
-Proof.
-  unfold hoare_triple, sa_pure, sa_empty.
-  intros v' c m m' Hred. inversion Hred.
-  - auto.
-  - discriminate_red_Val.
-Qed.
-
-Theorem triple_value_untimed (V : Set) (v : Value V) (P : StateAssertion V) :
-  hoare_triple v P (fun _ _ => P).
-Proof.
-  eapply triple_weaken; eauto using triple_value;
-    unfold sa_implies, sa_star, sa_pure, sa_empty;
-    [| intros v' c m [m1 [m2 [[? ?] [? [? ?]]]]]; subst ];
-    eauto.
-Qed.
-
-Theorem triple_lam (V : Set) (e : Expr _) (v : Value V) P Q :
-  hoare_triple (subst_e e v) P (fun v c => Q v (1+c)) ->
-  hoare_triple ((-\e) <* v) P Q.
-Proof.
-  unfold hoare_triple. intros Hhoare v' c m m' Hred. inversion Hred. subst.
-  eapply Hhoare. inversion H; subst; auto; discriminate_red_Val.
-Qed.
-
 Ltac inversion_red :=
   match goal with
   | [H : red _ _ _ _ |- _] =>
@@ -98,6 +54,48 @@ Ltac find_red_cases :=
 
 Ltac solve_red_cases :=
   find_red_cases; inversion_cost_red; subst; auto; discriminate_red_Val.
+
+
+Theorem triple_weaken (V : Set) (e : Expr V) P P' Q Q' :
+  P' ->> P ->
+  (forall v c, (Q v c) ->> (Q' v c)) ->
+  hoare_triple e P Q ->
+  hoare_triple e P' Q'.
+Proof.
+  unfold hoare_triple, sa_implies. eauto.
+Qed.
+
+Theorem triple_value (V : Set) (v : Value V) (P : StateAssertion V) :
+  hoare_triple v P (fun _ c => <[c = 0]> <*> P).
+Proof.
+  unfold hoare_triple, sa_star, sa_pure, sa_empty, disjoint_maps.
+  intros v' c m m' Hred. inversion_cost_red.
+  intro p. repeat eexists; eauto.
+Qed.
+
+Theorem triple_value' (V : Set) (v : Value V) :
+  hoare_triple v <[]> (fun _ c => <[c = 0]>).
+Proof.
+  unfold hoare_triple, sa_pure, sa_empty.
+  intros v' c m m' Hred. inversion_cost_red. auto.
+Qed.
+
+Theorem triple_value_untimed (V : Set) (v : Value V) (P : StateAssertion V) :
+  hoare_triple v P (fun _ _ => P).
+Proof.
+  eapply triple_weaken; eauto using triple_value;
+    unfold sa_implies, sa_star, sa_pure, sa_empty;
+    [| intros v' c m [m1 [m2 [[? ?] [? [? ?]]]]]; subst ];
+    eauto.
+Qed.
+
+Theorem triple_lam (V : Set) (e : Expr _) (v : Value V) P Q :
+  hoare_triple (subst_e e v) P (fun v c => Q v (1+c)) ->
+  hoare_triple ((-\e) <* v) P Q.
+Proof.
+  unfold hoare_triple. intros Hhoare v' c m m' Hred. inversion_cost_red.
+  eapply Hhoare. inversion_red. auto.
+Qed.
 
 Theorem triple_bneg (V : Set) (b : bool) :
   @hoare_triple V ([~] (Bool b))
