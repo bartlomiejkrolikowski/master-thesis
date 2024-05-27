@@ -253,35 +253,27 @@ Proof.
     simpl; inversion_cost_red; auto with *.
 Qed.
 
-Theorem triple_while (V : Set) (c1 c2 : nat) (e1 e2 : Expr V) P Q :
-  hoare_triple e1
-    P
-    (fun v c1' => <exists> b, <[v = Bool b /\ c1' = c1]> <*> Q b) ->
-  hoare_triple e2
-    (Q true)
-    (fun _ c2' => <[c2' = c2]> <*> P) ->
-  hoare_triple (While e1 e2)
-    P
-    (fun _ c => <exists> n, <[c = (n * (c1 + 1 + c2)) + c1 + 1]> <*> Q false).
+(*
+Theorem triple_app (V : Set) (e1 e2 : Expr V) P1 P2 P3 Q1 Q2 Q3 :
+  hoare_triple e1 P1 Q1 ->
+  (forall c v, Q1 c v ->> P2) ->
+  hoare_triple e2 P2 Q2 ->
+  (forall c v, Q2 c v ->> P3) ->
+  (forall c1 v1 c2 v2,
+    Q1 c1 v1 ->
+    Q2 c2 v2 ->
+    hoare_triple (App v1 v2) P3 Q3) ->
+  hoare_triple (App e1 e2) P1 Q3.
 Proof.
-  unfold hoare_triple, sa_exists, sa_star, is_true, sa_pure, sa_empty,
-    disjoint_maps.
-  intros Hhoare1 Hhoare2 v' c m m' Hred p.
-  (** remember (While e1 e2) as e eqn:Hwhile.
-  remember (Val v') as e' eqn:Hval. generalize dependent e'.
-  generalize dependent e.*)
-  induction c as [? IH] using (well_founded_ind lt_wf). inversion Hred. subst.
-  inversion H. subst.
-(*  destruct b; [eapply Hhoare1 | eapply Hhoare2]; try (repeat eexists; eauto);
-    simpl; inversion H; subst; auto; discriminate_red_Val.*)
-Admitted.
+  find_red_cases. apply Assignment_spec in H6 as [? ?].
+  - simpl in *. destruct l as [n]. unfold label_eqb, lift2, lift in *.
+    rewrite Nat.eqb_refl in *. subst.
+    inversion_cost_red. repeat eexists. auto.
+  - unfold Is_Valid_Map. simpl. repeat econstructor. auto.
+Qed.
+*)
 
 (*
-| red_while : forall m e1 e2,
-    R[While e1 e2, m
-      ~~>
-      If e1 (Seq e2 (While e1 e2)) U_val, m]
-
 (* structural rules *)
 | red_app1 : forall m m' e1 e1' e2,
     R[e1, m ~~> e1', m'] ->
@@ -333,3 +325,32 @@ Admitted.
     R[e1, m ~~> e1', m'] ->
     R[If e1 e2 e3, m ~~> If e1' e2 e3, m']
 *)
+
+(*
+| red_while : forall m e1 e2,
+    R[While e1 e2, m
+      ~~>
+      If e1 (Seq e2 (While e1 e2)) U_val, m]
+*)
+Theorem triple_while (V : Set) (c1 c2 : nat) (e1 e2 : Expr V) P Q :
+  hoare_triple e1
+    P
+    (fun v c1' => <exists> b, <[v = Bool b /\ c1' = c1]> <*> Q b) ->
+  hoare_triple e2
+    (Q true)
+    (fun _ c2' => <[c2' = c2]> <*> P) ->
+  hoare_triple (While e1 e2)
+    P
+    (fun _ c => <exists> n, <[c = (n * (c1 + 1 + c2)) + c1 + 1]> <*> Q false).
+Proof.
+  unfold hoare_triple, sa_exists, sa_star, is_true, sa_pure, sa_empty,
+    disjoint_maps.
+  intros Hhoare1 Hhoare2 v' c m m' Hred p.
+  (** remember (While e1 e2) as e eqn:Hwhile.
+  remember (Val v') as e' eqn:Hval. generalize dependent e'.
+  generalize dependent e.*)
+  induction c as [? IH] using (well_founded_ind lt_wf). inversion Hred. subst.
+  inversion H. subst.
+(*  destruct b; [eapply Hhoare1 | eapply Hhoare2]; try (repeat eexists; eauto);
+    simpl; inversion H; subst; auto; discriminate_red_Val.*)
+Admitted.
