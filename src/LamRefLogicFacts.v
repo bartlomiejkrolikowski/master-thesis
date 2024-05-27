@@ -65,7 +65,7 @@ Proof.
   unfold hoare_triple, sa_implies. eauto.
 Qed.
 
-Theorem triple_value (V : Set) (v : Value V) (P : StateAssertion V) :
+Theorem triple_value' (V : Set) (v : Value V) (P : StateAssertion V) :
   hoare_triple v P (fun _ c => <[c = 0]> <*> P).
 Proof.
   unfold hoare_triple, sa_star, sa_pure, sa_empty, disjoint_maps.
@@ -73,7 +73,7 @@ Proof.
   intro p. repeat eexists; eauto.
 Qed.
 
-Theorem triple_value' (V : Set) (v : Value V) :
+Theorem triple_value (V : Set) (v : Value V) :
   hoare_triple v <[]> (fun _ c => <[c = 0]>).
 Proof.
   unfold hoare_triple, sa_pure, sa_empty.
@@ -83,7 +83,7 @@ Qed.
 Theorem triple_value_untimed (V : Set) (v : Value V) (P : StateAssertion V) :
   hoare_triple v P (fun _ _ => P).
 Proof.
-  eapply triple_weaken; eauto using triple_value;
+  eapply triple_weaken; eauto using triple_value';
     unfold sa_implies, sa_star, sa_pure, sa_empty;
     [| intros v' c m [m1 [m2 [[? ?] [? [? ?]]]]]; subst ];
     eauto.
