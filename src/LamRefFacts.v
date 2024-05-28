@@ -1427,3 +1427,197 @@ Proof.
     + assumption.
 Qed.
 *)
+
+(* big step semantics *)
+
+Ltac eauto_lr := eauto with lamref.
+Ltac induction_on_cost_red v H :=
+  remember (Val v); induction H; subst; simpl; eauto_lr.
+Ltac solve_by_induction :=
+  intros;
+  match goal with
+  | [H1 : cost_red _ _ (Val ?v1) _ _,
+     H2 : cost_red _ _ (Val ?v2) _ _,
+     H3 : cost_red _ _ (Val ?v3) _ _
+     |- _] =>
+    induction_on_cost_red v1 H1;
+    induction_on_cost_red v2 H2;
+    induction_on_cost_red v3 H3
+  | [H1 : cost_red _ _ (Val ?v1) _ _,
+     H2 : cost_red _ _ (Val ?v2) _ _
+     |- _] =>
+    induction_on_cost_red v1 H1;
+    induction_on_cost_red v2 H2
+  | [H1 : cost_red _ _ (Val ?v1) _ _ |- _] =>
+    induction_on_cost_red v1 H1
+  end.
+
+
+Theorem big_red_app (V : Set) m1 m2 m3 m4 c1 c2 c3
+  (e1 e2 : Expr V) e1' (v2 v3 : Value V) :
+  C[e1,m1 ~~> -\ e1',m2|c1] ->
+  C[e2,m2 ~~>     v2,m3|c2] ->
+  C[subst_e e1' v2,m3 ~~> v3,m4|c3] ->
+  C[e1 <* e2,m1 ~~> v3,m4|c1+c2+1+c3].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_bneg (V : Set) m1 m2 c
+  (e : Expr V) b :
+  C[e,m1 ~~> Bool b,m2|c] ->
+  C[[~] e,m1 ~~> Bool (negb b),m2|1+c].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_ineg (V : Set) m1 m2 c
+  (e : Expr V) i :
+  C[e,m1 ~~> Int i,m2|c] ->
+  C[[--] e,m1 ~~> Int (-i),m2|1+c].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_bor (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) b1 b2 :
+  C[e1,m1 ~~> Bool b1,m2|c1] ->
+  C[e2,m2 ~~> Bool b2,m3|c2] ->
+  C[e1 [||] e2,m1 ~~> Bool (b1 || b2),m3|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_band (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) b1 b2 :
+  C[e1,m1 ~~> Bool b1,m2|c1] ->
+  C[e2,m2 ~~> Bool b2,m3|c2] ->
+  C[e1 [&&] e2,m1 ~~> Bool (b1 && b2),m3|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_iadd (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) i1 i2 :
+  C[e1,m1 ~~> Int i1,m2|c1] ->
+  C[e2,m2 ~~> Int i2,m3|c2] ->
+  C[e1 [+] e2,m1 ~~> Int (i1 + i2),m3|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_isub (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) i1 i2 :
+  C[e1,m1 ~~> Int i1,m2|c1] ->
+  C[e2,m2 ~~> Int i2,m3|c2] ->
+  C[e1 [-] e2,m1 ~~> Int (i1 - i2),m3|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_imul (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) i1 i2 :
+  C[e1,m1 ~~> Int i1,m2|c1] ->
+  C[e2,m2 ~~> Int i2,m3|c2] ->
+  C[e1 [*] e2,m1 ~~> Int (i1 * i2),m3|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_idiv (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) i1 i2 :
+  C[e1,m1 ~~> Int i1,m2|c1] ->
+  C[e2,m2 ~~> Int i2,m3|c2] ->
+  C[e1 [/] e2,m1 ~~> Int (i1 / i2),m3|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_clt (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) i1 i2 :
+  C[e1,m1 ~~> Int i1,m2|c1] ->
+  C[e2,m2 ~~> Int i2,m3|c2] ->
+  C[e1 [<] e2,m1 ~~> Bool (i1 <? i2)%Z,m3|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_ceq (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) i1 i2 :
+  C[e1,m1 ~~> Int i1,m2|c1] ->
+  C[e2,m2 ~~> Int i2,m3|c2] ->
+  C[e1 [=] e2,m1 ~~> Bool (i1 =? i2)%Z,m3|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Notation "List.last_error xs" :=
+  (List.last (List.map Some xs) None)
+  (at level 50).
+
+Lemma red_rec_cons_value (V : Set) m m' c
+  (es : list (Expr V)) v (vs : list (Value V)) :
+  C[RecE es,m ~~> RecV vs,m'|c] ->
+  C[RecE (Val v::es)%list,m ~~> RecV (v::vs)%list,m'|c].
+Proof.
+  intros Hr. remember (RecE es) as e. remember (Val (RecV vs)) as ev.
+  generalize dependent es. induction Hr; intros; subst; try discriminate.
+  inversion H; subst.
+  - inversion Hr; subst; try discriminate_red_Val.
+    unfold vals2exprs.
+    change
+      (C[ RecE (List.map Val (v::vs))%list,m'' ~~> RecV (v::vs)%list,m'' | 1]).
+    fold (@vals2exprs V). eauto_lr.
+  - econstructor.
+    + eapply red_rec_split with (vs0 := (v::vs0)%list); simpl;
+        eauto using SplitAt_tl.
+    + auto.
+Qed.
+
+Lemma red_rec_cons (V : Set) m1 m2 m3 c1 c2
+  (e : Expr V) es (v : Value V) vs :
+  C[e,m1 ~~> v,m2|c1] ->
+  C[RecE es,m2 ~~> RecV vs,m3|c2] ->
+  C[RecE (e::es),m1 ~~> RecV (v::vs),m3|c1+c2].
+Proof.
+  intros Hr1 Hr2. eapply cost_red_comp.
+  - eapply cost_red_rec_split with (vs0 := []%list); eauto; simpl;
+      apply SplitAt_hd.
+  - now apply red_rec_cons_value.
+Qed.
+
+Theorem big_red_rec (V : Set) n ms m m' cs
+  (es : list (Expr V)) (vs : list (Value V)) :
+  Some m = List.head ms ->
+  Some m' = List.last_error ms ->
+  n = List.length es ->
+  n = List.length vs ->
+  1+n = List.length ms ->
+  n = List.length cs ->
+  (forall i e v m m' c,
+    Nth i es e ->
+    Nth i vs v ->
+    Nth i ms m ->
+    Nth (1+i) ms m' ->
+    Nth i cs c ->
+    C[e,m ~~> v,m'|c]) ->
+  C[RecE es,m ~~> RecV vs,m'|List.list_sum cs + 1].
+Proof.
+  intros. subst.
+  generalize dependent ms.
+  generalize dependent m. generalize dependent m'.
+  generalize dependent cs. generalize dependent vs.
+  induction es; intros; destruct vs; destruct ms; destruct cs;
+    simpl in *; try discriminate.
+  - econstructor.
+    + fold (List.map (@Val V) []). fold (@vals2exprs V []).
+      eauto_lr.
+    + destruct ms; simpl in *; try discriminate.
+      injection H as ?. injection H0 as ?. subst. eauto_lr.
+  - destruct ms; simpl in *; try discriminate. injection H as ?. subst.
+    rewrite <- Nat.add_assoc. eapply red_rec_cons.
+    + eapply H5; try constructor. constructor.
+    + injection H2 as ?. injection H3 as ?. injection H4 as ?.
+      eapply IHes with (ms := (m1::ms)%list); simpl; auto.
+      intros. eauto 10 with lamref.
+Qed.

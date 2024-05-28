@@ -277,6 +277,10 @@ Definition Is_fresh_label {V : Set} (l : Label) (m : Map V) : Prop :=
 Definition Is_Valid_Map {V : Set} (m : Map V) : Prop :=
   List.NoDup (labels m).
 
+Global Hint Unfold labels : lamref.
+Global Hint Unfold Is_fresh_label : lamref.
+Global Hint Unfold Is_Valid_Map : lamref.
+
 Inductive Lookup {V : Set} (l : Label) : Map V -> Value V -> Prop :=
 | Lookup_hd (m : Map V) (v : Value V) : Lookup l ((l,v) :: m)%list v
 | Lookup_tl (a : Label * Value V) (m : Map V) (v : Value V) :
@@ -307,6 +311,11 @@ Inductive SplitAt {A : Type} :
     SplitAt xs ys y ys' ->
     SplitAt (x::xs) (x::ys) y ys'
 .
+
+Global Hint Constructors Assignment : lamref.
+Global Hint Constructors Lookup     : lamref.
+Global Hint Constructors Nth        : lamref.
+Global Hint Constructors SplitAt    : lamref.
 
 Notation "'L[' xs '~~>' ys '|' y '|' zs ']'" := (@SplitAt _ xs ys y zs).
 Section label_section.
