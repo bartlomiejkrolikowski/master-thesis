@@ -438,6 +438,10 @@ Inductive red {V : Set} :
     R[e, m ~~> e', m'] ->
     R[RecE es, m ~~> RecE es', m']
 
+| red_rec_get_e : forall n m m' e e',
+    R[e, m ~~> e', m'] ->
+    R[Get n e, m ~~> Get n e', m']
+
 | red_ref_e : forall m m' e e',
     R[e, m ~~> e', m'] ->
     R[Ref e, m ~~> Ref e', m']

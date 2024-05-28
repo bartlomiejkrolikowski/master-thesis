@@ -1452,7 +1452,6 @@ Ltac solve_by_induction :=
     induction_on_cost_red v1 H1
   end.
 
-
 Theorem big_red_app (V : Set) m1 m2 m3 m4 c1 c2 c3
   (e1 e2 : Expr V) e1' (v2 v3 : Value V) :
   C[e1,m1 ~~> -\ e1',m2|c1] ->
@@ -1620,4 +1619,87 @@ Proof.
     + injection H2 as ?. injection H3 as ?. injection H4 as ?.
       eapply IHes with (ms := (m1::ms)%list); simpl; auto.
       intros. eauto 10 with lamref.
+Qed.
+
+Theorem big_red_get (V : Set) n m1 m2 c
+  (e : Expr V) (vs : list (Value V)) v :
+  Nth n vs v ->
+  C[e,m1 ~~> RecV vs,m2|c] ->
+  C[Get n e,m1 ~~> v,m2|1+c].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_ref (V : Set) l m1 m2 c
+  (e : Expr V) (v : Value V) :
+  l = new_label m2 ->
+  C[e,m1 ~~> v,m2|c] ->
+  C[Ref e,m1 ~~> Lab l,(l,v)::m2|1+c]%list.
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_deref (V : Set) l m1 m2 c
+  (e : Expr V) (v : Value V) :
+  Lookup l m2 v ->
+  C[e,m1 ~~> Lab l,m2|c] ->
+  C[Deref e,m1 ~~> v,m2|1+c].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_assign (V : Set) l m1 m2 m3 m4 c1 c2
+  (e1 e2 : Expr V) (v : Value V) :
+  Assignment l v m3 m4 ->
+  C[e1,m1 ~~> Lab l,m2|c1] ->
+  C[e2,m2 ~~> v,m3|c2] ->
+  C[e1 <- e2,m1 ~~> U_val,m4|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_seq (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) (v : Value V) :
+  C[e1,m1 ~~> U_val,m2|c1] ->
+  C[e2,m2 ~~> v,m3|c2] ->
+  C[e1 ;; e2,m1 ~~> v,m3|c1+1+c2].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_if_true (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 e3 : Expr V) (v : Value V) :
+  C[e1,m1 ~~> Bool true,m2|c1] ->
+  C[e2,m2 ~~> v,m3|c2] ->
+  C[[if]e1[then]e2[else]e3[end],m1 ~~> v,m3|c1+1+c2].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_if_false (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 e3 : Expr V) (v : Value V) :
+  C[e1,m1 ~~> Bool false,m2|c1] ->
+  C[e3,m2 ~~> v,m3|c2] ->
+  C[[if]e1[then]e2[else]e3[end],m1 ~~> v,m3|c1+1+c2].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_while_true (V : Set) m1 m2 m3 m4 c1 c2 c3
+  (e1 e2 : Expr V) :
+  C[e1,m1 ~~> Bool true,m2|c1] ->
+  C[e2,m2 ~~> U_val,m3|c2] ->
+  C[[while]e1[do]e2[end],m3 ~~> U_val,m4|c3] ->
+  C[[while]e1[do]e2[end],m1 ~~> U_val,m4|1+(c1+1+(c2+1+c3))].
+Proof.
+  eauto using big_red_if_true, big_red_seq with lamref.
+Qed.
+
+Theorem big_red_while_false (V : Set) m1 m2 c
+  (e1 e2 : Expr V) :
+  C[e1,m1 ~~> Bool false,m2|c] ->
+  C[[while]e1[do]e2[end],m1 ~~> U_val,m2|1+(c+1)].
+Proof.
+  rewrite <- Nat.add_0_r with (c+1).
+  eauto using big_red_if_false with lamref.
 Qed.
