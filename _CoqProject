@@ -17,5 +17,6 @@ src/LambdaTotalTriple.v
 src/LamRefData.v
 src/LamRefFacts.v
 src/LamRefFacts2.v
-src/LamRefLogicFacts.v
+src/LamRefLogicFactsPartial.v
+src/LamRefLogicFactsTotal.v
 src/Tactics.v

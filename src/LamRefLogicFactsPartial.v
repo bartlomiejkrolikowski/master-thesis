@@ -97,13 +97,35 @@ Proof.
   eapply Hhoare. inversion_red. auto.
 Qed.
 
-Theorem triple_bneg (V : Set) (b : bool) :
-  @hoare_triple V ([~] (Bool b))
-    <[]>
-    (fun v c => <[v = Bool (negb b) /\ c = 1]>).
+(*Theorem triple_seq (V : Set) (e1 e2 : Expr V) P1 P2 Q1 Q2 :
+  hoare_triple e1 P1 Q1 ->
+  hoare_triple e2 P2 Q2 ->
+  (forall v c, Q1 v c ->> P1) ->
+  hoare_triple (e1 ;; e2) P1 Q2.
 Proof.
-  solve_red_cases.
-Qed.
+  unfold hoare_triple, sa_exists, sa_star, sa_single, sa_pure, sa_empty,
+    disjoint_maps.
+  intros.
+  inversion_cost_red. inversion_red.
+*)
+Theorem triple_bneg (V : Set) (e : Expr V) (b : bool) P Q :
+  P ->> Is_Valid_Map ->
+  hoare_triple e P (fun v c => <[v = Bool b]> <*> Q (1+c)) ->
+  hoare_triple ([~] e)
+    P
+    (fun v c => <[v = Bool (negb b)]> <*> Q c).
+Proof.
+  unfold Is_Valid_Map, labels. find_red_cases.
+  - edestruct H0 as [? [? [[? ?] [? [? ?]]]]]; eauto with lamref. subst.
+    simpl in *. injection H1 as [].
+    inversion_cost_red. repeat eexists; eauto.
+  - edestruct cost_red_split1_exists; [|apply red_unop| |].
+    + eauto with lamref.
+    + eauto.
+    + econstructor. eauto with lamref. eauto.
+    +
+    
+Admitted.
 
 Theorem triple_ineg (V : Set) (i : Z) :
   @hoare_triple V ([--] Int i)

@@ -1703,3 +1703,41 @@ Proof.
   rewrite <- Nat.add_0_r with (c+1).
   eauto using big_red_if_false with lamref.
 Qed.
+
+(* big step inversions *)
+(*
+Ltac eauto_lr := eauto with lamref.
+Ltac induction_on_cost_red v H :=
+  remember (Val v); induction H; subst; simpl; eauto_lr.
+Ltac solve_by_induction :=
+  intros;
+  match goal with
+  | [H1 : cost_red _ _ (Val ?v1) _ _,
+     H2 : cost_red _ _ (Val ?v2) _ _,
+     H3 : cost_red _ _ (Val ?v3) _ _
+     |- _] =>
+    induction_on_cost_red v1 H1;
+    induction_on_cost_red v2 H2;
+    induction_on_cost_red v3 H3
+  | [H1 : cost_red _ _ (Val ?v1) _ _,
+     H2 : cost_red _ _ (Val ?v2) _ _
+     |- _] =>
+    induction_on_cost_red v1 H1;
+    induction_on_cost_red v2 H2
+  | [H1 : cost_red _ _ (Val ?v1) _ _ |- _] =>
+    induction_on_cost_red v1 H1
+  end.
+*)(*
+Theorem big_red_bneg_inv (V : Set) m1 m2 c
+  (e : Expr V) b :
+  C[[~] e,m1 ~~> Bool (negb b),m2|1+c] ->
+  C[e,m1 ~~> Bool b,m2|c].
+Proof.
+  intros Hr. remember ([~]e) as e'. remember (1+c) as c'.
+  generalize dependent e. generalize dependent c.
+  induction_on_cost_red (@Bool V (negb b)) Hr; try discriminate.
+  intros. injection Heqc' as ?. subst. inversion H; subst.
+  eapply IHHr; auto.
+  solve_by_induction.
+Qed.
+*)
