@@ -25,7 +25,7 @@ Definition sa_single {V : Set} (l : Label) (v : Value V) : StateAssertion V :=
   fun m => m = [(l,v)]%list.
 
 Definition disjoint_maps {V : Set} (m1 m2 : Map V) : Prop :=
-  forall p, List.In p m1 -> List.In p m2 -> False.
+  forall p, List.In p (labels m1) -> List.In p (labels m2) -> False.
 
 Definition sa_star {V : Set} (A1 A2 : StateAssertion V) : StateAssertion V :=
   fun m => exists m1 m2,
