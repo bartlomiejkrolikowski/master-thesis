@@ -296,7 +296,7 @@ Inductive Assignment {V : Set} (l : Label) (v : Value V) :
     Assignment l v (a :: m)%list (a :: m')%list
 .
 
-Inductive Nth {A : Set} : nat -> list A -> A -> Prop :=
+Inductive Nth {A : Type} : nat -> list A -> A -> Prop :=
 | Nth_zero (x : A) (xs : list A) : Nth 0 (x::xs) x
 | Nth_succ (n : nat) (x y : A) (xs : list A) :
     Nth n xs y -> Nth (S n) (x::xs) y
