@@ -251,6 +251,28 @@ Qed.
 
 Definition last_error {A} (xs : list A) := List.last (List.map Some xs) None.
 
+Ltac injection_on_all constr :=
+  repeat match goal with
+  | [H : constr _ = constr _ |- _] => injection H as H
+  end.
+
+Ltac injection_on_all_Some :=
+  repeat match goal with
+  | [H : Some _ = Some _ |- _] => injection H as H
+  end.
+
+Ltac inversion_Nth_nil :=
+  match goal with
+  | [H : Nth _ []%list _ |- _] => inversion H; subst; clear H
+  end.
+
+Ltac inversion_Nth_cons :=
+  match goal with
+  | [H : Nth _ (_ :: _)%list _ |- _] => inversion H; subst; clear H
+  end.
+
+Ltac inversion_all_Nth_cons := repeat inversion_Nth_cons.
+
 Theorem triple_rec (V : Set) (es : list (Expr V)) (vs : list (Value V))
   n cs Ps P Q :
   n = List.length es ->
@@ -268,14 +290,43 @@ Theorem triple_rec (V : Set) (es : list (Expr V)) (vs : list (Value V))
     hoare_triple e
       P
       (fun v' c' => <[v' = v /\ c' = c]> <*> Q)) ->
-  hoare_triple (RecE (vals2exprs vs))
+  hoare_triple (RecE es)
     P
     (fun v c => <[v = RecV vs /\ c = List.list_sum cs + 1]> <*> Q).
 Proof.
   unfold_all.
   intros.
-  specialize (big_red_rec V n) as Hbig.
-Admitted.
+  assert (exists ms m',
+    1+n = List.length ms /\
+    Some m = List.head ms /\
+    Some m' = last_error ms /\
+    Q m' /\
+      forall i e v c m m',
+        Nth i es e ->
+        Nth i vs v ->
+        Nth i cs c ->
+        Nth i ms m ->
+        Nth (1+i) ms m' ->
+        C[e,m ~~> v,m'|c])
+    as (ms&m'&?&?&?&?&?).
+  { generalize dependent m. generalize dependent P.
+    generalize dependent Ps. generalize dependent cs.
+    generalize dependent vs. generalize dependent es.
+    induction n; intros; destruct es, vs, cs, Ps;
+      try discriminate; try destruct Ps; try discriminate;
+      unfold last_error in *; simpl in *;
+      injection_on_all_Some; injection_on_all S; subst.
+    - exists [m]%list. repeat econstructor; auto. intros. inversion_Nth_nil.
+    - edestruct H5 with (i := 0) as (v'&c'&m'&?&m1&m2&((?&?)&?)&?&?&?);
+        eauto_lr.
+      edestruct IHn with (Ps := (s0::Ps)%list) (m := m2) as (ms&m''&?&?&?&?&?);
+        simpl; eauto 10 with lamref.
+      destruct ms; [discriminate|]. simpl in *. injection_on_all S.
+      injection_on_all_Some. exists (m::m0::ms)%list.
+      repeat eexists; simpl in *; eauto. intros.
+      inversion_all_Nth_cons; eauto with lamref. }
+  eauto 15 using big_red_rec with lamref.
+Qed.
 
 Theorem triple_get (V : Set) n (e : Expr V) (vs : list (Value V)) v P Q :
   Nth n vs v ->
