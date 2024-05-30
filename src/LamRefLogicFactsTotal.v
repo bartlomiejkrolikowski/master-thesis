@@ -398,32 +398,21 @@ Proof.
   solve_triple_15 big_red_seq.
 Qed.
 
-Theorem triple_if_true (V : Set) (e1 e2 e3 : Expr V) v P1 P2 Q2 c1 :
+Theorem triple_if (V : Set) (e1 e2 e3 : Expr V) b P1 P2 Q2 c1 :
   hoare_triple e1
     P1
-    (fun v' c => <[v' = Bool true /\ c = c1]> <*> P2) ->
+    (fun v' c => <[v' = Bool b /\ c = c1]> <*> P2 b) ->
   hoare_triple e2
-    P2
-    (fun v' c => <[v' = v]> <*> Q2 (c1+1+c)) ->
-  hoare_triple (If e1 e2 e3)
-    P1
-    (fun v' c => <[v' = v]> <*> Q2 c).
-Proof.
-  solve_triple_15 big_red_if_true.
-Qed.
-
-Theorem triple_if_false (V : Set) (e1 e2 e3 : Expr V) v P1 P2 Q2 c1 :
-  hoare_triple e1
-    P1
-    (fun v' c => <[v' = Bool false /\ c = c1]> <*> P2) ->
+    (P2 true)
+    (fun v c => Q2 v (c1+1+c)) ->
   hoare_triple e3
-    P2
-    (fun v' c => <[v' = v]> <*> Q2 (c1+1+c)) ->
-  hoare_triple (If e1 e2 e3)
-    P1
-    (fun v' c => <[v' = v]> <*> Q2 c).
+    (P2 false)
+    (fun v c => Q2 v (c1+1+c)) ->
+  hoare_triple (If e1 e2 e3) P1 Q2.
 Proof.
-  solve_triple_15 big_red_if_false.
+  destruct b.
+  - solve_triple_15 big_red_if_true.
+  - solve_triple_15 big_red_if_false.
 Qed.
 
 (*
