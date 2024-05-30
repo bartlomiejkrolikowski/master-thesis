@@ -119,11 +119,15 @@ Ltac edestruct_direct :=
   | [H : _ /\ _ |- _] => edestruct H; eauto; subst; clear H
   end.
 
-Ltac edestruct_all :=
+Ltac edestruct_all_in n :=
   repeat match goal with
   | [p : ?P ?m, H : forall _, ?P _ -> exists _, _ |- _] =>
-    destruct H with m; eauto; clear H; edestruct_direct
+    destruct H with m; eauto n; clear H; edestruct_direct
+  | [H : forall _, (exists _, _) -> exists _, _ |- _] =>
+    edestruct H; eauto n; clear H; edestruct_direct
   end.
+
+Ltac edestruct_all := edestruct_all_in integer:(5).
 
 Ltac solve_triple n H :=
   unfold_all;
@@ -344,12 +348,11 @@ Theorem triple_ref (V : Set) (e : Expr V) (v : Value V) P Q :
     P
     (fun v' c => <exists> l, <[v' = Lab l]> <*> <( l :== v )> <*> Q c).
 Proof.
-  unfold_all.
-  intros.
-  edestruct_all.
-  repeat eexists. eapply big_red_ref; eauto.
-  eauto. eauto. simpl. unfold new_label, list_max, of_label, labels. eauto 100.
-Admitted.
+  pose proof new_label_is_fresh. unfold Is_fresh_label, not in *.
+  unfold_all. intros. edestruct_all.
+  repeat eexists; try (eapply big_red_ref; eauto); simpl; auto.
+  intros ? [? | []] ?. subst. eauto.
+Qed.
 
 Theorem triple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
   hoare_triple e
@@ -359,22 +362,27 @@ Theorem triple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
     (<(l :== v)> <*> P)
     (fun v' c => <[v' = v]> <*> <(l :== v)> <*> Q c).
 Proof.
-  (*solve_triple integer:(100) big_red_deref.*)
-Admitted.
+  unfold_all. intros. edestruct_all.
+  repeat eexists; try eapply big_red_deref; simpl in *; eauto with lamref.
+Qed.
 
 Theorem triple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 c1 :
   hoare_triple e1
     (<(l :== v)> <*> P1)
-    (fun v'' c => <[v'' = Lab l /\ c = c1]> <*> P2) ->
+    (fun v'' c => <[v'' = Lab l /\ c = c1]> <*> <(l :== v)> <*> P2) ->
   hoare_triple e2
     (<(l :== v)> <*> P2)
-    (fun v'' c => <[v'' = v']> <*> Q2 (c1+c+1)) ->
+    (fun v'' c => <[v'' = v']> <*> <(l :== v)> <*> Q2 (c1+c+1)) ->
   hoare_triple (Assign e1 e2)
     (<(l :== v)> <*> P1)
     (fun v'' c => <[v'' = U_val]> <*> <(l :== v')> <*> Q2 c).
 Proof.
-  (*solve_triple integer:(100) big_red_assign.*)
-Admitted.
+  unfold_all. intros. edestruct_direct.
+  edestruct H; eauto 10. clear H. edestruct_direct.
+  edestruct_all_in integer:(10).
+  repeat eexists; try eapply big_red_assign; simpl in *; eauto with lamref.
+  auto with lamref.
+Qed.
 
 Theorem triple_seq (V : Set) (e1 e2 : Expr V) (v : Value V) P1 P2 Q2 c1 :
   hoare_triple e1
