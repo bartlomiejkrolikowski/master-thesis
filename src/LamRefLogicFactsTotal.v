@@ -72,6 +72,8 @@ Ltac edestruct_all_in n :=
     destruct H with m; eauto n; clear H; edestruct_direct
   | [H : forall _, (exists _, _) -> exists _, _ |- _] =>
     edestruct H; eauto n; clear H; edestruct_direct
+  | [H : forall _ _, (exists _, _) -> exists _, _ |- _] =>
+    edestruct H; eauto n; clear H; edestruct_direct
   end.
 
 Ltac edestruct_all := edestruct_all_in integer:(5).
@@ -79,6 +81,7 @@ Ltac edestruct_all := edestruct_all_in integer:(5).
 Ltac solve_triple n H :=
   unfold_all;
   intros;
+  edestruct_direct;
   edestruct_all;
   eauto n using H.
 
@@ -143,11 +146,27 @@ Proof.
   split; intros ? ? H; [destruct H|]; subst; auto.
 Qed.
 
+Theorem triple_pure (V : Set) (e : Expr V) P Q :
+  (P -> triple e <[]> Q) <-> triple e <[P]> Q.
+Proof.
+  unfold_all.
+  split; intros Htriple; intros; edestruct_direct; edestruct Htriple; eauto;
+    repeat eexists; eauto.
+Qed.
+
 Theorem htriple_exists A (V : Set) (e : Expr V) P Q :
   (forall x : A, hoare_triple e (P x) Q) <->
     hoare_triple e (<exists> x, P x) Q.
 Proof.
   unfold hoare_triple, sa_exists. split; intros ? ? H; [destruct H|]; eauto.
+Qed.
+
+Theorem triple_exists A (V : Set) (e : Expr V) P Q :
+  (forall x : A, triple e (P x) Q) <-> triple e (<exists> x, P x) Q.
+Proof.
+  unfold_all.
+  split; intros Htriple; intros; edestruct_direct; edestruct Htriple; eauto;
+    repeat eexists; eauto.
 Qed.
 
 Theorem htriple_pure_post (V : Set) (e : Expr V) P Q :
@@ -221,11 +240,28 @@ Proof.
   intros m Hm. subst. eauto 10 with lamref.
 Qed.
 
+Ltac solve_simple_triple n :=
+  unfold_all; intros; edestruct_direct; eauto n with lamref.
+Ltac solve_simple_triple_20 :=
+  solve_simple_triple integer:(20).
+
+Theorem triple_value (V : Set) (v : Value V) :
+  triple v <[]> (fun v' c => <[v' = v /\ c = 0]>).
+Proof.
+  solve_simple_triple integer:(15).
+Qed.
+
 Theorem htriple_value' (V : Set) (v : Value V) (P : StateAssertion V) :
   hoare_triple v P (fun v' c => <[v' = v /\ c = 0]> <*> P).
 Proof.
   unfold hoare_triple, sa_star, sa_pure, sa_empty, disjoint_maps.
   eauto 15 with lamref.
+Qed.
+
+Theorem triple_value' (V : Set) (v : Value V) (P : StateAssertion V) :
+  triple v P (fun v' c => <[v' = v /\ c = 0]> <*> P).
+Proof.
+  solve_simple_triple_20.
 Qed.
 
 Theorem htriple_value_untimed (V : Set) (v : Value V) (P : StateAssertion V) :
@@ -237,12 +273,29 @@ Proof.
     eauto.
 Qed.
 
+Theorem triple_value_untimed (V : Set) (v : Value V) (P : StateAssertion V) :
+  triple v P (fun _ _ => P).
+Proof.
+  eapply triple_weaken; eauto using triple_value';
+    unfold sa_implies, sa_star, sa_pure, sa_empty;
+    [| intros v' c m [m1 [m2 [[? ?] [? [? ?]]]]]; subst ];
+    eauto.
+Qed.
+
 Theorem htriple_lam (V : Set) (e : Expr _) (v : Value V) P Q :
   hoare_triple (subst_e e v) P (fun v c => Q v (1+c)) ->
   hoare_triple ((-\e) <* v) P Q.
 Proof.
   unfold hoare_triple. intros.
   edestruct H as [? [? [? [? ?]]]]; eauto 10 with lamref.
+Qed.
+
+Theorem triple_lam (V : Set) (e : Expr _) (v : Value V) P Q :
+  triple (subst_e e v) P (fun v c => Q v (1+c)) ->
+  triple ((-\e) <* v) P Q.
+Proof.
+  unfold_all. intros. edestruct_direct.
+  edestruct H; edestruct_direct; repeat eexists; eauto with lamref.
 Qed.
 
 (*Theorem htriple_seq (V : Set) (e1 e2 : Expr V) P1 P2 Q1 Q2 :
