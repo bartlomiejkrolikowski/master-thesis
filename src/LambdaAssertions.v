@@ -34,7 +34,7 @@ Definition sa_star {V : Set} (A1 A2 : StateAssertion V) : StateAssertion V :=
     disjoint_maps m1 m2 /\
     m = (m1 ++ m2)%list.
 
-Definition sa_exists {V T : Set} (F : T -> StateAssertion V) : StateAssertion V :=
+Definition sa_exists {T} {V : Set} (F : T -> StateAssertion V) : StateAssertion V :=
   fun m => exists x : T, F x m.
 
 Definition sa_implies {V : Set} (A1 A2 : StateAssertion V) : Prop :=
@@ -43,10 +43,15 @@ Definition sa_implies {V : Set} (A1 A2 : StateAssertion V) : Prop :=
 Notation "<[]>" := (sa_empty).
 Notation "<[ P ]>" := (sa_pure P).
 Notation "<( l :== v )>" := (sa_single l v).
-Notation "P <*> Q" := (sa_star P Q) (at level 50).
+Notation "P <*> Q" := (sa_star P Q) (at level 40).
+Notation "P <*>+ Q" := (fun v c => sa_star (P v c) Q) (at level 40).
 Notation "'<exists>' x .. y , p" :=
   (sa_exists (fun x => .. (sa_exists (fun y => p)) ..))
   (at level 200, x binder, right associativity,
    format "'[' '<exists>' '/ ' x .. y , '/ ' p ']'")
   : type_scope.
 Notation "P ->> Q" := (sa_implies P Q) (at level 50).
+Notation "P -->> Q" := (forall v c, sa_implies (P v c) (Q v c)) (at level 50).
+
+Notation "P <<->> Q" := (P ->> Q /\ Q ->> P) (at level 50).
+Notation "P <<-->> Q" := (P -->> Q /\ Q -->> P) (at level 50).

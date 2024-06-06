@@ -23,3 +23,8 @@ Definition hoare_triple {V : Set}
     exists (v : Value V) (c : nat) (m' : Map V),
       C[e, m ~~> v, m' | c] /\
       Q v c m'.
+
+Definition triple {V : Set}
+  (e : Expr V)
+  (P : StateAssertion V) (Q : Value V -> nat -> StateAssertion V) : Prop :=
+  forall H, hoare_triple e (P <*> H) (Q <*>+ H).
