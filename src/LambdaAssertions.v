@@ -55,3 +55,13 @@ Notation "P -->> Q" := (forall v c, sa_implies (P v c) (Q v c)) (at level 50).
 
 Notation "P <<->> Q" := (P ->> Q /\ Q ->> P) (at level 50).
 Notation "P <<-->> Q" := (P -->> Q /\ Q -->> P) (at level 50).
+
+Global Hint Unfold subst_map : st_assertions.
+Global Hint Unfold subst_sa : st_assertions.
+Global Hint Unfold sa_empty : st_assertions.
+Global Hint Unfold sa_pure : st_assertions.
+Global Hint Unfold sa_single : st_assertions.
+Global Hint Unfold disjoint_maps : st_assertions.
+Global Hint Unfold sa_star : st_assertions.
+Global Hint Unfold sa_exists : st_assertions.
+Global Hint Unfold sa_implies : st_assertions.

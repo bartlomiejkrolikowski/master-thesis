@@ -66,46 +66,6 @@ Ltac edestruct_direct :=
   | [H : _ /\ _ |- _] => edestruct H; eauto; subst; clear H
   end.
 
-Ltac edestruct_all_in n :=
-  repeat match goal with
-  | [p : ?P ?m, H : forall _, ?P _ -> exists _, _ |- _] =>
-    destruct H with m; eauto n; clear H; edestruct_direct
-  | [H : forall _, (exists _, _) -> exists _, _ |- _] =>
-    edestruct H; eauto n; clear H; edestruct_direct
-  | [H : forall _ _, (exists _, _) -> exists _, _ |- _] =>
-    edestruct H; eauto n; clear H; edestruct_direct
-  end.
-
-Ltac edestruct_all := edestruct_all_in integer:(5).
-
-Ltac solve_triple n H :=
-  unfold_all;
-  intros;
-  edestruct_direct;
-  edestruct_all;
-  eauto n using H.
-
-Ltac solve_triple_15 := solve_triple integer:(15).
-
-Theorem htriple_of_triple (V : Set) (e : Expr V) P Q :
-  triple e P Q ->
-  hoare_triple e P Q.
-Proof.
-  unfold triple. intros Htriple. specialize Htriple with <[]>. revert Htriple.
-  unfold_all. intros. edestruct_all_in integer:(10).
-  repeat rewrite List.app_nil_r in *. eauto.
-Qed.
-
-Theorem htriple_weaken (V : Set) (e : Expr V) P P' Q Q' :
-  P' ->> P ->
-  (forall v c, (Q v c) ->> (Q' v c)) ->
-  hoare_triple e P Q ->
-  hoare_triple e P' Q'.
-Proof.
-  unfold hoare_triple, sa_implies. intros ? ? H ? ?.
-  edestruct H as [? [? [? [? ?]]]]; eauto 10.
-Qed.
-
 Lemma implies_refl V (P : StateAssertion V) : P ->> P.
 Proof.
   now unfold_all.
@@ -126,6 +86,51 @@ Lemma star_implies_mono_post
   P <*>+ Q -->> P' <*>+ Q'.
 Proof.
   intros. now apply star_implies_mono.
+Qed.
+
+Lemma star_pure_l (V : Set) P (Q : StateAssertion V) m :
+  (<[P]> <*> Q) m <-> (P /\ Q m).
+Proof.
+  unfold_all. split; intros; edestruct_direct; eauto 10.
+Qed.
+
+Lemma star_exists_l A (V : Set) (P : A -> StateAssertion V) Q m :
+  ((<exists> x, P x) <*> Q) m <-> exists x, (P x <*> Q) m.
+Proof.
+  unfold_all. split; intros H; edestruct_direct.
+Qed.
+
+Ltac edestruct_all_in n :=
+  repeat match goal with
+  | [p : ?P ?m, H : forall _, ?P _ -> exists _, _ |- _] =>
+    destruct H with m; eauto n; clear H; edestruct_direct
+  | [p : (?P <*> ?Q) ?m, H : forall _ _, (?P <*> _) _ -> exists _, _ |- _] =>
+    destruct H with Q m; eauto n; clear H; edestruct_direct
+  | [H : forall _, (exists _, _) -> exists _, _ |- _] =>
+    edestruct H; eauto n; clear H; edestruct_direct
+  | [H : forall _ _, (exists _, _) -> exists _, _ |- _] =>
+    edestruct H; eauto n; clear H; edestruct_direct
+  end.
+
+Ltac edestruct_all := edestruct_all_in integer:(5).
+
+Theorem htriple_of_triple (V : Set) (e : Expr V) P Q :
+  triple e P Q ->
+  hoare_triple e P Q.
+Proof.
+  unfold triple. intros Htriple. specialize Htriple with <[]>. revert Htriple.
+  unfold_all. intros. edestruct_all_in integer:(10).
+  repeat rewrite List.app_nil_r in *. eauto.
+Qed.
+
+Theorem htriple_weaken (V : Set) (e : Expr V) P P' Q Q' :
+  P' ->> P ->
+  (forall v c, (Q v c) ->> (Q' v c)) ->
+  hoare_triple e P Q ->
+  hoare_triple e P' Q'.
+Proof.
+  unfold hoare_triple, sa_implies. intros ? ? H ? ?.
+  edestruct H as [? [? [? [? ?]]]]; eauto 10.
 Qed.
 
 Theorem triple_weaken (V : Set) (e : Expr V) P P' Q Q' :
@@ -310,12 +315,73 @@ Proof.
   inversion_cost_red. inversion_red.
 *)
 
+Ltac solve_htriple n H :=
+  unfold_all;
+  intros;
+  edestruct_direct;
+  edestruct_all;
+  eauto n using H.
+
+Ltac solve_htriple_15 := solve_htriple integer:(15).
+
+Ltac normalize_star :=
+  repeat match goal with
+  | [H : ((_ <*> _) <*> _) ?m |- _] => apply star_assoc_r in H
+  | [H : (<[_]> <*> _) ?m |- _] => apply star_pure_l in H as [? ?]
+  | [H : ((<exists> _, _) <*> _) ?m |- _] => apply star_exists_l in H as [? ?]
+  end.
+
+Ltac solve_star :=
+  repeat match goal with
+  | [|- ((_ <*> _) <*> _) ?m ] => apply star_assoc_l; eauto
+  | [|- (<[_]> <*> _) ?m ] => apply star_pure_l; split; auto
+  | [|- ((<exists> _, _) <*> _) ?m ] => apply star_exists_l; eexists; eauto
+  end.
+(*
+Ltac solve_assertion :=
+  repeat match goal with
+  | [|- (<exists> _, _) ?m ] => apply triple_exists
+*)
+Ltac esolve_star :=
+  repeat match goal with
+  | [|- ((_ <*> _) <*> _) ?m ] => apply star_assoc_l
+  | [|- (<[_]> <*> _) ?m ] => apply star_pure_l; split; eauto
+  end.
+
+Ltac split_all :=
+  repeat match goal with
+  | [|- exists _, _ ] => eexists
+  | [|- _ /\ _ ] => split
+  end.
+
+Ltac solve_triple n H :=
+  unfold triple, hoare_triple;
+  intros;
+  edestruct_direct;
+  repeat (edestruct_all; normalize_star);
+  subst;
+  split_all;
+  eauto n using H;
+  solve_star.
+
+Ltac solve_triple_15 := solve_triple integer:(15).
+
 Theorem htriple_app (V : Set) (e1 e2 : Expr V) e1' (v2 : Value V)
   P1 P2 P3 Q3 c1 c2 :
   hoare_triple e1 P1 (fun v c => <[v = (-\e1') /\ c = c1]> <*> P2) ->
   hoare_triple e2 P2 (fun v c => <[v = v2 /\ c = c2]> <*> P3) ->
   hoare_triple (subst_e e1' v2) P3 (fun v c => Q3 v (c1 + c2 + 1 + c)) ->
   hoare_triple (App e1 e2) P1 Q3.
+Proof.
+  solve_htriple integer:(10) big_red_app.
+Qed.
+
+Theorem triple_app (V : Set) (e1 e2 : Expr V) e1' (v2 : Value V)
+  P1 P2 P3 Q3 c1 c2 :
+  triple e1 P1 (fun v c => <[v = (-\e1') /\ c = c1]> <*> P2) ->
+  triple e2 P2 (fun v c => <[v = v2 /\ c = c2]> <*> P3) ->
+  triple (subst_e e1' v2) P3 (fun v c => Q3 v (c1 + c2 + 1 + c)) ->
+  triple (App e1 e2) P1 Q3.
 Proof.
   solve_triple integer:(10) big_red_app.
 Qed.
@@ -326,12 +392,30 @@ Theorem htriple_bneg (V : Set) (e : Expr V) (b : bool) P Q :
     P
     (fun v c => <[v = Bool (negb b)]> <*> Q c).
 Proof.
-  solve_triple_15 big_red_bneg.
+  solve_htriple_15 big_red_bneg.
+Qed.
+
+Theorem triple_bneg (V : Set) (e : Expr V) (b : bool) P Q :
+  triple e P (fun v c => <[v = Bool b]> <*> Q (1+c)) ->
+  triple ([~] e)
+    P
+    (fun v c => <[v = Bool (negb b)]> <*> Q c).
+Proof.
+  solve_triple integer:(10) big_red_bneg.
 Qed.
 
 Theorem htriple_ineg (V : Set) (e : Expr V) (i : Z) P Q :
   hoare_triple e P (fun v c => <[v = Int i]> <*> Q (1+c)) ->
   hoare_triple ([--] e)
+    P
+    (fun v c => <[v = Int (- i)]> <*> Q c).
+Proof.
+  solve_htriple_15 big_red_ineg.
+Qed.
+
+Theorem triple_ineg (V : Set) (e : Expr V) (i : Z) P Q :
+  triple e P (fun v c => <[v = Int i]> <*> Q (1+c)) ->
+  triple ([--] e)
     P
     (fun v c => <[v = Int (- i)]> <*> Q c).
 Proof.
@@ -346,6 +430,17 @@ Theorem htriple_bor (V : Set) (e1 e2 : Expr V) (b1 b2 : bool)
     P1
     (fun v c => <[v = Bool (b1 || b2)]> <*> Q2 c).
 Proof.
+  solve_htriple_15 big_red_bor.
+Qed.
+
+Theorem triple_bor (V : Set) (e1 e2 : Expr V) (b1 b2 : bool)
+  P1 P2 Q2 c1 :
+  triple e1 P1 (fun v c => <[v = Bool b1 /\ c = c1]> <*> P2) ->
+  triple e2 P2 (fun v c => <[v = Bool b2]> <*> Q2 (c1+c+1)) ->
+  @triple V (e1 [||] e2)
+    P1
+    (fun v c => <[v = Bool (b1 || b2)]> <*> Q2 c).
+Proof.
   solve_triple_15 big_red_bor.
 Qed.
 
@@ -354,6 +449,17 @@ Theorem htriple_band (V : Set) (e1 e2 : Expr V) (b1 b2 : bool)
   hoare_triple e1 P1 (fun v c => <[v = Bool b1 /\ c = c1]> <*> P2) ->
   hoare_triple e2 P2 (fun v c => <[v = Bool b2]> <*> Q2 (c1+c+1)) ->
   @hoare_triple V (e1 [&&] e2)
+    P1
+    (fun v c => <[v = Bool (b1 && b2)]> <*> Q2 c).
+Proof.
+  solve_htriple_15 big_red_band.
+Qed.
+
+Theorem triple_band (V : Set) (e1 e2 : Expr V) (b1 b2 : bool)
+  P1 P2 Q2 c1 :
+  triple e1 P1 (fun v c => <[v = Bool b1 /\ c = c1]> <*> P2) ->
+  triple e2 P2 (fun v c => <[v = Bool b2]> <*> Q2 (c1+c+1)) ->
+  @triple V (e1 [&&] e2)
     P1
     (fun v c => <[v = Bool (b1 && b2)]> <*> Q2 c).
 Proof.
@@ -368,6 +474,17 @@ Theorem htriple_iadd (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
     P1
     (fun v c => <[v = Int (i1 + i2)]> <*> Q2 c).
 Proof.
+  solve_htriple_15 big_red_iadd.
+Qed.
+
+Theorem triple_iadd (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
+  P1 P2 Q2 c1 :
+  triple e1 P1 (fun v c => <[v = Int i1 /\ c = c1]> <*> P2) ->
+  triple e2 P2 (fun v c => <[v = Int i2]> <*> Q2 (c1+c+1)) ->
+  @triple V (e1 [+] e2)
+    P1
+    (fun v c => <[v = Int (i1 + i2)]> <*> Q2 c).
+Proof.
   solve_triple_15 big_red_iadd.
 Qed.
 
@@ -376,6 +493,17 @@ Theorem htriple_isub (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
   hoare_triple e1 P1 (fun v c => <[v = Int i1 /\ c = c1]> <*> P2) ->
   hoare_triple e2 P2 (fun v c => <[v = Int i2]> <*> Q2 (c1+c+1)) ->
   @hoare_triple V (e1 [-] e2)
+    P1
+    (fun v c => <[v = Int (i1 - i2)]> <*> Q2 c).
+Proof.
+  solve_htriple_15 big_red_isub.
+Qed.
+
+Theorem triple_isub (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
+  P1 P2 Q2 c1 :
+  triple e1 P1 (fun v c => <[v = Int i1 /\ c = c1]> <*> P2) ->
+  triple e2 P2 (fun v c => <[v = Int i2]> <*> Q2 (c1+c+1)) ->
+  @triple V (e1 [-] e2)
     P1
     (fun v c => <[v = Int (i1 - i2)]> <*> Q2 c).
 Proof.
@@ -390,6 +518,17 @@ Theorem htriple_imul (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
     P1
     (fun v c => <[v = Int (i1 * i2)]> <*> Q2 c).
 Proof.
+  solve_htriple_15 big_red_imul.
+Qed.
+
+Theorem triple_imul (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
+  P1 P2 Q2 c1 :
+  triple e1 P1 (fun v c => <[v = Int i1 /\ c = c1]> <*> P2) ->
+  triple e2 P2 (fun v c => <[v = Int i2]> <*> Q2 (c1+c+1)) ->
+  @triple V (e1 [*] e2)
+    P1
+    (fun v c => <[v = Int (i1 * i2)]> <*> Q2 c).
+Proof.
   solve_triple_15 big_red_imul.
 Qed.
 
@@ -398,6 +537,18 @@ Theorem htriple_idiv (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
   hoare_triple e1 P1 (fun v c => <[v = Int i1 /\ c = c1]> <*> P2) ->
   hoare_triple e2 P2 (fun v c => <[v = Int i2]> <*> Q2 (c1+c+1)) ->
   @hoare_triple V (e1 [/] e2)
+    P1
+    (fun v c => <[v = Int (i1 / i2)]> <*> Q2 c).
+Proof.
+  solve_htriple_15 big_red_idiv.
+Qed.
+
+
+Theorem triple_idiv (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
+  P1 P2 Q2 c1 :
+  triple e1 P1 (fun v c => <[v = Int i1 /\ c = c1]> <*> P2) ->
+  triple e2 P2 (fun v c => <[v = Int i2]> <*> Q2 (c1+c+1)) ->
+  @triple V (e1 [/] e2)
     P1
     (fun v c => <[v = Int (i1 / i2)]> <*> Q2 c).
 Proof.
@@ -412,6 +563,17 @@ Theorem htriple_clt (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
     P1
     (fun v c => <[v = Bool (i1 <? i2)%Z]> <*> Q2 c).
 Proof.
+  solve_htriple_15 big_red_clt.
+Qed.
+
+Theorem triple_clt (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
+  P1 P2 Q2 c1 :
+  triple e1 P1 (fun v c => <[v = Int i1 /\ c = c1]> <*> P2) ->
+  triple e2 P2 (fun v c => <[v = Int i2]> <*> Q2 (c1+c+1)) ->
+  @triple V (e1 [<] e2)
+    P1
+    (fun v c => <[v = Bool (i1 <? i2)%Z]> <*> Q2 c).
+Proof.
   solve_triple_15 big_red_clt.
 Qed.
 
@@ -420,6 +582,17 @@ Theorem htriple_ceq (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
   hoare_triple e1 P1 (fun v c => <[v = Int i1 /\ c = c1]> <*> P2) ->
   hoare_triple e2 P2 (fun v c => <[v = Int i2]> <*> Q2 (c1+c+1)) ->
   @hoare_triple V (e1 [=] e2)
+    P1
+    (fun v c => <[v = Bool (i1 =? i2)%Z]> <*> Q2 c).
+Proof.
+  solve_htriple_15 big_red_ceq.
+Qed.
+
+Theorem triple_ceq (V : Set) (e1 e2 : Expr V) (i1 i2 : Z)
+  P1 P2 Q2 c1 :
+  triple e1 P1 (fun v c => <[v = Int i1 /\ c = c1]> <*> P2) ->
+  triple e2 P2 (fun v c => <[v = Int i2]> <*> Q2 (c1+c+1)) ->
+  @triple V (e1 [=] e2)
     P1
     (fun v c => <[v = Bool (i1 =? i2)%Z]> <*> Q2 c).
 Proof.
@@ -471,7 +644,7 @@ Theorem htriple_rec (V : Set) (es : list (Expr V)) (vs : list (Value V))
     P
     (fun v c => <[v = RecV vs /\ c = List.list_sum cs + 1]> <*> Q).
 Proof.
-  unfold_all.
+  unfold hoare_triple.
   intros.
   assert (exists ms m',
     1+n = List.length ms /\
@@ -494,21 +667,89 @@ Proof.
       unfold last_error in *; simpl in *;
       injection_on_all_Some; injection_on_all S; subst.
     - exists [m]%list. repeat econstructor; auto. intros. inversion_Nth_nil.
-    - edestruct H5 with (i := 0) as (v'&c'&m'&?&m1&m2&((?&?)&?)&?&?&?);
+    - edestruct H5 with (i := 0) as (v'&c'&m'&?&?);
         eauto_lr.
-      edestruct IHn with (Ps := (s0::Ps)%list) (m := m2) as (ms&m''&?&?&?&?&?);
+      normalize_star. edestruct_direct.
+      edestruct IHn with (Ps := (s0::Ps)%list) as (ms&m''&?&?&?&?&?);
         simpl; eauto 10 with lamref.
       destruct ms; [discriminate|]. simpl in *. injection_on_all S.
       injection_on_all_Some. exists (m::m0::ms)%list.
       repeat eexists; simpl in *; eauto. intros.
       inversion_all_Nth_cons; eauto with lamref. }
-  eauto 15 using big_red_rec with lamref.
+  eauto 20 using big_red_rec with st_assertions lamref.
+Qed.
+
+Theorem triple_rec (V : Set) (es : list (Expr V)) (vs : list (Value V))
+  n cs Ps P Q :
+  n = List.length es ->
+  n = List.length vs ->
+  n = List.length cs ->
+  1+n = List.length Ps ->
+  Some P = List.head Ps ->
+  Some Q = last_error Ps ->
+  (forall i e v c P Q,
+    Nth i es e ->
+    Nth i vs v ->
+    Nth i cs c ->
+    Nth i Ps P ->
+    Nth (1+i) Ps Q ->
+    triple e
+      P
+      (fun v' c' => <[v' = v /\ c' = c]> <*> Q)) ->
+  triple (RecE es)
+    P
+    (fun v c => <[v = RecV vs /\ c = List.list_sum cs + 1]> <*> Q).
+Proof.
+  unfold triple, hoare_triple.
+  intros.
+  assert (exists ms m',
+    1+n = List.length ms /\
+    Some m = List.head ms /\
+    Some m' = last_error ms /\
+    (Q <*> H6) m' /\
+      forall i e v c m m',
+        Nth i es e ->
+        Nth i vs v ->
+        Nth i cs c ->
+        Nth i ms m ->
+        Nth (1+i) ms m' ->
+        C[e,m ~~> v,m'|c])
+    as (ms&m'&?&?&?&?&?).
+  { generalize dependent m. generalize dependent P.
+    generalize dependent Ps. generalize dependent cs.
+    generalize dependent vs. generalize dependent es.
+    induction n; intros; destruct es, vs, cs, Ps;
+      try discriminate; try destruct Ps; try discriminate;
+      unfold last_error in *; simpl in *;
+      injection_on_all_Some; injection_on_all S; subst.
+    - exists [m]%list. split_all; simpl; eauto. intros. inversion_Nth_nil.
+    - edestruct H5 with (i := 0) as (v'&c'&m'&?&?);
+        eauto_lr.
+      normalize_star. edestruct_direct.
+      edestruct IHn with (Ps := (s0::Ps)%list) as (ms&m''&?&?&?&?&?);
+        simpl; eauto 10 with lamref.
+      destruct ms; [discriminate|]. simpl in *. injection_on_all S.
+      injection_on_all_Some. exists (m::m0::ms)%list.
+      split_all; simpl in *; eauto. intros.
+      inversion_all_Nth_cons; eauto with lamref. }
+  split_all; eauto using big_red_rec with lamref.
+  solve_star.
 Qed.
 
 Theorem htriple_get (V : Set) n (e : Expr V) (vs : list (Value V)) v P Q :
   Nth n vs v ->
   hoare_triple e P (fun v' c => <[v' = RecV vs]> <*> Q (1+c)) ->
   hoare_triple (Get n e)
+    P
+    (fun v' c => <[v' = v]> <*> Q c).
+Proof.
+  solve_htriple_15 big_red_get.
+Qed.
+
+Theorem triple_get (V : Set) n (e : Expr V) (vs : list (Value V)) v P Q :
+  Nth n vs v ->
+  triple e P (fun v' c => <[v' = RecV vs]> <*> Q (1+c)) ->
+  triple (Get n e)
     P
     (fun v' c => <[v' = v]> <*> Q c).
 Proof.
@@ -523,8 +764,21 @@ Theorem htriple_ref (V : Set) (e : Expr V) (v : Value V) P Q :
 Proof.
   pose proof new_label_is_fresh. unfold Is_fresh_label, not in *.
   unfold_all. intros. edestruct_all.
-  repeat eexists; try (eapply big_red_ref; eauto); simpl; auto.
+  split_all; try (eapply big_red_ref; eauto); simpl; eauto.
   intros ? [? | []] ?. subst. eauto.
+Qed.
+
+Theorem triple_ref (V : Set) (e : Expr V) (v : Value V) P Q :
+  triple e P (fun v' c => <[v' = v]> <*> Q (1+c)) ->
+  triple (Ref e)
+    P
+    (fun v' c => <exists> l, <[v' = Lab l]> <*> <( l :== v )> <*> Q c).
+Proof.
+  pose proof new_label_is_fresh. unfold Is_fresh_label, not in *.
+  unfold triple, hoare_triple. intros. edestruct_all. normalize_star. subst.
+  split_all; try (eapply big_red_ref; eauto); simpl.
+  solve_star. unfold sa_star in *. edestruct_direct.
+  split_all; eauto with st_assertions. intros ? [? | []] ?. subst. eauto.
 Qed.
 
 Theorem htriple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
@@ -532,6 +786,18 @@ Theorem htriple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
     (<(l :== v)> <*> P)
     (fun v' c => <[v' = Lab l]> <*> <(l :== v)> <*> Q (1+c)) ->
   hoare_triple (Deref e)
+    (<(l :== v)> <*> P)
+    (fun v' c => <[v' = v]> <*> <(l :== v)> <*> Q c).
+Proof.
+  unfold_all. intros. edestruct_all.
+  repeat eexists; try eapply big_red_deref; simpl in *; eauto with lamref.
+Qed.
+
+Theorem triple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
+  triple e
+    (<(l :== v)> <*> P)
+    (fun v' c => <[v' = Lab l]> <*> <(l :== v)> <*> Q (1+c)) ->
+  triple (Deref e)
     (<(l :== v)> <*> P)
     (fun v' c => <[v' = v]> <*> <(l :== v)> <*> Q c).
 Proof.
@@ -557,6 +823,25 @@ Proof.
   auto with lamref.
 Qed.
 
+Theorem triple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 c1 :
+  triple e1
+    (<(l :== v)> <*> P1)
+    (fun v'' c => <[v'' = Lab l /\ c = c1]> <*> <(l :== v)> <*> P2) ->
+  triple e2
+    (<(l :== v)> <*> P2)
+    (fun v'' c => <[v'' = v']> <*> <(l :== v)> <*> Q2 (c1+c+1)) ->
+  triple (Assign e1 e2)
+    (<(l :== v)> <*> P1)
+    (fun v'' c => <[v'' = U_val]> <*> <(l :== v')> <*> Q2 c).
+Proof.
+  unfold triple, hoare_triple. intros. edestruct_all. normalize_star.
+  edestruct H0; clear H0. { solve_star. } edestruct_direct. normalize_star. subst.
+  unfold sa_star, sa_single in H5. edestruct_direct. simpl in *.
+  split_all; try eapply big_red_assign; simpl in *; eauto with lamref;
+    solve_star; auto with lamref.
+  unfold_all. split_all; eauto.
+Qed.
+
 Theorem htriple_seq (V : Set) (e1 e2 : Expr V) (v : Value V) P1 P2 Q2 c1 :
   hoare_triple e1
     P1
@@ -565,6 +850,20 @@ Theorem htriple_seq (V : Set) (e1 e2 : Expr V) (v : Value V) P1 P2 Q2 c1 :
     P2
     (fun v' c => <[v' = v]> <*> Q2 (c1+1+c)) ->
   hoare_triple (Seq e1 e2)
+    P1
+    (fun v' c => <[v' = v]> <*> Q2 c).
+Proof.
+  solve_htriple_15 big_red_seq.
+Qed.
+
+Theorem triple_seq (V : Set) (e1 e2 : Expr V) (v : Value V) P1 P2 Q2 c1 :
+  triple e1
+    P1
+    (fun v' c => <[v' = U_val /\ c = c1]> <*> P2) ->
+  triple e2
+    P2
+    (fun v' c => <[v' = v]> <*> Q2 (c1+1+c)) ->
+  triple (Seq e1 e2)
     P1
     (fun v' c => <[v' = v]> <*> Q2 c).
 Proof.
@@ -582,6 +881,23 @@ Theorem htriple_if_simple (V : Set) (e1 e2 e3 : Expr V) b P1 P2 Q2 c1 :
     (P2 false)
     (fun v c => Q2 v (c1+1+c)) ->
   hoare_triple (If e1 e2 e3) P1 Q2.
+Proof.
+  destruct b.
+  - solve_htriple_15 big_red_if_true.
+  - solve_htriple_15 big_red_if_false.
+Qed.
+
+Theorem triple_if_simple (V : Set) (e1 e2 e3 : Expr V) b P1 P2 Q2 c1 :
+  triple e1
+    P1
+    (fun v' c => <[v' = Bool b /\ c = c1]> <*> P2 b) ->
+  triple e2
+    (P2 true)
+    (fun v c => Q2 v (c1+1+c)) ->
+  triple e3
+    (P2 false)
+    (fun v c => Q2 v (c1+1+c)) ->
+  triple (If e1 e2 e3) P1 Q2.
 Proof.
   destruct b.
   - solve_triple_15 big_red_if_true.
@@ -602,6 +918,24 @@ Theorem htriple_if (V : Set) (e1 e2 e3 : Expr V) P1 P2 Q2 c1 :
 Proof.
   unfold_all. intros. edestruct_all.
   match goal with [b : bool |- _] => destruct b end.
+  - solve_htriple_15 big_red_if_true.
+  - solve_htriple_15 big_red_if_false.
+Qed.
+
+Theorem triple_if (V : Set) (e1 e2 e3 : Expr V) P1 P2 Q2 c1 :
+  triple e1
+    P1
+    (fun v' c => <exists> b, <[v' = Bool b /\ c = c1]> <*> P2 b) ->
+  triple e2
+    (P2 true)
+    (fun v c => Q2 v (c1+1+c)) ->
+  triple e3
+    (P2 false)
+    (fun v c => Q2 v (c1+1+c)) ->
+  triple (If e1 e2 e3) P1 Q2.
+Proof.
+  unfold triple, hoare_triple. intros. edestruct_all. normalize_star.
+  match goal with [b : bool |- _] => destruct b end.
   - solve_triple_15 big_red_if_true.
   - solve_triple_15 big_red_if_false.
 Qed.
@@ -620,6 +954,23 @@ Theorem htriple_while_true (V : Set) (e1 e2 : Expr V) c1 c2 P P2 P3 Q :
     P
     (fun v c => <[v = U_val]> <*> Q c).
 Proof.
+  solve_htriple_15 big_red_while_true.
+Qed.
+
+Theorem triple_while_true (V : Set) (e1 e2 : Expr V) c1 c2 P P2 P3 Q :
+  triple e1
+    P
+    (fun v c => <[v = Bool true /\ c = c1]> <*> P2) ->
+  triple e2
+    P2
+    (fun v c => <[v = U_val /\ c = c2]> <*> P3) ->
+  triple (While e1 e2)
+    P3
+    (fun v c => <[v = U_val]> <*> Q (1+(c1+1+(c2+1+c)))) ->
+  triple (While e1 e2)
+    P
+    (fun v c => <[v = U_val]> <*> Q c).
+Proof.
   solve_triple_15 big_red_while_true.
 Qed.
 
@@ -631,8 +982,20 @@ Theorem htriple_while_false (V : Set) (e1 e2 : Expr V) P Q :
     P
     (fun v c => <[v = U_val]> <*> Q c).
 Proof.
+  solve_htriple_15 big_red_while_false.
+Qed.
+
+Theorem triple_while_false (V : Set) (e1 e2 : Expr V) P Q :
+  triple e1
+    P
+    (fun v c => <[v = Bool false]> <*> Q (1+(c+1))) ->
+  triple (While e1 e2)
+    P
+    (fun v c => <[v = U_val]> <*> Q c).
+Proof.
   solve_triple_15 big_red_while_false.
 Qed.
+
 (*
 Theorem htriple_while (V : Set) (e1 e2 : Expr V) n P Q :
   (forall n,
@@ -648,6 +1011,6 @@ Theorem htriple_while (V : Set) (e1 e2 : Expr V) n P Q :
     (fun v c => <[v = U_val]> <*> Q false 0 c).
 Proof.
   unfold_all. destruct n; simpl.
-  solve_triple_15 big_red_while_false.
+  solve_htriple_15 big_red_while_false.
 Qed.
 *)
