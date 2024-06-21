@@ -37,6 +37,9 @@ Definition sa_star {V : Set} (A1 A2 : StateAssertion V) : StateAssertion V :=
 Definition sa_exists {T} {V : Set} (F : T -> StateAssertion V) : StateAssertion V :=
   fun m => exists x : T, F x m.
 
+Definition sa_forall {T} {V : Set} (F : T -> StateAssertion V) : StateAssertion V :=
+  fun m => forall x : T, F x m.
+
 Definition sa_implies {V : Set} (A1 A2 : StateAssertion V) : Prop :=
   forall m, A1 m -> A2 m.
 
@@ -49,6 +52,11 @@ Notation "'<exists>' x .. y , p" :=
   (sa_exists (fun x => .. (sa_exists (fun y => p)) ..))
   (at level 200, x binder, right associativity,
    format "'[' '<exists>' '/ ' x .. y , '/ ' p ']'")
+  : type_scope.
+Notation "'<forall>' x .. y , p" :=
+  (sa_forall (fun x => .. (sa_forall (fun y => p)) ..))
+  (at level 200, x binder, right associativity,
+   format "'[' '<forall>' '/ ' x .. y , '/ ' p ']'")
   : type_scope.
 Notation "P ->> Q" := (sa_implies P Q) (at level 50).
 Notation "P -->> Q" := (forall v c, sa_implies (P v c) (Q v c)) (at level 50).
@@ -64,4 +72,5 @@ Global Hint Unfold sa_single : st_assertions.
 Global Hint Unfold disjoint_maps : st_assertions.
 Global Hint Unfold sa_star : st_assertions.
 Global Hint Unfold sa_exists : st_assertions.
+Global Hint Unfold sa_forall : st_assertions.
 Global Hint Unfold sa_implies : st_assertions.
