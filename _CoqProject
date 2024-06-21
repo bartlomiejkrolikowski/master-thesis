@@ -7,6 +7,7 @@ src/Example4.v
 # src/Example5.v
 src/Example6.v
 src/LambdaAssertions.v
+src/LambdaAssertions_credits.v
 src/LambdaEval.v
 src/LambdaParse.v
 src/LambdaPartialTriple.v
@@ -14,9 +15,11 @@ src/LambdaRef.v
 src/LambdaRef2.v
 src/LambdaRef3.v
 src/LambdaTotalTriple.v
+src/LambdaTotalTriple_credits.v
 src/LamRefData.v
 src/LamRefFacts.v
 src/LamRefFacts2.v
 src/LamRefLogicFactsPartial.v
 src/LamRefLogicFactsTotal.v
+src/LamRefLogicFactsTotal_credits.v
 src/Tactics.v
