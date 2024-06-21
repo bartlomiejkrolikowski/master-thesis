@@ -386,6 +386,19 @@ Proof.
   solve_triple integer:(10) big_red_app.
 Qed.
 
+(*
+Theorem triple_app' (V : Set) (e1 e2 : Expr V) e1' (v2 : Value V)
+  P1 Q1 Q2 Q3 Q4 :
+  (forall e v v' m m' m'' c c' c'', Q1 e c m -> Q2 v c' m' -> Q3 v' c'' m'' -> Q4 v' (c+c'+c'') m'') ->
+  triple e1 P1 (fun v c => <[v = (-\e1')]> <*> Q1 e1' c) ->
+  triple e2 (<forall> e c, Q1 e c) (fun v c => <[v = v2]> <*> Q2 v2 c) ->
+  triple (subst_e e1' v2) (<forall> v c, Q2 v c) Q3 ->
+  triple (App e1 e2) P1 Q4.
+Proof.
+  solve_triple integer:(10) big_red_app.
+Qed.
+*)
+
 Theorem htriple_bneg (V : Set) (e : Expr V) (b : bool) P Q :
   hoare_triple e P (fun v c => <[v = Bool b]> <*> Q (1+c)) ->
   hoare_triple ([~] e)
