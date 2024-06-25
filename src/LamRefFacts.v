@@ -182,12 +182,68 @@ Proof.
   apply list_map_inj. intros x y Heq. injection Heq. easy.
 Qed.
 
-Lemma Is_Valid_Map_cons_fresh (V : Set) (l : Label) v (m : Map V) :
-  Is_fresh_label l m ->
+Lemma Is_Valid_Map_snoc_fresh (V : Set) (l : Label) v (m : Map V) :
+  l = new_label m ->
   Is_Valid_Map m ->
-  Is_Valid_Map ((l, v) :: m)%list.
+  Is_Valid_Map (m ++ [(l,v)])%list.
 Proof.
-  unfold Is_fresh_label, Is_Valid_Map. intros. now constructor.
+  unfold Is_fresh_label, Is_Valid_Map, new_label. intros Hnew Hvalid.
+  destruct l as [n]. remember (labels m) as ls eqn:Hls. generalize dependent m.
+  induction Hvalid; intros; destruct m as [| [[n'] v'] m']; simpl in *;
+    try discriminate; unfold label_ltb, label_eqb, lift2, lift, of_label.
+  - constructor.
+  - destruct x as [nx]. injection Hls as [] Hls. injection Hnew as Hnew.
+    destruct m'; simpl in *; try discriminate.
+    destruct Nat.ltb_spec with n nx as [Hlt | Hle].
+    + lia.
+    + destruct Nat.eqb_spec with n nx; simpl; repeat constructor;
+      unfold label_lt, lift2, lift, of_label; lia.
+  - destruct m' as [| [[n''] v''] m'']; simpl in *; try discriminate.
+    destruct x as [nx], y as [ny]. injection Hls as [] [] ls. subst.
+    injection Hnew as Hnew.
+    specialize IHHvalid with ((OfNat ny, v''):: m'')%list. simpl in *.
+    unfold label_ltb, label_eqb, lift2, lift, of_label in *.
+    destruct Nat.ltb_spec with n nx; simpl in *.
+    + repeat constructor; auto.
+    + destruct Nat.eqb_spec with n nx; simpl in *.
+      * repeat constructor; auto.
+      * destruct Nat.ltb_spec with n ny; simpl in *.
+        -- repeat constructor; auto.
+          unfold label_lt, lift2, lift, of_label. lia.
+        -- destruct Nat.eqb_spec with n ny; simpl in *.
+          ++ repeat constructor; auto.
+          ++ constructor; auto.
+Qed.
+
+Lemma Is_Valid_Map_update (V : Set) (l : Label) v (m : Map V) :
+  Is_Valid_Map m ->
+  Is_Valid_Map (update l v m)%list.
+Proof.
+  unfold Is_Valid_Map. intros Hvalid. destruct l as [n].
+  remember (labels m) as ls eqn:Hls. generalize dependent m.
+  induction Hvalid; intros; destruct m as [| [[n'] v'] m']; simpl in *;
+    try discriminate; unfold label_ltb, label_eqb, lift2, lift, of_label.
+  - constructor.
+  - destruct x as [nx]. injection Hls as [] Hls.
+    destruct m'; simpl in *; try discriminate.
+    destruct Nat.ltb_spec with n nx as [Hlt | Hle].
+    + constructor; auto with lamref. constructor.
+    + destruct Nat.eqb_spec with n nx; simpl; repeat constructor.
+      unfold label_lt, lift2, lift, of_label. lia.
+  - destruct m' as [| [[n''] v''] m'']; simpl in *; try discriminate.
+    destruct x as [nx], y as [ny]. injection Hls as [] [] ls. subst.
+    specialize IHHvalid with ((OfNat ny, v''):: m'')%list. simpl in *.
+    unfold label_ltb, label_eqb, lift2, lift, of_label in *.
+    destruct Nat.ltb_spec with n nx; simpl in *.
+    + repeat constructor; auto.
+    + destruct Nat.eqb_spec with n nx; simpl in *.
+      * repeat constructor; auto.
+      * destruct Nat.ltb_spec with n ny; simpl in *.
+        -- repeat constructor; auto.
+          unfold label_lt, lift2, lift, of_label. lia.
+        -- destruct Nat.eqb_spec with n ny; simpl in *.
+          ++ repeat constructor; auto.
+          ++ constructor; auto.
 Qed.
 
 Lemma max_list_max ns :

@@ -6,6 +6,8 @@ Import List.ListNotations.
 Require Import String.
 Require Import ZArith.
 
+Require Export src.FiniteMap.
+
 Definition inc_set (A : Set) : Set :=
   option A.
 
@@ -15,33 +17,6 @@ Definition inc_fun {A B : Set}
   | None => y
   | Some x' => f x'
   end.
-
-Inductive Label : Set :=
-| OfNat : nat -> Label.
-
-Definition of_label '(OfNat n) := n.
-Definition lift {A} (f : nat -> A) (l : Label) : A := f (of_label l).
-Definition lift2 {A} (f : nat -> nat -> A) (l l' : Label) : A :=
-  lift (lift f l) l'.
-
-Definition label_eqb : Label -> Label -> bool := lift2 Nat.eqb.
-Definition label_ltb : Label -> Label -> bool  := lift2 Nat.ltb.
-
-Definition label_lt : Label -> Label -> Prop  := lift2 Nat.lt.
-
-Declare Scope label_scope.
-
-Notation "l =? l'" := (label_eqb l l') : label_scope.
-Notation "l <? l'" := (label_ltb l l') : label_scope.
-
-Notation "l < l'" := (label_lt l l') : label_scope.
-
-Global Hint Unfold of_label : label.
-Global Hint Unfold lift2 : label.
-Global Hint Unfold lift  : label.
-Global Hint Unfold label_eqb : label.
-Global Hint Unfold label_ltb : label.
-Global Hint Unfold label_lt  : label.
 
 Inductive BoolUnOpKind : Set :=
 | BNeg (* Boolean negation *)
@@ -250,36 +225,7 @@ with map_labels_e {V : Set} (f : Label -> Label) (e : Expr V) : Expr V :=
   | While e1 e2 => While (map_labels_e f e1) (map_labels_e f e2)
   end.
 
-Definition Map (V : Set) : Set := list (Label * (Value V)).
-
-(*Definition extend {V L : Set} (m : Map V L) (v : Value V L)
-  : Map V (inc_set L) :=
-  fun (l : inc_set L) =>
-    match l with
-    | Some l => shift_v (m l)
-    | None   => shift_v v
-    end.
-
-Definition assign {V L : Set} (m : Map V L) (l : L) (v : Value V L) : Map V L.
-Admitted.
-
-Definition max_label {V : Set} (m : Map V) : Label :=
-  List.fold_right
-    (fun '(OfNat n, _) '(OfNat m) => OfNat (max n m)) (OfNat 0) m.
-*)
-
-Definition labels {V : Set} (m : Map V) : list Label :=
-  List.map fst m.
-
-Definition Is_fresh_label {V : Set} (l : Label) (m : Map V) : Prop :=
-  ~ List.In l (labels m).
-
-Definition Is_Valid_Map {V : Set} (m : Map V) : Prop :=
-  List.NoDup (labels m).
-
-Global Hint Unfold labels : lamref.
-Global Hint Unfold Is_fresh_label : lamref.
-Global Hint Unfold Is_Valid_Map : lamref.
+Definition Map (V : Set) : Set := FinMap (Value V).
 
 Inductive Lookup {V : Set} (l : Label) : Map V -> Value V -> Prop :=
 | Lookup_hd (m : Map V) (v : Value V) : Lookup l ((l,v) :: m)%list v
@@ -312,33 +258,12 @@ Inductive SplitAt {A : Type} :
     SplitAt (x::xs) (x::ys) y ys'
 .
 
+Notation "'L[' xs '~~>' ys '|' y '|' zs ']'" := (@SplitAt _ xs ys y zs).
+
 Global Hint Constructors Assignment : lamref.
 Global Hint Constructors Lookup     : lamref.
 Global Hint Constructors Nth        : lamref.
 Global Hint Constructors SplitAt    : lamref.
-
-Notation "'L[' xs '~~>' ys '|' y '|' zs ']'" := (@SplitAt _ xs ys y zs).
-Section label_section.
-Open Scope label_scope.
-Fixpoint lookup {V : Set} (l : Label) (m : Map V) : option (Value V) :=
-  match m with
-  | nil => None
-  | (l', v) :: m' => if l =? l' then Some v else lookup l m'
-  end%list.
-
-Fixpoint update {V : Set} (l : Label) (v : Value V) (m : Map V) : Map V :=
-  match m with
-  | nil => [(l, v)]
-  | (l', v') :: m' =>
-    if l =? l' then ((l', v) :: m') else (l', v') :: (update l v m')
-  end%list.
-End label_section.
-
-Definition list_max (l : list nat) : nat :=
-  List.fold_right max 0 l.
-
-Definition new_label {V : Set} (m : Map V) : Label :=
-  OfNat (1 + list_max (List.map of_label (labels m))).
 
 (* SOS semantics *)
 Reserved Notation "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'".
@@ -390,7 +315,7 @@ Inductive red {V : Set} :
 
 | red_ref : forall m l (v : Value _),
     l = new_label m ->
-    R[Ref v, m ~~> Lab l, ((l,v) :: m)%list]
+    R[Ref v, m ~~> Lab l, (m ++ [(l,v)])%list]
 
 | red_deref : forall m l v,
     Lookup l m v ->
