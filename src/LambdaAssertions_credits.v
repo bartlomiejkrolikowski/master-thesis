@@ -4,6 +4,7 @@ Require Import String.
 Require Import ZArith.
 
 Require Import src.LambdaRef.
+(*Require Import src.Permutation.*)
 
 Definition StateAssertion (V : Set) :=
   nat -> Map V -> Prop.
@@ -36,7 +37,7 @@ Definition sa_star {V : Set} (A1 A2 : StateAssertion V) : StateAssertion V :=
     A2 c2 m2 /\
     c = c1 + c2 /\
     disjoint_maps m1 m2 /\
-    m = (m1 ++ m2)%list.
+    (m = (m1 ++ m2)%list \/ m = (m2 ++ m1)%list).
 
 Definition sa_exists {T} {V : Set} (F : T -> StateAssertion V) : StateAssertion V :=
   fun c m => exists x : T, F x c m.

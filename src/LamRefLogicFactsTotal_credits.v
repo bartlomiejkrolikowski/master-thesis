@@ -20,6 +20,11 @@ Ltac edestruct_direct :=
   | [H : _ /\ _ |- _] => edestruct H; eauto; subst; clear H
   end.
 
+Ltac subst_case_or :=
+  match goal with
+  | [H : ?x = _ \/ ?x = _ |- _] => destruct H; subst x
+  end.
+
 Lemma implies_refl V (P : StateAssertion V) : P ->> P.
 Proof.
   now unfold_all.
@@ -46,6 +51,7 @@ Lemma star_pure_l (V : Set) P (Q : StateAssertion V) c m :
   (<[P]> <*> Q) c m <-> (P /\ Q c m).
 Proof.
   unfold_all. split; intros; edestruct_direct; eauto 15.
+  rewrite List.app_nil_r in *. subst_case_or; auto.
 Qed.
 
 Lemma star_exists_l A (V : Set) (P : A -> StateAssertion V) Q c m :
@@ -56,13 +62,13 @@ Qed.
 
 Ltac edestruct_all_in n :=
   repeat match goal with
-  | [p : ?P ?m, H : forall _, ?P _ -> exists _, _ |- _] =>
-    destruct H with m; eauto n; clear H; edestruct_direct
-  | [p : (?P <*> ?Q) ?m, H : forall _ _, (?P <*> _) _ -> exists _, _ |- _] =>
-    destruct H with Q m; eauto n; clear H; edestruct_direct
-  | [H : forall _, (exists _, _) -> exists _, _ |- _] =>
-    edestruct H; eauto n; clear H; edestruct_direct
+  | [p : ?P ?c ?m, H : forall _ _, ?P _ _ -> exists _, _ |- _] =>
+    destruct H with c m; eauto n; clear H; edestruct_direct
+  | [p : (?P <*> ?Q) ?c ?m, H : forall _ _ _, (?P <*> _) _ _ -> exists _, _ |- _] =>
+    destruct H with Q c m; eauto n; clear H; edestruct_direct
   | [H : forall _ _, (exists _, _) -> exists _, _ |- _] =>
+    edestruct H; eauto n; clear H; edestruct_direct
+  | [H : forall _ _ _, (exists _, _) -> exists _, _ |- _] =>
     edestruct H; eauto n; clear H; edestruct_direct
   end.
 
@@ -73,8 +79,9 @@ Theorem htriple_of_triple (V : Set) (e : Expr V) P Q :
   hoare_triple e P Q.
 Proof.
   unfold triple. intros Htriple. specialize Htriple with <[]>. revert Htriple.
-  unfold_all. intros. edestruct_all_in integer:(10).
-  repeat rewrite List.app_nil_r in *. repeat eexists; eauto. lia.
+  unfold_all. intros. edestruct_all_in integer:(15).
+  repeat rewrite List.app_nil_r in *.
+  subst_case_or; repeat eexists; eauto; lia.
 Qed.
 
 Theorem htriple_weaken (V : Set) (e : Expr V) P P' Q Q' :
@@ -146,11 +153,42 @@ Ltac solve_assoc :=
     end;
     eauto using List.in_or_app.
 
+Ltac split_all :=
+  repeat match goal with
+  | [|- exists _, _ ] => eexists
+  | [|- _ /\ _ ] => split
+  end.
+
+Ltac or_choose :=
+  match goal with
+  | [|- _ \/ _] => left + right
+  | _ => idtac
+  end.
+
+Ltac prove_disjoint_map :=
+  repeat match goal with
+  | [H : forall p,
+      List.In p (List.map fst ?m1) ->
+      List.In p (List.map fst ?m2) -> False |- _] =>
+      fold (labels m1) in H; fold (labels m2) in H;
+      fold (disjoint_maps m1 m2) in H
+  | [|- forall p,
+      List.In p (List.map fst ?m1) ->
+      List.In p (List.map fst ?m2) -> False] =>
+      fold (labels m1); fold (labels m2);
+      fold (disjoint_maps m1 m2)
+  | [H : disjoint_maps _ _ |- disjoint_maps _ _] => apply H
+  end.
+
 Lemma star_assoc_l (V : Set) (P : StateAssertion V) Q R :
   P <*> (Q <*> R) ->> (P <*> Q) <*> R.
 Proof.
-  unfold_all. intros. edestruct_direct.
-  solve_assoc. lia.
+  unfold_all. intros. edestruct_direct. repeat subst_case_or.
+  { repeat eexists; prove_disjoint_map ; eauto using List.app_assoc. ; rewrite List.map_app in *; intros;
+    try match goal with
+    | [H : List.In _ (_ ++ _)%list |- _] => apply List.in_app_or in H as [? | ?]
+    end; try lia. }
+  solve_assoc. ; try lia.
 Qed.
 
 Lemma star_assoc_r (V : Set) (P : StateAssertion V) Q R :
@@ -182,6 +220,23 @@ Lemma star_assoc_post (V : Set) (P : V -> StateAssertion V) Q R :
   P <*>+ (Q <*> R) <<-->> (P <*>+ Q) <*>+ R.
 Proof.
   auto using star_assoc_post_l, star_assoc_post_r.
+Qed.
+
+Lemma star_comm (V : Set) (P : StateAssertion V) Q :
+  P <*> Q <<->> Q <*> P.
+Proof.
+  unfold_all.
+  split; intros; edestruct_direct; do 4 eexists; split_all; eauto; try lia. (*TODO*)  apply List.app_comm.
+   eauto 100 with lamref st_assertions.
+  auto using star_assoc_l, star_assoc_r.
+Qed.
+
+Lemma star_credits (V : Set) (k : nat) (P : StateAssertion V) c m :
+  (sa_credits k <*> P) c m <->
+    exists c', c = k + c' /\ P c' m.
+Proof.
+  unfold_all.
+  split; intros; edestruct_direct; eauto 10 with lamref st_assertions.
 Qed.
 
 Theorem triple_frame (V : Set) (e : Expr V) P Q H :
@@ -296,7 +351,9 @@ Ltac normalize_star :=
   repeat match goal with
   | [H : ((_ <*> _) <*> _) ?c ?m |- _] => apply star_assoc_r in H
   | [H : (<[_]> <*> _) ?c ?m |- _] => apply star_pure_l in H as [? ?]
+  | [H : (_ <*> <[_]>) ?c ?m |- _] => apply star_pure_r in H as [? ?]
   | [H : ((<exists> _, _) <*> _) ?c ?m |- _] => apply star_exists_l in H as [? ?]
+  | [H : ]
   end.
 
 Ltac solve_star :=
@@ -314,12 +371,6 @@ Ltac esolve_star :=
   repeat match goal with
   | [|- ((_ <*> _) <*> _) ?m ] => apply star_assoc_l
   | [|- (<[_]> <*> _) ?m ] => apply star_pure_l; split; eauto
-  end.
-
-Ltac split_all :=
-  repeat match goal with
-  | [|- exists _, _ ] => eexists
-  | [|- _ /\ _ ] => split
   end.
 
 Ltac solve_triple n H :=
@@ -348,15 +399,7 @@ Proof.
   edestruct_direct.
   rewrite List.app_nil_r in *. rewrite Nat.add_1_r in *. simpl in *.
   injection_on_all S. subst.
-  specialize (H _ _ H3).
-  edestruct_direct.
-  normalize_star.
-  edestruct H0; eauto. clear H0.
-  edestruct_direct.
-  normalize_star.
-  edestruct H1; eauto. clear H1.
-  edestruct_direct.
-  normalize_star.
+  repeat (edestruct_all; normalize_star).
   split_all;
   eauto using big_red_app.
   lia.
@@ -365,13 +408,27 @@ Qed.
 (* ^^^^ TODO ^^^^ *)
 
 Theorem triple_app (V : Set) (e1 e2 : Expr V) e1' (v2 : Value V)
-  P1 P2 P3 Q3 c1 c2 :
-  triple e1 P1 (fun v c => <[v = (-\e1') /\ c = c1]> <*> P2) ->
-  triple e2 P2 (fun v c => <[v = v2 /\ c = c2]> <*> P3) ->
-  triple (subst_e e1' v2) P3 (fun v c => Q3 v (c1 + c2 + 1 + c)) ->
-  triple (App e1 e2) P1 Q3.
+  P1 Q1 Q2 Q3 :
+  triple e1 P1 (fun v => <[v = (-\e1')]> <*> Q1 e1') ->
+  triple e2 (Q1 e1') (fun v => <[v = v2]> <*> Q2 v2) ->
+  triple (subst_e e1' v2) (Q2 v2) Q3 ->
+  triple (App e1 e2) (P1 <*> sa_credits 1) Q3.
 Proof.
-  solve_triple integer:(10) big_red_app.
+  unfold triple, hoare_triple.
+  intros. destruct c1.
+  { revert H3. unfold_all. intro. edestruct_direct. lia. }
+  normalize_star.
+  unfold sa_star, sa_credits in H3.
+  edestruct_direct.
+  rewrite List.app_nil_r in *. rewrite Nat.add_1_r in *. simpl in *.
+  injection_on_all S.
+  assert ((P1 <*> H2) c1 (x4++x2)%list).
+  { eauto 10 with st_assertions. }
+  repeat (edestruct_all; normalize_star).
+  split_all;
+  eauto using big_red_app.
+  lia.
+  (* solve_triple integer:(10) big_red_app. *)
 Qed.
 
 (*

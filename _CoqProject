@@ -6,6 +6,7 @@ src/Example3.v
 src/Example4.v
 # src/Example5.v
 src/Example6.v
+src/FiniteMap.v
 src/LambdaAssertions.v
 src/LambdaAssertions_credits.v
 src/LambdaEval.v
@@ -22,4 +23,5 @@ src/LamRefFacts2.v
 src/LamRefLogicFactsPartial.v
 src/LamRefLogicFactsTotal.v
 src/LamRefLogicFactsTotal_credits.v
+src/Permutation.v
 src/Tactics.v
