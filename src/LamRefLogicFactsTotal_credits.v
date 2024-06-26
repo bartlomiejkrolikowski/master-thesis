@@ -1070,3 +1070,29 @@ Proof.
   - solve_star; eauto.
   - lia.
 Qed.
+
+Theorem triple_while (V : Set) (e1 e2 : Expr V) P Q :
+  triple e1
+    P
+    (fun v => <exists> b, <[v = Bool b]> <*> Q b) ->
+  triple e2
+    (Q true)
+    (fun v => <[v = U_val]> <*> sa_credits 3 <*> P) ->
+  triple (While e1 e2)
+    (sa_credits 2 <*> P)
+    (fun v => <[v = U_val]> <*> Q false).
+Proof.
+  unfold triple, hoare_triple. intros ? ?. induction c1 using (well_founded_ind lt_wf).
+  intros. normalize_star. make_cred_positive. edestruct_direct. fold_star. simpl in *.
+  injection_on_all S. edestruct_all. normalize_star. destruct x7.
+  2:{ subst. split_all. eapply big_red_while_false; eauto. solve_star; eauto. lia. }
+  edestruct_all. normalize_star. destruct x9.
+  { find_star_and_unfold_all. edestruct_direct. discriminate. }
+  assert (((sa_credits 2 <*> P) <*> H1) x9 x10).
+  { find_star_and_unfold_all. edestruct_direct. simpl in *. injection_on_all S. unfold_all. split_all; eauto. }
+  assert (x9 < S (S (x3 + x5))). { lia. }
+  edestruct (H2 x9 H13 x10 H12). edestruct_direct. normalize_star. subst. split_all.
+  - eapply big_red_while_true; eauto.
+  - solve_star; eauto.
+  - lia.
+Qed.
