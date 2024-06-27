@@ -390,6 +390,7 @@ Ltac solve_htriple n H :=
   simpl in *;
   injection_on_all S; subst;
   repeat (edestruct_all; normalize_star);
+  edestruct_direct;
   subst; simpl in *;
   split_all;
   eauto n using H;
@@ -415,6 +416,7 @@ Ltac solve_triple n H :=
   simpl in *;
   injection_on_all S; subst; fold_star;
   repeat (edestruct_all; normalize_star);
+  edestruct_direct;
   subst;
   split_all;
   eauto n using H;
@@ -424,21 +426,29 @@ Ltac solve_triple n H :=
 
 Ltac solve_triple_15 := solve_triple integer:(15).
 
-Theorem htriple_app (V : Set) (e1 e2 : Expr V) e1' (v2 : Value V)
-  P1 Q1 Q2 Q3 :
-  hoare_triple e1 P1 (fun v => <[v = (-\e1')]> <*> Q1 e1') ->
-  hoare_triple e2 (Q1 e1') (fun v => <[v = v2]> <*> Q2 v2) ->
-  hoare_triple (subst_e e1' v2) (Q2 v2) Q3 ->
+Theorem htriple_app (V : Set) (e1 e2 : Expr V)
+  P1 P2 Q2 Q3 :
+  hoare_triple e1
+    P1
+    (fun v => <exists> e1',
+      <[v = (-\e1') /\
+        (forall v : Value V, hoare_triple (subst_e e1' v) (Q2 v) Q3)]> <*>
+      P2) ->
+  hoare_triple e2 P2 Q2 ->
   hoare_triple (App e1 e2) (sa_credits 1 <*> P1) Q3.
 Proof.
   solve_htriple integer:(10) big_red_app.
 Qed.
 
-Theorem triple_app (V : Set) (e1 e2 : Expr V) e1' (v2 : Value V)
-  P1 Q1 Q2 Q3 :
-  triple e1 P1 (fun v => <[v = (-\e1')]> <*> Q1 e1') ->
-  triple e2 (Q1 e1') (fun v => <[v = v2]> <*> Q2 v2) ->
-  triple (subst_e e1' v2) (Q2 v2) Q3 ->
+Theorem triple_app (V : Set) (e1 e2 : Expr V)
+  P1 P2 Q2 Q3 :
+  triple e1
+    P1
+    (fun v => <exists> e1',
+      <[v = (-\e1') /\
+        (forall v : Value V, triple (subst_e e1' v) (Q2 v) Q3)]> <*>
+      P2) ->
+  triple e2 P2 Q2 ->
   triple (App e1 e2) (sa_credits 1 <*> P1) Q3.
 Proof.
   solve_triple integer:(10) big_red_app.
@@ -495,8 +505,13 @@ Qed.
 
 Theorem htriple_bor (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  hoare_triple e1 P1 (fun v => <exists> b1 : bool, <[v = Bool b1]> <*> Q1 b1) ->
-  (forall b1 : bool, hoare_triple e2 (Q1 b1) (fun v => <exists> b2 : bool, <[v = Bool b2]> <*> Q2 b1 b2)) ->
+  hoare_triple e1
+    P1
+    (fun v => <exists> b1 : bool, <[v = Bool b1]> <*> Q1 b1) ->
+  (forall b1 : bool,
+    hoare_triple e2
+      (Q1 b1)
+      (fun v => <exists> b2 : bool, <[v = Bool b2]> <*> Q2 b1 b2)) ->
   @hoare_triple V (e1 [||] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> b1 b2 : bool, <[v = Bool (b1 || b2)]> <*> Q2 b1 b2).
@@ -507,7 +522,10 @@ Qed.
 Theorem triple_bor (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
   triple e1 P1 (fun v => <exists> b1 : bool, <[v = Bool b1]> <*> Q1 b1) ->
-  (forall b1 : bool, triple e2 (Q1 b1) (fun v => <exists> b2 : bool, <[v = Bool b2]> <*> Q2 b1 b2)) ->
+  (forall b1 : bool,
+    triple e2
+      (Q1 b1)
+      (fun v => <exists> b2 : bool, <[v = Bool b2]> <*> Q2 b1 b2)) ->
   @triple V (e1 [||] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> b1 b2 : bool, <[v = Bool (b1 || b2)]> <*> Q2 b1 b2).
@@ -517,8 +535,13 @@ Qed.
 
 Theorem htriple_band (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  hoare_triple e1 P1 (fun v => <exists> b1 : bool, <[v = Bool b1]> <*> Q1 b1) ->
-  (forall b1 : bool, hoare_triple e2 (Q1 b1) (fun v => <exists> b2 : bool, <[v = Bool b2]> <*> Q2 b1 b2)) ->
+  hoare_triple e1
+    P1
+    (fun v => <exists> b1 : bool, <[v = Bool b1]> <*> Q1 b1) ->
+  (forall b1 : bool,
+    hoare_triple e2
+      (Q1 b1)
+      (fun v => <exists> b2 : bool, <[v = Bool b2]> <*> Q2 b1 b2)) ->
   @hoare_triple V (e1 [&&] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> b1 b2 : bool, <[v = Bool (b1 && b2)]> <*> Q2 b1 b2).
@@ -528,8 +551,13 @@ Qed.
 
 Theorem triple_band (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  triple e1 P1 (fun v => <exists> b1 : bool, <[v = Bool b1]> <*> Q1 b1) ->
-  (forall b1 : bool, triple e2 (Q1 b1) (fun v => <exists> b2 : bool, <[v = Bool b2]> <*> Q2 b1 b2)) ->
+  triple e1
+    P1
+    (fun v => <exists> b1 : bool, <[v = Bool b1]> <*> Q1 b1) ->
+  (forall b1 : bool,
+    triple e2
+      (Q1 b1)
+      (fun v => <exists> b2 : bool, <[v = Bool b2]> <*> Q2 b1 b2)) ->
   @triple V (e1 [&&] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> b1 b2 : bool, <[v = Bool (b1 && b2)]> <*> Q2 b1 b2).
@@ -539,8 +567,13 @@ Qed.
 
 Theorem htriple_iadd (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  hoare_triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, hoare_triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  hoare_triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    hoare_triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @hoare_triple V (e1 [+] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Int (i1 + i2)]> <*> Q2 i1 i2).
@@ -550,8 +583,13 @@ Qed.
 
 Theorem triple_iadd (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @triple V (e1 [+] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Int (i1 + i2)]> <*> Q2 i1 i2).
@@ -561,8 +599,13 @@ Qed.
 
 Theorem htriple_isub (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  hoare_triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, hoare_triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  hoare_triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    hoare_triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @hoare_triple V (e1 [-] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Int (i1 - i2)]> <*> Q2 i1 i2).
@@ -572,8 +615,13 @@ Qed.
 
 Theorem triple_isub (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @triple V (e1 [-] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Int (i1 - i2)]> <*> Q2 i1 i2).
@@ -583,8 +631,13 @@ Qed.
 
 Theorem htriple_imul (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  hoare_triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, hoare_triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  hoare_triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    hoare_triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @hoare_triple V (e1 [*] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Int (i1 * i2)]> <*> Q2 i1 i2).
@@ -594,8 +647,13 @@ Qed.
 
 Theorem triple_imul (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @triple V (e1 [*] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Int (i1 * i2)]> <*> Q2 i1 i2).
@@ -605,8 +663,13 @@ Qed.
 
 Theorem htriple_idiv (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  hoare_triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, hoare_triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  hoare_triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    hoare_triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @hoare_triple V (e1 [/] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Int (i1 / i2)]> <*> Q2 i1 i2).
@@ -617,8 +680,13 @@ Qed.
 
 Theorem triple_idiv (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @triple V (e1 [/] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Int (i1 / i2)]> <*> Q2 i1 i2).
@@ -628,8 +696,13 @@ Qed.
 
 Theorem htriple_clt (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  hoare_triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, hoare_triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  hoare_triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    hoare_triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @hoare_triple V (e1 [<] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Bool (i1 <? i2)%Z]> <*> Q2 i1 i2).
@@ -639,8 +712,13 @@ Qed.
 
 Theorem triple_clt (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @triple V (e1 [<] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Bool (i1 <? i2)%Z]> <*> Q2 i1 i2).
@@ -650,8 +728,13 @@ Qed.
 
 Theorem htriple_ceq (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  hoare_triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, hoare_triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  hoare_triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    hoare_triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @hoare_triple V (e1 [=] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Bool (i1 =? i2)%Z]> <*> Q2 i1 i2).
@@ -661,8 +744,13 @@ Qed.
 
 Theorem triple_ceq (V : Set) (e1 e2 : Expr V)
   P1 Q1 Q2 :
-  triple e1 P1 (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
-  (forall i1 : Z, triple e2 (Q1 i1) (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
+  triple e1
+    P1
+    (fun v => <exists> i1 : Z, <[v = Int i1]> <*> Q1 i1) ->
+  (forall i1 : Z,
+    triple e2
+      (Q1 i1)
+      (fun v => <exists> i2 : Z, <[v = Int i2]> <*> Q2 i1 i2)) ->
   @triple V (e1 [=] e2)
     (sa_credits 1 <*> P1)
     (fun v => <exists> i1 i2 : Z, <[v = Bool (i1 =? i2)%Z]> <*> Q2 i1 i2).
@@ -744,12 +832,14 @@ Proof.
       try discriminate; try destruct Ps; try discriminate;
       unfold last_error in *; simpl in *;
       injection_on_all_Some; injection_on_all S; subst.
-    - exists [c1]%list, [m]%list. repeat econstructor; auto. intros. inversion_Nth_nil.
-    - edestruct H4 with (i := 0) as (v'&c'&m'&?&?);
+    - exists [c1]%list, [m]%list. repeat econstructor; auto. intros.
+      inversion_Nth_nil.
+    - edestruct H4 with (i := 0) as (v'&c'&c2&m'&?&?&?);
         eauto_lr.
-      normalize_star. edestruct_direct. Admitted. (*
-      edestruct IHn with (Ps := (s0::Ps)%list) as (ms&m''&?&?&?&?&?);
+      normalize_star. subst.
+      edestruct IHn with (Ps := (s0::Ps)%list) as (cs&ms&c2'&m''&?&?&?&?&?);
         simpl; eauto 10 with lamref.
+      split_all. edestruct_direct. Admitted. (*
       destruct ms; [discriminate|]. simpl in *. injection_on_all S.
       injection_on_all_Some. exists (m::m0::ms)%list.
       repeat eexists; simpl in *; eauto. intros.
@@ -815,31 +905,31 @@ Proof.
 Qed.
 *)
 (* vvvv TODO vvvv *)
-Theorem htriple_get (V : Set) n (e : Expr V) (vs : list (Value V)) v P Q :
-  Nth n vs v ->
-  hoare_triple e P (fun v' => <[v' = RecV vs]> <*> Q) ->
-  hoare_triple (Get n e)
-    (sa_credits 1 <*> P)
-    (fun v' => <[v' = v]> <*> Q).
+Theorem htriple_get (V : Set) n (e : Expr V) P Q :
+  hoare_triple e
+    P
+    (fun v' =>
+      <exists> vs, <[v' = RecV vs]> <*> <exists> v, <[Nth n vs v]> <*> Q v) ->
+  hoare_triple (Get n e) (sa_credits 1 <*> P) Q.
 Proof.
   solve_htriple_15 big_red_get.
 Qed.
 
-Theorem triple_get (V : Set) n (e : Expr V) (vs : list (Value V)) v P Q :
-  Nth n vs v ->
-  triple e P (fun v' => <[v' = RecV vs]> <*> Q) ->
-  triple (Get n e)
-    (sa_credits 1 <*> P)
-    (fun v' => <[v' = v]> <*> Q).
+Theorem triple_get (V : Set) n (e : Expr V) P Q :
+  triple e
+    P
+    (fun v' =>
+      <exists> vs, <[v' = RecV vs]> <*> <exists> v, <[Nth n vs v]> <*> Q v) ->
+  triple (Get n e) (sa_credits 1 <*> P) Q.
 Proof.
   solve_triple_15 big_red_get.
 Qed.
 
-Theorem htriple_ref (V : Set) (e : Expr V) (v : Value V) P Q :
-  hoare_triple e P (fun v' => <[v' = v]> <*> Q) ->
+Theorem htriple_ref (V : Set) (e : Expr V) P Q :
+  hoare_triple e P Q ->
   hoare_triple (Ref e)
     (sa_credits 1 <*> P)
-    (fun v' => <exists> l, <[v' = Lab l]> <*> <( l :== v )> <*> Q).
+    (fun v' => <exists> l v, <[v' = Lab l]> <*> <( l :== v )> <*> Q v).
 Proof.
   pose proof new_label_is_fresh. unfold Is_fresh_label, not in *.
   unfold_all. intros. edestruct_direct. edestruct_all. simpl in *.
@@ -848,10 +938,10 @@ Proof.
 Qed.
 
 Theorem triple_ref (V : Set) (e : Expr V) (v : Value V) P Q :
-  triple e P (fun v' => <[v' = v]> <*> Q) ->
+  triple e P Q ->
   triple (Ref e)
     (sa_credits 1 <*> P)
-    (fun v' => <exists> l, <[v' = Lab l]> <*> <( l :== v )> <*> Q).
+    (fun v' => <exists> l v, <[v' = Lab l]> <*> <( l :== v )> <*> Q v).
 Proof.
   pose proof new_label_is_fresh. unfold Is_fresh_label, not in *.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
@@ -937,22 +1027,18 @@ Proof.
   unfold_all. split_all; eauto.
 Qed.
 *)
-Theorem htriple_seq (V : Set) (e1 e2 : Expr V) (v : Value V) P1 P2 Q2 :
-  hoare_triple e1 P1 (fun v' => <[v' = U_val]> <*> P2) ->
-  hoare_triple e2 P2 (fun v' => <[v' = v]> <*> Q2) ->
-  hoare_triple (Seq e1 e2)
-    (sa_credits 1 <*> P1)
-    (fun v' => <[v' = v]> <*> Q2).
+Theorem htriple_seq (V : Set) (e1 e2 : Expr V) P1 Q1 Q2 :
+  hoare_triple e1 P1 (fun v' => <[v' = U_val]> <*> Q1) ->
+  hoare_triple e2 Q1 Q2 ->
+  hoare_triple (Seq e1 e2) (sa_credits 1 <*> P1) Q2.
 Proof.
   solve_htriple_15 big_red_seq.
 Qed.
 
-Theorem triple_seq (V : Set) (e1 e2 : Expr V) (v : Value V) P1 P2 Q2 :
-  triple e1 P1 (fun v' => <[v' = U_val]> <*> P2) ->
-  triple e2 P2 (fun v' => <[v' = v]> <*> Q2) ->
-  triple (Seq e1 e2)
-    (sa_credits 1 <*> P1)
-    (fun v' => <[v' = v]> <*> Q2).
+Theorem triple_seq (V : Set) (e1 e2 : Expr V) P1 Q1 Q2 :
+  triple e1 P1 (fun v' => <[v' = U_val]> <*> Q1) ->
+  triple e2 Q1 Q2 ->
+  triple (Seq e1 e2) (sa_credits 1 <*> P1) Q2.
 Proof.
   solve_triple_15 big_red_seq.
 Qed.
