@@ -759,9 +759,18 @@ Ltac revert_all_eq :=
   end.
 
 Ltac clear_trivial :=
-  match goal with
+  repeat match goal with
   | [H : disjoint_maps []%list _ |- _] => clear H
   | [H : disjoint_maps _ []%list |- _] => clear H
+  end.
+
+Ltac match_lists_for_lengths :=
+  repeat match goal with
+  | [_ : 0 = List.length ?xs |- _] => destruct xs; [simpl in *|discriminate]
+  | [_ : S _ = List.length ?xs |- _] =>
+    destruct xs; [discriminate|simpl in *]; injection_on_all S
+  | [_ : Some _ = List.head ?xs |- _] =>
+    destruct xs; [discriminate|simpl in *]; injection_on_all_Some
   end.
 
 Theorem htriple_rec (V : Set) (es : list (Expr V)) (vs : list (Value V))
@@ -809,32 +818,53 @@ Proof.
   { generalize dependent c1. generalize dependent m.
     generalize dependent P. generalize dependent Ps.
     generalize dependent vs. generalize dependent es.
-    induction n; intros; destruct es, vs, Ps;
-      try discriminate; try destruct Ps; try discriminate;
-      unfold last_error in *; simpl in *;
-      injection_on_all_Some; injection_on_all S; subst.
+    induction n as [|n IHn]; intros; unfold last_error in *; match_lists_for_lengths;
+      injection_on_all_Some; subst.
     - exists [c1]%list, [m]%list. split_all; simpl; auto. intros.
       inversion_Nth_cons_succ. inversion_Nth_nil.
-    - edestruct H4 with (i := 0) as (v'&c'&c2&m'&?&?&?);
-        eauto_lr.
-      normalize_star. subst.
-      edestruct IHn with (Ps := (s0::Ps)%list) as (cs&ms&c2'&m''&?&?&?&?&?&?&?&?);
-        simpl; eauto 10 with lamref.
-      destruct cs; [discriminate|]. destruct ms; [discriminate|].
-      simpl in *. injection_on_all S. injection_on_all_Some. subst_with c2.
-      exists (c'+c2::c2::cs)%list, (m::m0::ms)%list.
-      split_all; simpl in *; eauto 3. intros.
-      inversion_Nth_cons_succ. inversion_Nth_cons_2 (c'+c2) c2.
-      + inversion_Nth_cons. split_all; auto. intros. inversion_all_Nth_cons. auto.
-      + edestruct H13 as (?&?&?); eauto. split_all; eauto. intros.
-        repeat inversion_Nth_cons_succ. eauto_lr. }
+    - match goal with
+      | [H :
+          forall _ _ _ _ _,
+          Nth _ _ _ ->
+          Nth _ _ _ ->
+          Nth _ _ _ ->
+          Nth _ _ _ ->
+          forall _ _,
+          _ ->
+          exists _ _ _ _, _ /\ _ /\ _ |- _] =>
+        edestruct H with (i := 0) as (v'&c'&c2&m'&?&?&?); eauto_lr
+      end.
+      normalize_star. subst. fold (List.last_error (s0::Ps)%list) in H6.
+      match goal with
+      | [sa : StateAssertion V |- _] =>
+        edestruct IHn with (Ps := (sa::Ps)%list) as (cs&ms&c2'&m''&?&?&?&?&?&?&?&?);
+          simpl; eauto 10 with lamref
+      end.
+      match_lists_for_lengths.
+      simpl in *. injection_on_all_Some. subst_with c2.
+      match goal with
+      | [_ : cost_red _ _ _ ?mm ?cc |- _] =>
+        exists (cc+c2::c2::cs)%list, (m::mm::ms)%list
+      end.
+      subst. split_all; simpl in *; eauto 3. intros.
+      inversion_Nth_cons_succ.
+      match goal with
+      | [_ : cost_red _ _ _ _ ?cc |- _] => inversion_Nth_cons_2 (cc+c2) c2
+      end.
+      + inversion_Nth_cons. split_all; auto. intros. inversion_all_Nth_cons.
+        auto.
+      + match goal with
+        | [H : forall _ _ _, Nth _ _ _ -> Nth _ _ _ -> exists _, _ /\ _ |- _] =>
+          edestruct H as (?&?&?); eauto
+        end.
+        split_all; eauto. intros. repeat inversion_Nth_cons_succ. eauto_lr. }
   destruct cs; [discriminate|].
   assert (c2 <= c1).
   { simpl in *. injection_on_all_Some. subst.
     eapply mono_le_last with (ns := (n0::cs)%list); eauto_lr.
     unfold monotone. intros. edestruct H13 with (i := i) as (?&?&?); eauto.
     lia. }
-  split_all; solve_star; simpl; eauto using big_red_rec_diff with st_assertions.
+  split_all; solve_star; simpl; eauto using big_red_rec_diff.
   lia.
 Qed.
 (*
