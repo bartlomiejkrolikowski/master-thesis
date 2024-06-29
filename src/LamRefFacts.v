@@ -1,10 +1,12 @@
+Require Arith.
+Require Import Lia.
 Require List.
 Import List.ListNotations.
 Require Import String.
 Require Import ZArith.
 
 Require Import src.LambdaRef.
-Require Import Lia.
+Require Import src.Tactics.
 
 Fact liftS_inc (V V' : Set) (f : V -> Value V') x v' :
   liftS (inc_fun f v') (option_map Some x) = liftS f x.
@@ -1620,6 +1622,184 @@ Proof.
       eapply IHes with (ms := (m1::ms)%list); simpl; auto.
       intros. eauto 10 with lamref.
 Qed.
+
+Definition sums (l : list nat) : nat * list nat :=
+  (List.fold_right
+    (fun n '(s, ls) => let s' := n+s in (s', s::ls)) (0, []) l)%list.
+
+Fixpoint diffs (n : nat) (l : list nat) : list nat :=
+  match l with
+  | [] => []
+  | (n'::l') => n-n' :: diffs n' l'
+  end%list.
+
+Lemma diffs_sums l :
+  let '(s, ls) := (sums l) in diffs s ls = l.
+Proof.
+  induction l; simpl; auto.
+  destruct sums. simpl. f_equal; auto. lia.
+Qed.
+
+Definition last_error {A} (xs : list A) := List.last (List.map Some xs) None.
+
+Definition monotone (ns : list nat) :=
+  forall i n n',
+    Nth i ns n ->
+    Nth (1+i) ns n' ->
+    n' <= n.
+
+Lemma mono_le_last i n ns n' :
+  monotone ns ->
+  Some n' = last_error ns ->
+  Nth i ns n ->
+  n' <= n.
+Proof.
+  unfold monotone, last_error.
+  intros Hmono Hlast Hnth. generalize dependent n. generalize dependent i.
+  induction ns; simpl in *; intros.
+  - inversion Hnth.
+  - destruct ns.
+    + inversion Hnth; subst; simpl in *.
+      * injection Hlast as []. auto.
+      * inversion H3.
+    + inversion Hnth; subst; simpl in *; [transitivity n0|]; eauto_lr.
+Qed.
+
+Lemma sum_diffs n n' l :
+  monotone (n::l) ->
+  Some n' = last_error (n::l) ->
+  List.list_sum (diffs n l) = n-n'.
+Proof.
+  unfold monotone, last_error. revert n.
+  induction l; simpl in *; intros n Hmono Hlast.
+  - injection Hlast as []. lia.
+  - erewrite IHl; eauto_lr.
+    + rewrite Nat.add_sub_assoc.
+      * f_equal. apply Nat.sub_add. eauto_lr.
+      * eapply mono_le_last; eauto_lr.
+Qed.
+
+Lemma length_diffs n l :
+  List.length (diffs n l) = List.length l.
+Proof.
+  generalize n.
+  induction l; simpl; auto.
+Qed.
+
+Lemma Nth_lt_length A i (l : list A) :
+  i < List.length l <-> exists x, Nth i l x.
+Proof.
+  split.
+  - revert i. induction l; simpl; intros i Hlt; [lia|].
+    destruct i; eauto_lr.
+    edestruct IHl; eauto_lr. lia.
+  - intros (x&Hnth). induction Hnth; simpl; lia.
+Qed.
+
+Corollary Nth_eq_length A B i (l : list A) (l' : list B) :
+  List.length l = List.length l' ->
+  (exists x, Nth i l x) <-> (exists x, Nth i l' x).
+Proof.
+  intros. erewrite <- Nth_lt_length. rewrite H. apply Nth_lt_length.
+Qed.
+
+Lemma Nth_diffs i n l m :
+  monotone (n::l) ->
+  Nth i (diffs n l) m <->
+    (exists m1 m2, m1 = m + m2 /\ Nth i (n::l) m1 /\ Nth (1+i) (n::l) m2).
+Proof.
+  unfold monotone. revert i n m. induction l; simpl.
+  - split; intros; edestruct_direct; try inversion_Nth_cons_succ; inversion_Nth_nil.
+  - split; intros.
+    + inversion_Nth_cons.
+      * repeat econstructor. rewrite Nat.sub_add; eauto_lr.
+      * match goal with
+        | [H : Nth _ (diffs _ l) _ |- _] => eapply IHl in H as (?&?&?&?&?)
+        end; eauto_lr.
+        subst. simpl in *. inversion_Nth_cons_succ. eauto 10 with lamref.
+    + edestruct_direct. inversion_Nth_cons_succ. inversion_Nth_cons_2 n a.
+      * inversion_Nth_cons. rewrite Nat.add_sub. eauto_lr.
+      * econstructor. eapply IHl; eauto_lr.
+Qed.
+
+Lemma le_add k l m :
+  k = l + m -> m <= k.
+Proof.
+  lia.
+Qed.
+
+Theorem big_red_rec_diff (V : Set) n ms m m' cs c c'
+  (es : list (Expr V)) (vs : list (Value V)) :
+  Some c = List.head cs ->
+  Some m = List.head ms ->
+  Some c' = List.last_error cs ->
+  Some m' = List.last_error ms ->
+  n = List.length es ->
+  n = List.length vs ->
+  1+n = List.length ms ->
+  1+n = List.length cs ->
+  (forall i c2 c2',
+    Nth i cs c2 ->
+    Nth (1+i) cs c2' ->
+    exists c, c2 = c + c2' /\
+      forall e v m m',
+      Nth i es e ->
+      Nth i vs v ->
+      Nth i ms m ->
+      Nth (1+i) ms m' ->
+      C[e,m ~~> v,m'|c]) ->
+  C[RecE es,m ~~> RecV vs,m'|(c - c') + 1].
+Proof.
+  intros.
+  assert (monotone cs).
+  { unfold monotone. intros. edestruct H7 with (i := i) as (?&?&?); eauto_lr; try lia. }
+  destruct cs; try discriminate.
+  match goal with
+  | [H : _ = List.length (_ :: cs) |- _] => simpl in H; injection H as ->
+  end.
+  simpl in *. injection_on_all_Some. subst_with c.
+  rewrite <- sum_diffs with (n := c) (l := cs); auto.
+  eapply big_red_rec with (cs := diffs c cs); eauto using length_diffs. intros.
+  match goal with
+  | [H : Nth _ (diffs _ _) _ |- _] => eapply Nth_diffs in H as (?&?&?&?&?)
+  end; auto.
+  edestruct H7 with (i := i) as (?&?&?); eauto 10 with lamref.
+  match goal with
+  | [_ : ?x = ?c1 + ?y, _ : ?x = ?c2 + ?y |- _] =>
+    assert (c1 = c2) as ->; [lia|]
+  end.
+  auto.
+Qed.
+
+(*
+  intros. subst.
+  generalize dependent ms.
+  generalize dependent m. generalize dependent m'.
+  generalize dependent cs.
+  generalize dependent c. generalize dependent c'.
+  generalize dependent vs.
+  induction es; intros; destruct vs; destruct ms; destruct cs;
+    simpl in *; try discriminate.
+  - rewrite Nat.add_1_r. econstructor.
+    + fold (List.map (@Val V) []). fold (@vals2exprs V []).
+      eauto_lr.
+    + destruct ms, cs; simpl in *; try discriminate.
+      injection H as ?. injection H1 as ?. injection H0 as ?. injection H2 as ?.
+      subst. rewrite Nat.sub_diag. eauto_lr.
+  - destruct ms, cs; simpl in *; try discriminate.
+    injection H as ?. injection H0 as ?. subst.
+    edestruct H7 with (i := 0) as (?&?&?); eauto_lr. subst.
+    rewrite <- Nat.add_sub_assoc.
+    + rewrite <- Nat.add_assoc. eapply red_rec_cons.
+      * eauto_lr.
+      * injection H4 as ?. injection H6 as ?. injection H5 as ?.
+        eapply IHes with (cs := (n0::cs)%list) (ms := (m1::ms)%list); simpl;
+          auto.
+        intros. edestruct H7 with (i := S i) as (?&?&?); eauto 10 with lamref.
+    + eapply mono_le_last; unfold monotone, last_error; eauto_lr; simpl;
+        eauto_lr.
+      intros. edestruct H7 with (i := 1+i) as (?&?&?); eauto_lr; try lia.
+Qed.*)
 
 Theorem big_red_get (V : Set) n m1 m2 c
   (e : Expr V) (vs : list (Value V)) v :

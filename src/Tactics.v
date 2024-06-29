@@ -1,4 +1,6 @@
 Require Import src.LambdaRef.
+Require Import List.
+Import ListNotations.
 
 (*
 Ltac solve_typing :=
@@ -58,3 +60,44 @@ Ltac solve_computation :=
   repeat eexists;
   solve_cost_red solve_red;
   simpl; eauto.
+
+(* other tactics *)
+
+Ltac inversion_Nth_nil :=
+  match goal with
+  | [H : Nth _ []%list _ |- _] => inversion H; subst; clear H
+  end.
+
+Ltac inversion_Nth_cons :=
+  match goal with
+  | [H : Nth _ (_ :: _)%list _ |- _] => inversion H; subst; clear H
+  end.
+
+Ltac inversion_Nth_cons_succ :=
+  match goal with
+  | [H : Nth (S _) (_ :: _)%list _ |- _] => inversion H; subst; clear H
+  end.
+
+Ltac inversion_Nth_cons_2 x y :=
+  match goal with
+  | [H : Nth _ (x :: y :: _)%list _ |- _] => inversion H; subst; clear H
+  end.
+
+Ltac inversion_all_Nth_cons := repeat inversion_Nth_cons.
+
+Ltac edestruct_direct :=
+  repeat match goal with
+  | [H : exists _, _ |- _] => edestruct H; eauto; clear H
+  | [H : _ /\ _ |- _] => edestruct H; eauto; subst; clear H
+  end.
+
+Ltac injection_on_all_Some :=
+  repeat match goal with
+  | [H : Some _ = Some _ |- _] => injection H as H
+  end.
+
+Ltac subst_with x :=
+  match goal with
+  | [H : x = ?y |- _] => subst y
+  | [H : ?y = x |- _] => subst y
+  end.

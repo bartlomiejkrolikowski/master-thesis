@@ -7,6 +7,7 @@ Require Import ZArith.
 Require Import src.LambdaRef.
 Require Import src.LamRefFacts.
 Require Import src.LambdaTotalTriple_credits.
+Require Import src.Tactics.
 
 From Coq Require Import Lia.
 
@@ -17,12 +18,6 @@ Ltac unfold_all :=
 Ltac unfold_all_in H :=
   unfold triple, hoare_triple, sa_exists, sa_forall, sa_credits, sa_star,
     sa_single, sa_pure, sa_empty, sa_implies, disjoint_maps, labels in H.
-
-Ltac edestruct_direct :=
-  repeat match goal with
-  | [H : exists _, _ |- _] => edestruct H; eauto; clear H
-  | [H : _ /\ _ |- _] => edestruct H; eauto; subst; clear H
-  end.
 
 Ltac subst_case_or :=
   match goal with
@@ -758,33 +753,15 @@ Proof.
   solve_triple_15 big_red_ceq.
 Qed.
 
-Definition last_error {A} (xs : list A) := List.last (List.map Some xs) None.
-
-Ltac injection_on_all_Some :=
-  repeat match goal with
-  | [H : Some _ = Some _ |- _] => injection H as H
-  end.
-
-Ltac inversion_Nth_nil :=
-  match goal with
-  | [H : Nth _ []%list _ |- _] => inversion H; subst; clear H
-  end.
-
-Ltac inversion_Nth_cons :=
-  match goal with
-  | [H : Nth _ (_ :: _)%list _ |- _] => inversion H; subst; clear H
-  end.
-
-Ltac inversion_all_Nth_cons := repeat inversion_Nth_cons.
-
 Ltac revert_all_eq :=
   repeat match goal with
   | [H : _ = _ |- _] => revert H
   end.
 
-Ltac subst_with x :=
+Ltac clear_trivial :=
   match goal with
-  | [H : x = ?y |- _] => subst y
+  | [H : disjoint_maps []%list _ |- _] => clear H
+  | [H : disjoint_maps _ []%list |- _] => clear H
   end.
 
 Theorem htriple_rec (V : Set) (es : list (Expr V)) (vs : list (Value V))
@@ -809,22 +786,26 @@ Proof.
   unfold hoare_triple.
   intros. remember m as m0. revert_all_eq. make_cred_positive.
   edestruct_direct. simpl in *. injection_on_all S. subst_with c1. intros.
+  subst_with m. clear_trivial.
   assert (exists cs ms c2 m',
+    1+n = List.length cs /\
     1+n = List.length ms /\
     Some c1 = List.head cs /\
     Some c2 = last_error cs /\
     Some m = List.head ms /\
     Some m' = last_error ms /\
     Q c2 m' /\
-      forall i e v c c' m m',
+      forall i c2 c2',
+      Nth i cs c2 ->
+      Nth (1+i) cs c2' ->
+      exists c, c2 = c + c2' /\
+        forall e v m m',
         Nth i es e ->
         Nth i vs v ->
-        Nth i cs c ->
-        Nth (i+1) cs c' ->
         Nth i ms m ->
         Nth (1+i) ms m' ->
-        C[e,m ~~> v,m'|c-c'])
-    as (cs&ms&c2&m'&?&?&?&?&?).
+        C[e,m ~~> v,m'|c])
+    as (cs&ms&c2&m'&?&?&?&?&?&?&?&?).
   { generalize dependent c1. generalize dependent m.
     generalize dependent P. generalize dependent Ps.
     generalize dependent vs. generalize dependent es.
@@ -832,21 +813,31 @@ Proof.
       try discriminate; try destruct Ps; try discriminate;
       unfold last_error in *; simpl in *;
       injection_on_all_Some; injection_on_all S; subst.
-    - exists [c1]%list, [m]%list. repeat econstructor; auto. intros.
-      inversion_Nth_nil.
+    - exists [c1]%list, [m]%list. split_all; simpl; auto. intros.
+      inversion_Nth_cons_succ. inversion_Nth_nil.
     - edestruct H4 with (i := 0) as (v'&c'&c2&m'&?&?&?);
         eauto_lr.
       normalize_star. subst.
-      edestruct IHn with (Ps := (s0::Ps)%list) as (cs&ms&c2'&m''&?&?&?&?&?);
+      edestruct IHn with (Ps := (s0::Ps)%list) as (cs&ms&c2'&m''&?&?&?&?&?&?&?&?);
         simpl; eauto 10 with lamref.
-      split_all. edestruct_direct. Admitted. (*
-      destruct ms; [discriminate|]. simpl in *. injection_on_all S.
-      injection_on_all_Some. exists (m::m0::ms)%list.
-      repeat eexists; simpl in *; eauto. intros.
-      inversion_all_Nth_cons; eauto with lamref. }
-  eauto 20 using big_red_rec with st_assertions lamref.
+      destruct cs; [discriminate|]. destruct ms; [discriminate|].
+      simpl in *. injection_on_all S. injection_on_all_Some. subst_with c2.
+      exists (c'+c2::c2::cs)%list, (m::m0::ms)%list.
+      split_all; simpl in *; eauto 3. intros.
+      inversion_Nth_cons_succ. inversion_Nth_cons_2 (c'+c2) c2.
+      + inversion_Nth_cons. split_all; auto. intros. inversion_all_Nth_cons. auto.
+      + edestruct H13 as (?&?&?); eauto. split_all; eauto. intros.
+        repeat inversion_Nth_cons_succ. eauto_lr. }
+  destruct cs; [discriminate|].
+  assert (c2 <= c1).
+  { simpl in *. injection_on_all_Some. subst.
+    eapply mono_le_last with (ns := (n0::cs)%list); eauto_lr.
+    unfold monotone. intros. edestruct H13 with (i := i) as (?&?&?); eauto.
+    lia. }
+  split_all; solve_star; simpl; eauto using big_red_rec_diff with st_assertions.
+  lia.
 Qed.
-
+(*
 Theorem triple_rec (V : Set) (es : list (Expr V)) (vs : list (Value V))
   n cs Ps P Q :
   n = List.length es ->
