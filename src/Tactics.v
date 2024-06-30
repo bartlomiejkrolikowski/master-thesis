@@ -101,3 +101,15 @@ Ltac subst_with x :=
   | [H : x = ?y |- _] => subst y
   | [H : ?y = x |- _] => subst y
   end.
+
+Ltac rewrite_with x :=
+  match goal with
+  | [H : x = ?y |- _] => rewrite <- H in *
+  | [H : ?y = x |- _] => rewrite H in *
+  end.
+
+Ltac rewrite_with_and_clear x :=
+  match goal with
+  | [H : x = ?y |- _] => rewrite <- H in *; clear H
+  | [H : ?y = x |- _] => rewrite H in *; clear H
+  end.

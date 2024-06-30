@@ -402,6 +402,13 @@ Ltac fold_star :=
       [eauto 10 with st_assertions|]
   end.
 
+Ltac fold_star_with P :=
+  match goal with
+  | [Hp : P ?cp ?mp, Hq : ?Q ?cq ?mq, Hdis : disjoint_maps ?mp ?mq |- _] =>
+    assert ((P <*> Q) (cp + cq) (mp ++ mq)%list);
+      [eauto 10 with st_assertions|]
+  end.
+
 Ltac solve_triple n H :=
   unfold triple, hoare_triple;
   intros;
@@ -834,7 +841,7 @@ Proof.
           exists _ _ _ _, _ /\ _ /\ _ |- _] =>
         edestruct H with (i := 0) as (v'&c'&c2&m'&?&?&?); eauto_lr
       end.
-      normalize_star. subst. fold (List.last_error (s0::Ps)%list) in H6.
+      normalize_star. subst. (* fold (List.last_error (s0::Ps)%list) in H6. *)
       match goal with
       | [sa : StateAssertion V |- _] =>
         edestruct IHn with (Ps := (sa::Ps)%list) as (cs&ms&c2'&m''&?&?&?&?&?&?&?&?);
@@ -867,64 +874,119 @@ Proof.
   split_all; solve_star; simpl; eauto using big_red_rec_diff.
   lia.
 Qed.
-(*
+
+Ltac find_star_and_unfold_all :=
+  match goal with
+  | [H : (_ <*> _) _ _ |- _] => unfold_all_in H
+  end.
+
+Ltac fold_disjoint_maps :=
+  match goal with
+  | [H :
+    forall _,
+      List.In _ (List.map _ ?m1) ->
+      List.In _ (List.map _ ?m2) -> False |- _] =>
+    fold (labels m1) in H; fold (labels m2) in H; fold (disjoint_maps m1 m2) in H
+  end.
+
 Theorem triple_rec (V : Set) (es : list (Expr V)) (vs : list (Value V))
-  n cs Ps P Q :
+  n Ps P Q :
   n = List.length es ->
   n = List.length vs ->
-  n = List.length cs ->
   1+n = List.length Ps ->
   Some P = List.head Ps ->
   Some Q = last_error Ps ->
-  (forall i e v c P Q,
+  (forall i e v P Q,
     Nth i es e ->
     Nth i vs v ->
-    Nth i cs c ->
     Nth i Ps P ->
     Nth (1+i) Ps Q ->
     triple e
       P
-      (fun v' c' => <[v' = v /\ c' = c]> <*> Q)) ->
+      (fun v' => <[v' = v]> <*> Q)) ->
   triple (RecE es)
-    P
-    (fun v c => <[v = RecV vs /\ c = List.list_sum cs + 1]> <*> Q).
+    (sa_credits 1 <*> P)
+    (fun v => <[v = RecV vs]> <*> Q).
 Proof.
   unfold triple, hoare_triple.
-  intros.
-  assert (exists ms m',
+  intros. remember m as m0. revert_all_eq. normalize_star. make_cred_positive.
+  edestruct_direct. simpl in *. injection_on_all S. intros. clear_trivial.
+  fold_star. rewrite_with_and_clear c1. rewrite_with_and_clear m.
+  clear H1 H0 H3 x3 x4 x5 x6.
+  assert (exists cs ms c2 m',
+    1+n = List.length cs /\
     1+n = List.length ms /\
+    Some c1 = List.head cs /\
+    Some c2 = last_error cs /\
     Some m = List.head ms /\
     Some m' = last_error ms /\
-    (Q <*> H6) m' /\
-      forall i e v c m m',
+    (Q <*> H5) c2 m' /\
+      forall i c2 c2',
+      Nth i cs c2 ->
+      Nth (1+i) cs c2' ->
+      exists c, c2 = c + c2' /\
+        forall e v m m',
         Nth i es e ->
         Nth i vs v ->
-        Nth i cs c ->
         Nth i ms m ->
         Nth (1+i) ms m' ->
         C[e,m ~~> v,m'|c])
-    as (ms&m'&?&?&?&?&?).
-  { generalize dependent m. generalize dependent P.
-    generalize dependent Ps. generalize dependent cs.
+    as (cs&ms&c2&m'&?&?&?&?&?&?&?&?).
+  { generalize dependent c1. generalize dependent m.
+    generalize dependent P. generalize dependent Ps.
     generalize dependent vs. generalize dependent es.
-    induction n; intros; destruct es, vs, cs, Ps;
-      try discriminate; try destruct Ps; try discriminate;
-      unfold last_error in *; simpl in *;
-      injection_on_all_Some; injection_on_all S; subst.
-    - exists [m]%list. split_all; simpl; eauto. intros. inversion_Nth_nil.
-    - edestruct H5 with (i := 0) as (v'&c'&m'&?&?);
-        eauto_lr.
-      normalize_star. edestruct_direct.
-      edestruct IHn with (Ps := (s0::Ps)%list) as (ms&m''&?&?&?&?&?);
-        simpl; eauto 10 with lamref.
-      destruct ms; [discriminate|]. simpl in *. injection_on_all S.
-      injection_on_all_Some. exists (m::m0::ms)%list.
-      split_all; simpl in *; eauto. intros.
-      inversion_all_Nth_cons; eauto with lamref. }
-  split_all; eauto using big_red_rec with lamref.
-  solve_star.
+    induction n as [|n IHn]; intros; normalize_star; unfold last_error in *;
+      match_lists_for_lengths; injection_on_all_Some; subst.
+    - eexists [c1]%list, [m]%list.
+      split_all; simpl; auto. intros.
+      inversion_Nth_cons_succ. inversion_Nth_nil.
+    - match goal with
+      | [H :
+          forall _ _ _ _ _,
+          Nth _ _ _ ->
+          Nth _ _ _ ->
+          Nth _ _ _ ->
+          Nth _ _ _ ->
+          forall _ _ _,
+          _ ->
+          exists _ _ _ _, _ /\ _ /\ _ |- _] =>
+        edestruct H with (i := 0) as (v'&c'&c2&m'&?&?&?); eauto_lr
+      end.
+      normalize_star. find_star_and_unfold_all. edestruct_direct.
+      fold_disjoint_maps. fold_star_with s0. subst.
+      match goal with
+      | [sa : StateAssertion V |- _] =>
+        edestruct IHn with (Ps := (sa::Ps)%list) as (cs&ms&c2'&m''&?&?&?&?&?&?&?&?);
+          simpl; eauto 10 with lamref
+      end.
+      match_lists_for_lengths.
+      simpl in *. injection_on_all_Some. rewrite_with_and_clear n.
+      match goal with
+      | [_ : cost_red _ _ _ ?mm ?cc |- _] =>
+        exists (cc+n::n::cs)%list, (m::mm::ms)%list
+      end.
+      subst. split_all; simpl in *; eauto 3. intros.
+      inversion_Nth_cons_succ.
+      match goal with
+      | [_ : cost_red _ _ _ _ ?cc |- _] => inversion_Nth_cons_2 (cc+n) n
+      end.
+      + inversion_Nth_cons. split_all; auto. intros. inversion_all_Nth_cons.
+        auto.
+      + match goal with
+        | [H : forall _ _ _, Nth _ _ _ -> Nth _ _ _ -> exists _, _ /\ _ |- _] =>
+          edestruct H as (?&?&?); eauto
+        end.
+        split_all; eauto. intros. repeat inversion_Nth_cons_succ. eauto_lr. }
+  destruct cs; [discriminate|].
+  assert (c2 <= c1).
+  { simpl in *. injection_on_all_Some. subst.
+    eapply mono_le_last with (ns := (n0::cs)%list); eauto_lr.
+    unfold monotone. intros. edestruct H14 with (i := i) as (?&?&?); eauto.
+    lia. }
+  split_all; solve_star; simpl; eauto using big_red_rec_diff.
+  lia.
 Qed.
-*)
+
 (* vvvv TODO vvvv *)
 Theorem htriple_get (V : Set) n (e : Expr V) P Q :
   hoare_triple e
@@ -972,11 +1034,6 @@ Proof.
   solve_star. unfold sa_star in *. edestruct_direct.
   split_all; eauto with st_assertions. intros ? [? | []] ?. subst. eauto.
 Qed.
-
-Ltac find_star_and_unfold_all :=
-  match goal with
-  | [H : (_ <*> _) _ _ |- _] => unfold_all_in H
-  end.
 
 Theorem htriple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
   hoare_triple e
