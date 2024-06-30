@@ -987,7 +987,6 @@ Proof.
   lia.
 Qed.
 
-(* vvvv TODO vvvv *)
 Theorem htriple_get (V : Set) n (e : Expr V) P Q :
   hoare_triple e
     P
@@ -1035,6 +1034,7 @@ Proof.
   split_all; eauto with st_assertions. intros ? [? | []] ?. subst. eauto.
 Qed.
 
+(* vvvv TODO vvvv *)
 Theorem htriple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
   hoare_triple e
     (<(l :== v)> <*> P)
