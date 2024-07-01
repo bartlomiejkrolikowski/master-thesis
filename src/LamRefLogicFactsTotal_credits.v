@@ -1041,7 +1041,7 @@ Theorem htriple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
     (fun v' => <[v' = Lab l]> <*> <(l :== v)> <*> Q) ->
   hoare_triple (Deref e)
     (sa_credits 1 <*> <(l :== v)> <*> P)
-    (fun v' => <[v' = v]> <*> <(l :== v)> <*> Q).
+    (fun v => <(l :== v)> <*> Q).
 Proof.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
   edestruct_direct. fold_star. edestruct_all. simpl in *.
@@ -1060,7 +1060,7 @@ Theorem triple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
     (fun v' => <[v' = Lab l]> <*> <(l :== v)> <*> Q) ->
   triple (Deref e)
     (sa_credits 1 <*> <(l :== v)> <*> P)
-    (fun v' => <[v' = v]> <*> <(l :== v)> <*> Q).
+    (fun v => <(l :== v)> <*> Q).
 Proof.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
   edestruct_direct. fold_star. fold_star. conormalize_star. edestruct_all. simpl in *.
