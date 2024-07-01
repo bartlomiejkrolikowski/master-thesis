@@ -6,6 +6,7 @@ src/Example3.v
 src/Example4.v
 # src/Example5.v
 src/Example6.v
+src/Example6_credits.v
 src/Example7_credits.v
 #src/FiniteMap.v
 src/LambdaAssertions.v
