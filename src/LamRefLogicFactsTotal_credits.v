@@ -1067,44 +1067,48 @@ Proof.
   injection_on_all S. unfold_all. find_star_and_unfold_all. edestruct_direct.
   repeat eexists; try eapply big_red_deref; simpl in *; eauto with lamref.
 Qed.
-(*
-Theorem htriple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 c1 :
+
+Theorem htriple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 :
   hoare_triple e1
     (<(l :== v)> <*> P1)
-    (fun v'' c => <[v'' = Lab l /\ c = c1]> <*> <(l :== v)> <*> P2) ->
+    (fun v'' => <[v'' = Lab l]> <*> <(l :== v)> <*> P2) ->
   hoare_triple e2
     (<(l :== v)> <*> P2)
-    (fun v'' c => <[v'' = v']> <*> <(l :== v)> <*> Q2 (c1+c+1)) ->
+    (fun v'' => <[v'' = v']> <*> <(l :== v)> <*> Q2) ->
   hoare_triple (Assign e1 e2)
-    (<(l :== v)> <*> P1)
-    (fun v'' c => <[v'' = U_val]> <*> <(l :== v')> <*> Q2 c).
+    (sa_credits 1 <*> <(l :== v)> <*> P1)
+    (fun v'' => <[v'' = U_val]> <*> <(l :== v')> <*> Q2).
 Proof.
   unfold_all. intros. edestruct_direct.
   edestruct H; eauto 10. clear H. edestruct_direct.
-  edestruct_all_in integer:(10).
-  repeat eexists; try eapply big_red_assign; simpl in *; eauto with lamref.
-  auto with lamref.
+  edestruct_all_in integer:(10). simpl.
+  repeat eexists; try eapply big_red_assign; simpl in *; eauto with lamref;
+    eauto_lr.
+  lia.
 Qed.
 
-Theorem triple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 c1 :
+Theorem triple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 :
   triple e1
     (<(l :== v)> <*> P1)
-    (fun v'' c => <[v'' = Lab l /\ c = c1]> <*> <(l :== v)> <*> P2) ->
+    (fun v'' => <[v'' = Lab l]> <*> <(l :== v)> <*> P2) ->
   triple e2
     (<(l :== v)> <*> P2)
-    (fun v'' c => <[v'' = v']> <*> <(l :== v)> <*> Q2 (c1+c+1)) ->
+    (fun v'' => <[v'' = v']> <*> <(l :== v)> <*> Q2) ->
   triple (Assign e1 e2)
-    (<(l :== v)> <*> P1)
-    (fun v'' c => <[v'' = U_val]> <*> <(l :== v')> <*> Q2 c).
+    (sa_credits 1 <*> <(l :== v)> <*> P1)
+    (fun v'' => <[v'' = U_val]> <*> <(l :== v')> <*> Q2).
 Proof.
-  unfold triple, hoare_triple. intros. edestruct_all. normalize_star.
-  edestruct H0; clear H0. { solve_star. } edestruct_direct. normalize_star. subst.
-  unfold sa_star, sa_single in H5. edestruct_direct. simpl in *.
+  unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
+  edestruct_direct. fold_star. fold_star.
+  edestruct H; clear H; solve_star. edestruct_direct. normalize_star. subst.
+  edestruct H0; clear H0; solve_star. edestruct_direct. normalize_star. subst.
+  find_star_and_unfold_all. edestruct_direct. simpl in *. unfold_all.
+  rewrite List.map_app in *.
   split_all; try eapply big_red_assign; simpl in *; eauto with lamref;
-    solve_star; auto with lamref.
-  unfold_all. split_all; eauto.
+    solve_star; simpl; eauto using List.in_or_app with lamref; try lia.
+  intros ? []; eauto using List.in_or_app.
 Qed.
-*)
+
 Theorem htriple_seq (V : Set) (e1 e2 : Expr V) P1 Q1 Q2 :
   hoare_triple e1 P1 (fun v' => <[v' = U_val]> <*> Q1) ->
   hoare_triple e2 Q1 Q2 ->
@@ -1227,7 +1231,8 @@ Proof.
   edestruct_all. normalize_star. destruct x6.
   { find_star_and_unfold_all. edestruct_direct. discriminate. }
   assert ((sa_credits 2 <*> P) x6 x7).
-  { find_star_and_unfold_all. edestruct_direct. simpl in *. injection_on_all S. unfold_all. split_all; eauto. }
+  { find_star_and_unfold_all. edestruct_direct. simpl in *. injection_on_all S.
+    unfold_all. split_all; eauto. }
   assert (x6 < S (S (x0 + (x5 + S x6)))). { lia. }
   edestruct (H1 x6 H8 x7 H7). edestruct_direct. normalize_star. subst. split_all.
   - eapply big_red_while_true with (c1 := x0) (c2 := x5) (c3 := x3); eauto.
@@ -1253,7 +1258,8 @@ Proof.
   edestruct_all. normalize_star. destruct x9.
   { find_star_and_unfold_all. edestruct_direct. discriminate. }
   assert (((sa_credits 2 <*> P) <*> H1) x9 x10).
-  { find_star_and_unfold_all. edestruct_direct. simpl in *. injection_on_all S. unfold_all. split_all; eauto. }
+  { find_star_and_unfold_all. edestruct_direct. simpl in *. injection_on_all S.
+    unfold_all. split_all; eauto. }
   assert (x9 < S (S (x3 + x5))). { lia. }
   edestruct (H2 x9 H13 x10 H12). edestruct_direct. normalize_star. subst. split_all.
   - eapply big_red_while_true; eauto.
