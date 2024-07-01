@@ -43,10 +43,10 @@ Definition f_cons : Value string :=
 
 Inductive is_list {A : Set} : list (Value A) -> Value A -> StateAssertion A :=
 | is_nil c m : is_list []%list v_nil c m
-| is_cons c c' m : forall v L l v',
+| is_cons c m : forall v L l v',
     Lookup l m v' ->
     is_list L v' c m ->
-    is_list (v::L)%list (v_cons v l) c' m
+    is_list (v::L)%list (v_cons v l) c m
 .
 
 Definition v_of_list {A : Set} (xs : list (Value A)) : Value A * Map A :=
@@ -102,28 +102,57 @@ Proof.
 Qed.
 
 (* goal 2 *)
-Lemma f_cons_is_list :
-  forall L (v vl vl' : Value _) c1 c1' (m m' : Map _) c,
-    C[f_cons <* v <* (Ref vl), m ~~> vl', m' | c] ->
-    is_list L vl c1 m ->
-    is_list (v::L)%list vl' c1' m'.
+Lemma triple_f_cons :
+  forall L (v vl : Value _),
+    triple (f_cons <* v <* (Ref vl))
+      (sa_credits 3 <*> is_list L vl)
+      (is_list (v::L)).
 Proof.
-  intros L v vl vl' c1 c1' m m' c Hred. (*remember (f_cons <* v <* vl) as e eqn:He.*)
-  repeat match goal with
-  | [Hred : cost_red _ _ _ _ _ |- _] =>
-    inversion Hred;
-    repeat match goal with
-    | [H : red _ _ _ _ |- _] => inversion H; subst; clear H
-    end;
-    cbn in *;
-    clear Hred
-  end.
-  intro His_list. rewrite bind_v_shift, bind_v_id.
-  econstructor.
-  - constructor 1.
-  - eauto using is_list_cons_map, new_label_is_fresh.
+  intros L v vl.
+  apply triple_weaken with
+    (P := sa_credits 1 <*> (sa_credits 2 <*> is_list L vl))
+    (Q := is_list (v::L)).
+    { unfold_all. intros. edestruct_direct. split_all; eauto. }
+    { unfold_all. auto. }
+  apply triple_app with
+    (P2 := sa_credits 1 <*> (is_list L vl))
+    (Q2 := fun v' => <exists> l v'', <[v' = Lab l]> <*> <(l :== v'')> <*> (<[v'' = vl]> <*> (is_list L vl))).
+  2:{ apply triple_ref; auto. eapply triple_weaken.
+      3:apply triple_frame, triple_value.
+      all:unfold_all; intros; edestruct_direct; split_all; eauto. }
+  - eapply triple_weaken with
+      (P := sa_credits 1 <*> (sa_credits 1 <*> is_list L vl))
+      (Q := fun v0 => (<exists> e1', <[v0 = (-\ e1') /\ _]>) <*> (sa_credits 1 <*> is_list L vl)).
+    { unfold_all. intros. edestruct_direct. split_all; eauto. }
+    { unfold "->>". intros. destruct H. edestruct_direct. normalize_star.
+      destruct H as ((?&?)&?&?). subst.
+      solve_star. split; auto. exact H2. }
+    eapply triple_app with
+      (P2 := sa_credits 1 <*> is_list L vl)
+      (Q2 := fun v' => <[v' = v]> <*> (sa_credits 1 <*> is_list L vl)).
+    2:{ eapply triple_weaken, triple_frame with (H := sa_credits 1 <*> is_list L vl), triple_value.
+        { unfold_all. intros. edestruct_direct. split_all; eauto. }
+        { unfold "->>". intros. normalize_star. subst. solve_star. }
+      }
+    + eapply triple_weaken with
+        (P := <[]> <*> (sa_credits 1 <*> is_list L vl)).
+      3:{ eapply triple_frame. eapply triple_value. }
+      { unfold_all. intros. edestruct_direct. split_all; eauto. }
+      { unfold f_cons, "->>", StringLam. intros. normalize_star. solve_star.
+        split_all; eauto. intros. cbn.
+        apply triple_frame. apply triple_pure. intros ->. eapply triple_weaken.
+        3:{ apply triple_value. }
+        { unfold_all. auto. }
+        { unfold "->>". intros. destruct H1 as (?&?&?). subst. solve_star.
+          unfold "<[ _ ]>". split_all; try now (unfold_all; auto).
+          intros. cbn. rewrite bind_v_shift, bind_v_id.
+          repeat (apply -> triple_exists; intros). unfold_all. intros.
+          edestruct_direct. split_all; eauto_lr; simpl in *.
+          { fold (v_cons v x). repeat econstructor. apply is_list_cons_map; eauto.
+            unfold Is_fresh_label. intro. eauto. }
+          { lia. } } }
 Qed.
-
+(* vvvv TODO vvvv *)
 Fact f_cons_app_expr :
   forall (e : Expr _) (v vl : Value _) (m m' m'' : Map _) c c',
     C[e, m ~~> v, m' | c] ->
