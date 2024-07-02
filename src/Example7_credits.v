@@ -109,49 +109,61 @@ Lemma triple_f_cons :
       (is_list (v::L)).
 Proof.
   intros L v vl.
-  apply triple_weaken with
-    (P := sa_credits 1 <*> (sa_credits 2 <*> is_list L vl))
-    (Q := is_list (v::L)).
-    { unfold_all. intros. edestruct_direct. split_all; eauto. }
-    { unfold_all. auto. }
+  eapply triple_weaken.
+    { eapply implies_trans.
+      { apply star_implies_mono.
+        { eapply credits_star_r with (c1 := 1) (c2 := 2). auto. }
+        { apply implies_refl. } }
+      { apply star_assoc. } }
+    { apply implies_post_spec. eauto. }
   apply triple_app with
     (P2 := sa_credits 1 <*> (is_list L vl))
     (Q2 := fun v' => <exists> l v'', <[v' = Lab l]> <*> <(l :== v'')> <*> (<[v'' = vl]> <*> (is_list L vl))).
   2:{ apply triple_ref; auto. eapply triple_weaken.
       3:apply triple_frame, triple_value.
-      all:unfold_all; intros; edestruct_direct; split_all; eauto. }
+      { apply empty_star_l_intro. }
+      { intros. simpl. apply implies_refl. } }
   - eapply triple_weaken with
       (P := sa_credits 1 <*> (sa_credits 1 <*> is_list L vl))
       (Q := fun v0 => (<exists> e1', <[v0 = (-\ e1') /\ _]>) <*> (sa_credits 1 <*> is_list L vl)).
-    { unfold_all. intros. edestruct_direct. split_all; eauto. }
-    { unfold "->>". intros. destruct H. edestruct_direct. normalize_star.
-      destruct H as ((?&?)&?&?). subst.
-      solve_star. split; auto. exact H2. }
+    { eapply implies_trans.
+      { apply star_implies_mono.
+        { apply credits_star_r with (c1 := 1) (c2 := 1). auto. }
+        { apply implies_refl. } }
+      { apply star_assoc. } }
+    { intros. apply implies_spec. intros. destruct H. edestruct_direct.
+      normalize_star. destruct H as ((?&?)&?&?). subst. solve_star.
+      split; auto. exact H2. }
     eapply triple_app with
       (P2 := sa_credits 1 <*> is_list L vl)
       (Q2 := fun v' => <[v' = v]> <*> (sa_credits 1 <*> is_list L vl)).
     2:{ eapply triple_weaken, triple_frame with (H := sa_credits 1 <*> is_list L vl), triple_value.
-        { unfold_all. intros. edestruct_direct. split_all; eauto. }
-        { unfold "->>". intros. normalize_star. subst. solve_star. }
+        { apply empty_star_l_intro. }
+        { intros. apply implies_spec. auto. }
       }
     + eapply triple_weaken with
         (P := <[]> <*> (sa_credits 1 <*> is_list L vl)).
       3:{ eapply triple_frame. eapply triple_value. }
-      { unfold_all. intros. edestruct_direct. split_all; eauto. }
+      { eapply empty_star_l_intro. }
       { unfold f_cons, "->>", StringLam. intros. normalize_star. solve_star.
         split_all; eauto. intros. cbn.
         apply triple_frame. apply triple_pure. intros ->. eapply triple_weaken.
         3:{ apply triple_value. }
-        { unfold_all. auto. }
-        { unfold "->>". intros. destruct H1 as (?&?&?). subst. solve_star.
-          unfold "<[ _ ]>". split_all; try now (unfold_all; auto).
+        { apply implies_refl. }
+        { intros. apply implies_spec. intros. destruct H1 as (?&?&?). subst. solve_star.
+          apply pure_spec. split_all; try now (unfold_all; auto).
           intros. cbn. rewrite bind_v_shift, bind_v_id.
-          repeat (apply -> triple_exists; intros). unfold_all. intros.
-          edestruct_direct. split_all; eauto_lr; simpl in *.
-          { fold (v_cons v x). repeat econstructor. apply is_list_cons_map; eauto.
-            unfold Is_fresh_label. intro. eauto. }
-          { lia. } } }
+          apply -> triple_exists. intros.
+          apply -> triple_exists. intros.
+          eapply triple_weaken, triple_frame, triple_value.
+          { apply empty_star_l_intro. }
+          { simpl. intros. apply implies_spec. intros. normalize_star. subst.
+            fold (v_cons v x). edestruct H2. edestruct_direct. normalize_star.
+            subst. unfold_all_in H. edestruct_direct. simpl in *.
+            repeat econstructor. apply is_list_cons_map; auto.
+            unfold Is_fresh_label. unfold_all_in H3. simpl in *. eauto. } } }
 Qed.
+(*
 (* vvvv TODO vvvv *)
 Fact f_cons_app_expr :
   forall (e : Expr _) (v vl : Value _) (m m' m'' : Map _) c c',
@@ -409,3 +421,4 @@ Proof.
 Qed.
 *)
 Abort.
+*)
