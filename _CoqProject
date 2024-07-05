@@ -9,8 +9,10 @@ src/Example6.v
 src/Example6_credits.v
 src/Example7_credits.v
 #src/FiniteMap.v
+src/Interweave.v
 src/LambdaAssertions.v
 src/LambdaAssertions_credits.v
+src/LambdaAssertions_credits_perm.v
 src/LambdaEval.v
 src/LambdaParse.v
 src/LambdaPartialTriple.v
@@ -19,11 +21,13 @@ src/LambdaRef2.v
 src/LambdaRef3.v
 src/LambdaTotalTriple.v
 src/LambdaTotalTriple_credits.v
+src/LambdaTotalTriple_credits_perm.v
 src/LamRefData.v
 src/LamRefFacts.v
 src/LamRefFacts2.v
 src/LamRefLogicFactsPartial.v
 src/LamRefLogicFactsTotal.v
 src/LamRefLogicFactsTotal_credits.v
-#src/Permutation.v
+src/LamRefLogicFactsTotal_credits_perm.v
+src/Permutation.v
 src/Tactics.v
