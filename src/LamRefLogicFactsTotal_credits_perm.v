@@ -251,14 +251,19 @@ Proof.
   apply Interweave_comm. assumption.
 Qed.
 
-(* TODO *)
+Ltac invert_Intwv_nil :=
+  match goal with
+  | [H : Interweave []%list _ _ |- _] => apply Interweave_nil_l_inv in H as ->
+  | [H : Interweave _ []%list _ |- _] => apply Interweave_nil_r_inv in H as ->
+  end.
 
 Lemma star_credits (V : Set) (k : nat) (P : StateAssertion V) c m :
   (sa_credits k <*> P) c m <->
     exists c', c = k + c' /\ P c' m.
 Proof.
-  unfold_all.
-  split; intros; edestruct_direct; eauto 10 with lamref st_assertions.
+  unfold_all. split; intros; edestruct_direct.
+  - invert_Intwv_nil. eauto.
+  - split_all; eauto using Interweave_nil_l.
 Qed.
 
 Theorem triple_frame (V : Set) (e : Expr V) P Q H :
@@ -278,7 +283,7 @@ Proof.
 Qed.
 
 Ltac solve_simple_triple n :=
-  unfold_all; intros; edestruct_direct; eauto n with lamref.
+  unfold_all; intros; edestruct_direct; eauto n using Interweave_nil_l with lamref.
 Ltac solve_simple_triple_30 :=
   solve_simple_triple integer:(30).
 
@@ -292,7 +297,7 @@ Theorem htriple_value' (V : Set) (v : Value V) (P : StateAssertion V) :
   hoare_triple v P (fun v' => <[v' = v]> <*> P).
 Proof.
   unfold hoare_triple, sa_star, sa_pure, sa_empty, disjoint_maps.
-  eauto 20 with lamref.
+  eauto 20 using Interweave_nil_l with lamref.
 Qed.
 
 Theorem triple_value' (V : Set) (v : Value V) (P : StateAssertion V) :
@@ -306,8 +311,9 @@ Theorem htriple_value_untimed (V : Set) (v : Value V) (P : StateAssertion V) :
 Proof.
   eapply htriple_weaken; eauto using htriple_value';
     unfold sa_implies, sa_star, sa_pure, sa_empty;
-    [| intros v' c m (c1&m1&c2&m2&(?&?&?)&?&?&?&?); subst ];
+    [| intros v' c m (c1&m1&c2&m2&(?&?&?)&?&?&?&?); subst ]; simpl;
     eauto.
+  invert_Intwv_nil. assumption.
 Qed.
 
 Theorem triple_value_untimed (V : Set) (v : Value V) (P : StateAssertion V) :
@@ -317,6 +323,7 @@ Proof.
     unfold sa_implies, sa_star, sa_pure, sa_empty;
     [| intros v' c m (c1&m1&c2&m2&(?&?&?)&?&?&?&?); subst ];
     eauto.
+  invert_Intwv_nil. assumption.
 Qed.
 
 Ltac injection_on_all constr :=
@@ -331,7 +338,7 @@ Proof.
   unfold hoare_triple, sa_credits, sa_star. intros. destruct c1.
   { edestruct_direct. lia. }
   specialize (H c1 m). edestruct_direct.
-  rewrite List.app_nil_r in *. rewrite Nat.add_1_r in *. injection_on_all S.
+  invert_Intwv_nil. rewrite Nat.add_1_r in *. injection_on_all S.
   destruct H as (?&?&?&?&?&?&?); subst; eauto 10 with lamref.
 Qed.
 
@@ -342,8 +349,7 @@ Proof.
   unfold_all. intros. destruct c1.
   { edestruct_direct. lia. }
   specialize (H H0 c1 m). edestruct_direct.
-  rewrite List.app_nil_r in *. rewrite Nat.add_1_r in *. simpl in *.
-  injection_on_all S.
+  invert_Intwv_nil. rewrite Nat.add_1_r in *. simpl in *. injection_on_all S.
   destruct H as (?&?&?&?&?&(?&?&?&?&?&?&?&?&?)&?); subst; eauto 10 with lamref.
   repeat eexists; eauto_lr. lia.
 Qed.
@@ -409,6 +415,7 @@ Ltac solve_htriple n H :=
   repeat (edestruct_all; normalize_star);
   edestruct_direct;
   subst; simpl in *;
+  invert_Intwv_nil;
   split_all;
   eauto n using H;
   solve_star;
@@ -442,6 +449,7 @@ Ltac solve_triple n H :=
   repeat (edestruct_all; normalize_star);
   edestruct_direct;
   subst;
+  invert_Intwv_nil;
   split_all;
   eauto n using H;
   solve_star;
@@ -475,7 +483,7 @@ Theorem triple_app (V : Set) (e1 e2 : Expr V)
   triple e2 P2 Q2 ->
   triple (App e1 e2) (sa_credits 1 <*> P1) Q3.
 Proof.
-  solve_triple integer:(10) big_red_app.
+  solve_triple integer:(10) big_red_app. (* TODO *)
 Qed.
 
 (*
