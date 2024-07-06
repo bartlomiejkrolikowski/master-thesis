@@ -254,7 +254,9 @@ Qed.
 Ltac invert_Intwv_nil :=
   match goal with
   | [H : Interweave []%list _ _ |- _] => apply Interweave_nil_l_inv in H as ->
+  | [H : Interweave []%list _ _ |- _] => apply Interweave_nil_l_inv in H as <-
   | [H : Interweave _ []%list _ |- _] => apply Interweave_nil_r_inv in H as ->
+  | [H : Interweave _ []%list _ |- _] => apply Interweave_nil_r_inv in H as <-
   end.
 
 Lemma star_credits (V : Set) (k : nat) (P : StateAssertion V) c m :
@@ -426,16 +428,20 @@ Ltac solve_htriple_15 := solve_htriple integer:(15).
 
 Ltac fold_star :=
   match goal with
-  | [Hp : ?P ?cp ?mp, Hq : ?Q ?cq ?mq, Hdis : disjoint_maps ?mp ?mq |- _] =>
-    assert ((P <*> Q) (cp + cq) (mp ++ mq)%list);
-      [eauto 10 with st_assertions|]
+  | [ Hp : ?P ?cp ?mp,
+      Hq : ?Q ?cq ?mq,
+      Hdis : disjoint_maps ?mp ?mq,
+      Hiw : Interweave ?mp ?mq ?mpq |- _] =>
+    assert ((P <*> Q) (cp + cq) mpq); [eauto 10 with st_assertions|]
   end.
 
 Ltac fold_star_with P :=
   match goal with
-  | [Hp : P ?cp ?mp, Hq : ?Q ?cq ?mq, Hdis : disjoint_maps ?mp ?mq |- _] =>
-    assert ((P <*> Q) (cp + cq) (mp ++ mq)%list);
-      [eauto 10 with st_assertions|]
+  | [ Hp : P ?cp ?mp,
+      Hq : ?Q ?cq ?mq,
+      Hdis : disjoint_maps ?mp ?mq,
+      Hiw : Interweave ?mp ?mq ?mpq |- _] =>
+    assert ((P <*> Q) (cp + cq) mpq); [eauto 10 with st_assertions|]
   end.
 
 Ltac solve_triple n H :=
@@ -483,7 +489,7 @@ Theorem triple_app (V : Set) (e1 e2 : Expr V)
   triple e2 P2 Q2 ->
   triple (App e1 e2) (sa_credits 1 <*> P1) Q3.
 Proof.
-  solve_triple integer:(10) big_red_app. (* TODO *)
+  solve_triple integer:(10) big_red_app.
 Qed.
 
 (*
@@ -831,8 +837,8 @@ Theorem htriple_rec (V : Set) (es : list (Expr V)) (vs : list (Value V))
 Proof.
   unfold hoare_triple.
   intros. remember m as m0. revert_all_eq. make_cred_positive.
-  edestruct_direct. simpl in *. injection_on_all S. subst_with c1. intros.
-  subst_with m. clear_trivial.
+  edestruct_direct. invert_Intwv_nil. simpl in *. injection_on_all S.
+  subst_with c1. intros. subst_with m. clear_trivial.
   assert (exists cs ms c2 m',
     1+n = List.length cs /\
     1+n = List.length ms /\
@@ -857,8 +863,8 @@ Proof.
     generalize dependent vs. generalize dependent es.
     induction n as [|n IHn]; intros; unfold last_error in *; match_lists_for_lengths;
       injection_on_all_Some; subst.
-    - exists [c1]%list, [m]%list. split_all; simpl; auto. intros.
-      inversion_Nth_cons_succ. inversion_Nth_nil.
+    - exists [c1]%list, [m]%list. split_all; simpl; auto.
+      intros. inversion_Nth_cons_succ. inversion_Nth_nil.
     - match goal with
       | [H :
           forall _ _ _ _ _,
@@ -875,7 +881,7 @@ Proof.
       match goal with
       | [sa : StateAssertion V |- _] =>
         edestruct IHn with (Ps := (sa::Ps)%list) as (cs&ms&c2'&m''&?&?&?&?&?&?&?&?);
-          simpl; eauto 10 with lamref
+          simpl; eauto 10 using Interweave_nil_l with lamref
       end.
       match_lists_for_lengths.
       simpl in *. injection_on_all_Some. subst_with c2.
@@ -940,9 +946,10 @@ Theorem triple_rec (V : Set) (es : list (Expr V)) (vs : list (Value V))
 Proof.
   unfold triple, hoare_triple.
   intros. remember m as m0. revert_all_eq. normalize_star. make_cred_positive.
-  edestruct_direct. simpl in *. injection_on_all S. intros. clear_trivial.
-  fold_star. rewrite_with_and_clear c1. rewrite_with_and_clear m.
-  clear H1 H0 H3 x3 x4 x5 x6.
+  edestruct_direct. invert_Intwv_nil. simpl in *. injection_on_all S. intros.
+  clear_trivial. fold_star.
+  rewrite_with_and_clear c1. rewrite_with_and_clear m.
+  clear H1 H0 H3 H6 x3 x4 x5 x6.
   assert (exists cs ms c2 m',
     1+n = List.length cs /\
     1+n = List.length ms /\
@@ -1044,8 +1051,10 @@ Theorem htriple_ref (V : Set) (e : Expr V) P Q :
     (fun v' => <exists> l v, <[v' = Lab l]> <*> <( l :== v )> <*> Q v).
 Proof.
   pose proof new_label_is_fresh. unfold Is_fresh_label, not in *.
-  unfold_all. intros. edestruct_direct. edestruct_all. simpl in *.
-  split_all; try (eapply big_red_ref; eauto); simpl; eauto.
+  unfold_all. intros. edestruct_direct. invert_Intwv_nil. edestruct_all.
+  simpl in *.
+  split_all; try (eapply big_red_ref; eauto); simpl;
+    eauto using Interweave_cons_l, Interweave_nil_l.
   intros ? [? | []] ?. subst. eauto.
 Qed.
 
@@ -1057,15 +1066,35 @@ Theorem triple_ref (V : Set) (e : Expr V) (v : Value V) P Q :
 Proof.
   pose proof new_label_is_fresh. unfold Is_fresh_label, not in *.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
-  edestruct_direct. simpl in *. injection_on_all S. fold_star. edestruct_all.
-  normalize_star. subst.
+  edestruct_direct. invert_Intwv_nil. simpl in *. injection_on_all S.
+  fold_star. edestruct_all. normalize_star. subst.
   split_all; try (eapply big_red_ref; eauto); simpl; eauto.
   solve_star. unfold sa_star in *. edestruct_direct.
-  split_all; eauto with st_assertions. intros ? [? | []] ?. subst. eauto.
+  split_all;
+    eauto using Interweave_cons_l, Interweave_nil_l with st_assertions.
+  intros ? [? | []] ?. subst. eauto.
 Qed.
 
-(* vvvv TODO vvvv *)
+Lemma valid_map_Lookup (V : Set) l v (m : Map V) :
+  Is_Valid_Map m ->
+  List.In (l,v) m ->
+  Lookup l m v.
+Proof.
+  unfold Is_Valid_Map. unfold_all. revert l v. induction m; simpl; intros.
+  - contradiction.
+  - inversion H. destruct H0 as [-> | ?]; eauto_lr.
+Qed.
+
+Lemma valid_map_cost_red (V : Set) e (v : Value V) m1 m2 c :
+  Is_Valid_Map m1 ->
+  C[e,m1 ~~> v,m2|c] ->
+  Is_Valid_Map m2.
+Proof.
+  intros Hvalid Hred. eapply uniqueness_full in Hvalid as (?&?&?&?); eauto.
+Qed.
+
 Theorem htriple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
+  (<(l :== v)> <*> P) ->> (fun _ => Is_Valid_Map) ->
   hoare_triple e
     (<(l :== v)> <*> P)
     (fun v' => <[v' = Lab l]> <*> <(l :== v)> <*> Q) ->
@@ -1076,7 +1105,16 @@ Proof.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
   edestruct_direct. fold_star. edestruct_all. simpl in *.
   injection_on_all S. unfold_all. find_star_and_unfold_all. edestruct_direct.
+  repeat invert_Intwv_nil.
   repeat eexists; try eapply big_red_deref; simpl in *; eauto with lamref.
+  match goal with
+  | [H : Interweave [(l,v)] _ _ |- _] => eapply in_or_Interweave in H
+  end; simpl in *; auto.
+  match goal with
+  | [H : _ <*> P ->> (fun _ => Is_Valid_Map), p : (_ <*> P) _ ?m |- _] =>
+    assert (Is_Valid_Map m); [unfold "->>" in H; eauto|]
+  end.
+  eauto using valid_map_Lookup, valid_map_cost_red.
 Qed.
 
 Ltac conormalize_star :=
@@ -1084,7 +1122,9 @@ Ltac conormalize_star :=
   | [H : (_ <*> (_ <*> _)) ?c ?m |- _] => apply star_assoc_l in H
   end.
 
+(* TODO *)
 Theorem triple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
+  (<(l :== v)> <*> P) ->> (fun _ => Is_Valid_Map) ->
   triple e
     (<(l :== v)> <*> P)
     (fun v' => <[v' = Lab l]> <*> <(l :== v)> <*> Q) ->
@@ -1095,7 +1135,17 @@ Proof.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
   edestruct_direct. fold_star. fold_star. conormalize_star. edestruct_all. simpl in *.
   injection_on_all S. unfold_all. find_star_and_unfold_all. edestruct_direct.
+  repeat invert_Intwv_nil.
   repeat eexists; try eapply big_red_deref; simpl in *; eauto with lamref.
+  edestruct Interweave_assoc_l with (Label * Value V)%type [(l,v)]%list x18 x14 x12 x5 as (?&?&?); auto.
+  match goal with
+  | [H : Interweave [(l,v)] _ _ |- _] => eapply in_or_Interweave in H
+  end; simpl in *; auto.
+  match goal with
+  | [H : _ <*> P ->> (fun _ => Is_Valid_Map), p : ((_ <*> P) <*> _) _ ?m |- _] =>
+    assert (Is_Valid_Map m); [unfold "->>" in H; eauto|]
+  end.
+  2:eauto using valid_map_Lookup, valid_map_cost_red.
 Qed.
 
 Theorem htriple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 :
