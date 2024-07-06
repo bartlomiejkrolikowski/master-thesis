@@ -191,15 +191,33 @@ Ltac prove_disjoint_map :=
 Lemma star_assoc_l (V : Set) (P : StateAssertion V) Q R :
   P <*> (Q <*> R) ->> (P <*> Q) <*> R.
 Proof.
-  unfold_all. intros. edestruct_direct. (* <-- TODO *)
-  solve_assoc. lia.
+  unfold_all. intros. edestruct_direct.
+  destruct Interweave_assoc_r with (Label * Value V)%type x0 x4 x6 x2 m as (?&?&?);
+    auto.
+  repeat eexists; eauto; intros.
+  { apply map_Interweave with (f := fst) in H4, H5, H6, H7.
+    eapply in_or_Interweave in H4; eauto. }
+  { lia. }
+  { apply map_Interweave with (f := fst) in H4, H5, H6, H7.
+    eapply in_or_Interweave in H4; eauto.
+    eapply in_Interweave_or in H6 as [? | ?]; eauto.
+  }
 Qed.
 
 Lemma star_assoc_r (V : Set) (P : StateAssertion V) Q R :
   (P <*> Q) <*> R ->> P <*> (Q <*> R).
 Proof.
   unfold_all. intros. edestruct_direct.
-  solve_assoc. lia.
+  destruct Interweave_assoc_l with (Label * Value V)%type x4 x6 x2 x0 m as (?&?&?);
+    auto.
+  repeat eexists; eauto; intros.
+  { apply map_Interweave with (f := fst) in H3, H5, H6, H7.
+    eapply in_or_Interweave in H3; eauto. }
+  { lia. }
+  { apply map_Interweave with (f := fst) in H3, H5, H6, H7.
+    eapply in_or_Interweave in H3; eauto.
+    eapply in_Interweave_or in H6 as [? | ?]; eauto.
+  }
 Qed.
 
 Lemma star_assoc (V : Set) (P : StateAssertion V) Q R :
@@ -226,16 +244,14 @@ Proof.
   auto using star_assoc_post_l, star_assoc_post_r.
 Qed.
 
-(*
 Lemma star_comm (V : Set) (P : StateAssertion V) Q :
-  P <*> Q <<->> Q <*> P.
+  P <*> Q ->> Q <*> P.
 Proof.
-  unfold_all.
-  split; intros; edestruct_direct; do 4 eexists; split_all; eauto; try lia. (*TODO*)  apply List.app_comm.
-   eauto 100 with lamref st_assertions.
-  auto using star_assoc_l, star_assoc_r.
+  unfold_all. intros. edestruct_direct. split_all; eauto; try lia.
+  apply Interweave_comm. assumption.
 Qed.
-*)
+
+(* TODO *)
 
 Lemma star_credits (V : Set) (k : nat) (P : StateAssertion V) c m :
   (sa_credits k <*> P) c m <->
