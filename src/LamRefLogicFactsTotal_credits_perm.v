@@ -1159,6 +1159,71 @@ Proof.
   eapply valid_map_Lookup, in_or_Interweave; eauto. simpl. auto.
 Qed.
 
+Lemma valid_map_Assignment (V : Set) l v v' (m : Map V) :
+  Is_Valid_Map m ->
+  List.In (l,v) m ->
+  Assignment l v' m (update l v' m).
+Proof.
+  unfold Is_Valid_Map. unfold_all. revert l v. induction m; simpl; intros.
+  - contradiction.
+  - inversion H. destruct l as (n). destruct H0 as [-> | ?].
+    + unfold_all_lab. rewrite Nat.eqb_refl. constructor.
+    + destruct a as ((n')&?). unfold_all_lab. destruct Nat.eqb_spec with n n'.
+      * subst. constructor.
+      * eauto_lr.
+Qed.
+
+Lemma Interweave_update_l (V : Set) l v v' (m1 m2 m : Map V) :
+  List.In (l,v) m1 ->
+  (forall v'', ~ List.In (l,v'') m2) ->
+  Interweave m1 m2 m ->
+  Interweave (update l v' m1) m2 (update l v' m).
+Proof.
+  unfold not. intros Hin Hnin Hinter. induction Hinter; simpl in *.
+  - contradiction.
+  - destruct l as (n). destruct Hin.
+    + subst. unfold_all_lab. rewrite Nat.eqb_refl. constructor. assumption.
+    + destruct x as ((n')&?). unfold_all_lab. destruct Nat.eqb.
+      * constructor. assumption.
+      * constructor. auto.
+  - destruct l as (n), y as ((n')&?). unfold_all_lab.
+    destruct Nat.eqb_spec with n n'.
+      * subst. exfalso. eauto.
+      * constructor. eauto.
+Qed.
+
+Lemma labels_update (V : Set) l v' (m : Map V) :
+  List.In l (labels m) ->
+  labels (update l v' m) = labels m.
+Proof.
+  unfold labels. intros Hin. induction m; simpl in *.
+  - contradiction.
+  - destruct l as (n), a as ((n')&?); simpl in *.
+    destruct Hin as [-> | ?]; unfold_all_lab.
+    + rewrite Nat.eqb_refl. simpl. reflexivity.
+    + destruct Nat.eqb_spec with n n'; simpl.
+      * subst. reflexivity.
+      * f_equal. auto.
+Qed.
+
+Lemma valid_map_update (V : Set) l v' (m : Map V) :
+  List.In l (labels m) ->
+  Is_Valid_Map m ->
+  Is_Valid_Map (update l v' m).
+Proof.
+  unfold Is_Valid_Map. intros Hin Hvalid. remember (labels m) as ls eqn:Hls.
+  generalize dependent m.
+  induction Hvalid; intros; destruct m; cbn in *; try discriminate.
+  - repeat constructor; simpl; auto.
+  - destruct l as (n), p as ((n')&?). simpl in *. unfold_all_lab.
+    injection Hls as -> ->. destruct Nat.eqb_spec with n n'; simpl.
+    + constructor; auto.
+    + unfold labels in *. unfold not in *.
+      destruct Hin as [Hin | Hin]; [injection Hin as ->; exfalso; auto|].
+      constructor; auto. fold (labels (update (OfNat n) v' m)).
+      rewrite labels_update; unfold labels; auto.
+Qed.
+
 (* TODO *)
 Theorem htriple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 :
   hoare_triple e1
@@ -1171,11 +1236,18 @@ Theorem htriple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 :
     (sa_credits 1 <*> <(l :== v)> <*> P1)
     (fun v'' => <[v'' = U_val]> <*> <(l :== v')> <*> Q2).
 Proof.
-  unfold_all. intros. edestruct_direct.
-  edestruct H; eauto 10. clear H. edestruct_direct.
-  edestruct_all_in integer:(10). simpl.
-  repeat eexists; try eapply big_red_assign; simpl in *; eauto with lamref;
-    eauto_lr.
+  unfold hoare_triple. intros. normalize_star. make_cred_positive.
+  edestruct_direct. fold_star. repeat invert_Intwv_nil.
+  edestruct_all. normalize_star. edestruct_all_in integer:(10).
+  normalize_star. subst. find_star_and_unfold_all. edestruct_direct.
+  eapply in_or_Interweave in H16 as ?; simpl; auto.
+  eapply valid_map_update in H14 as ?.
+  2:{ eauto using List.in_map. }
+  split_all; solve_star; [eapply big_red_assign| | |]; eauto using valid_map_Assignment.
+  { unfold_all. split_all; eauto; simpl; eauto.
+  eapply Interweave_update_l with (l := l) in H16; simpl in *; eauto.
+  { destruct l. unfold_all_lab. rewrite Nat.eqb_refl in H16. eassumption. }
+  { unfold not. intros. apply List.in_map with (f := fst) in H18. eauto. } }
   lia.
 Qed.
 
@@ -1191,14 +1263,19 @@ Theorem triple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 :
     (fun v'' => <[v'' = U_val]> <*> <(l :== v')> <*> Q2).
 Proof.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
-  edestruct_direct. fold_star. fold_star.
-  edestruct H; clear H; solve_star. edestruct_direct. normalize_star. subst.
-  edestruct H0; clear H0; solve_star. edestruct_direct. normalize_star. subst.
-  find_star_and_unfold_all. edestruct_direct. simpl in *. unfold_all.
-  rewrite List.map_app in *.
-  split_all; try eapply big_red_assign; simpl in *; eauto with lamref;
-    solve_star; simpl; eauto using List.in_or_app with lamref; try lia.
-  intros ? []; eauto using List.in_or_app.
+  edestruct_direct. fold_star. fold_star. repeat invert_Intwv_nil.
+  conormalize_star. edestruct_all. normalize_star. subst.
+  conormalize_star. edestruct_all. normalize_star. subst.
+  find_star_and_unfold_all. edestruct_direct.
+  eapply in_or_Interweave in H24 as ?; simpl; auto.
+  eapply valid_map_update in H18 as ?.
+  2:{ eauto using List.in_map. }
+  split_all; solve_star; [eapply big_red_assign| | |]; eauto using valid_map_Assignment.
+  { unfold_all. split_all; eauto; simpl; eauto.
+  eapply Interweave_update_l with (l := l) in H24; simpl in *; eauto.
+  { destruct l. unfold_all_lab. rewrite Nat.eqb_refl in H24. eassumption. }
+  { unfold not. intros. apply List.in_map with (f := fst) in H26. eauto. } }
+  lia.
 Qed.
 
 Theorem htriple_seq (V : Set) (e1 e2 : Expr V) P1 Q1 Q2 :
@@ -1247,7 +1324,7 @@ Theorem htriple_if (V : Set) (e1 e2 e3 : Expr V) P1 Q1 Q2 :
 Proof.
   unfold hoare_triple. intros.
   make_cred_positive. edestruct_direct. simpl in *. injection_on_all S.
-  subst_with c1. edestruct_all. normalize_star. subst.
+  subst_with c1. invert_Intwv_nil. edestruct_all. normalize_star. subst.
   match goal with [b : bool |- _] => destruct b end;
     edestruct_all; split_all; eauto using big_red_if_true, big_red_if_false; lia.
 Qed.
@@ -1260,7 +1337,7 @@ Theorem triple_if (V : Set) (e1 e2 e3 : Expr V) P1 Q1 Q2 :
 Proof.
   unfold triple, hoare_triple. intros. normalize_star.
   make_cred_positive. edestruct_direct. simpl in *. injection_on_all S.
-  fold_star. edestruct_all. normalize_star. subst.
+  fold_star. invert_Intwv_nil. edestruct_all. normalize_star. subst.
   match goal with [b : bool |- _] => destruct b end;
     edestruct_all; split_all; eauto using big_red_if_true, big_red_if_false; lia.
 Qed.
@@ -1318,17 +1395,20 @@ Theorem htriple_while (V : Set) (e1 e2 : Expr V) P Q :
 Proof.
   unfold hoare_triple. intros ? ?. induction c1 using (well_founded_ind lt_wf).
   intros. make_cred_positive. edestruct_direct. simpl in *.
-  injection_on_all S. edestruct_all. normalize_star. destruct x1.
-  2:{ subst. split_all. eapply big_red_while_false; eauto. solve_star; eauto. lia. }
-  edestruct_all. normalize_star. destruct x6.
+  injection_on_all S. invert_Intwv_nil. edestruct_all. normalize_star.
+  destruct x1.
+  2:{ subst. split_all. eapply big_red_while_false; eauto. solve_star; eauto.
+    assumption. lia. }
+  edestruct_all. normalize_star. destruct x5.
   { find_star_and_unfold_all. edestruct_direct. discriminate. }
-  assert ((sa_credits 2 <*> P) x6 x7).
+  assert ((sa_credits 2 <*> P) x5 x6).
   { find_star_and_unfold_all. edestruct_direct. simpl in *. injection_on_all S.
     unfold_all. split_all; eauto. }
-  assert (x6 < S (S (x0 + (x5 + S x6)))). { lia. }
-  edestruct (H1 x6 H8 x7 H7). edestruct_direct. normalize_star. subst. split_all.
-  - eapply big_red_while_true with (c1 := x0) (c2 := x5) (c3 := x3); eauto.
+  assert (x5 < S (S (x0 + (x4 + S x5)))). { lia. }
+  edestruct (H1 x5 H11 x6 H9 H10). edestruct_direct. normalize_star. subst. split_all.
+  - eapply big_red_while_true with (c1 := x0) (c2 := x4) (c3 := x2); eauto.
   - solve_star; eauto.
+  - assumption.
   - lia.
 Qed.
 
@@ -1345,17 +1425,20 @@ Theorem triple_while (V : Set) (e1 e2 : Expr V) P Q :
 Proof.
   unfold triple, hoare_triple. intros ? ?. induction c1 using (well_founded_ind lt_wf).
   intros. normalize_star. make_cred_positive. edestruct_direct. fold_star. simpl in *.
-  injection_on_all S. edestruct_all. normalize_star. destruct x7.
-  2:{ subst. split_all. eapply big_red_while_false; eauto. solve_star; eauto. lia. }
+  injection_on_all S. invert_Intwv_nil. edestruct_all. normalize_star. destruct x7.
+  2:{ subst. split_all. eapply big_red_while_false; eauto. solve_star; eauto.
+    assumption. lia. }
   edestruct_all. normalize_star. destruct x9.
   { find_star_and_unfold_all. edestruct_direct. discriminate. }
   assert (((sa_credits 2 <*> P) <*> H1) x9 x10).
   { find_star_and_unfold_all. edestruct_direct. simpl in *. injection_on_all S.
-    unfold_all. split_all; eauto. }
+    unfold_all. invert_Intwv_nil. split_all; eauto using Interweave_nil_l. }
   assert (x9 < S (S (x3 + x5))). { lia. }
-  edestruct (H2 x9 H13 x10 H12). edestruct_direct. normalize_star. subst. split_all.
+  edestruct (H2 x9 H17 x10 H15 H16). edestruct_direct. normalize_star. subst.
+  split_all.
   - eapply big_red_while_true; eauto.
   - solve_star; eauto.
+  - assumption.
   - lia.
 Qed.
 
@@ -1365,14 +1448,14 @@ Fact credits_star_l (V : Set) c1 c2 c :
   c = c1 + c2 ->
   sa_credits c1 <*> sa_credits c2 ->> sa_credits (V := V) c.
 Proof.
-  unfold_all. intros. edestruct_direct. auto.
+  unfold_all. intros. edestruct_direct. invert_Intwv_nil. auto.
 Qed.
 
 Fact credits_star_r (V : Set) c1 c2 c :
   c = c1 + c2 ->
   sa_credits (V := V) c ->> sa_credits c1 <*> sa_credits c2.
 Proof.
-  unfold_all. intros. edestruct_direct. split_all; auto.
+  unfold_all. intros. edestruct_direct. split_all; auto using Interweave_nil.
 Qed.
 
 Fact implies_trans (V : Set) (P Q R : StateAssertion V) :
@@ -1398,26 +1481,26 @@ Qed.
 Fact empty_star_l_intro (V : Set) (P : StateAssertion V) :
   P ->> <[]> <*> P.
 Proof.
-  unfold_all. intros. split_all; eauto.
+  unfold_all. intros. split_all; eauto using Interweave_nil_l.
 Qed.
 
 Fact empty_star_r_intro (V : Set) (P : StateAssertion V) :
   P ->> P <*> <[]>.
 Proof.
-  unfold_all. intros. split_all; eauto using List.app_nil_r.
+  unfold_all. intros. split_all; eauto using Interweave_nil_r.
 Qed.
 
 Fact empty_star_l_cancel (V : Set) (P : StateAssertion V) :
   <[]> <*> P ->> P.
 Proof.
-  unfold_all. intros. edestruct_direct. auto.
+  unfold_all. intros. edestruct_direct. invert_Intwv_nil. auto.
 Qed.
 
 Fact empty_star_r_cancel (V : Set) (P : StateAssertion V) :
   P <*> <[]> ->> P.
 Proof.
-  unfold_all. intros. edestruct_direct. rewrite Nat.add_0_r, List.app_nil_r.
-  auto.
+  unfold_all. intros. edestruct_direct. rewrite Nat.add_0_r.
+  invert_Intwv_nil. auto.
 Qed.
 
 Fact empty_spec (V : Set) c (m : Map V) :
