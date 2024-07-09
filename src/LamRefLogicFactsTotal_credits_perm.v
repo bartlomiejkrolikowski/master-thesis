@@ -40,6 +40,44 @@ Proof.
   unfold_all. intros. edestruct_direct. eauto 15.
 Qed.
 
+Lemma Interweave_valid V (m1 m2 m3 : Map V) :
+  Is_Valid_Map m3 ->
+  Interweave m1 m2 m3 ->
+  Is_Valid_Map m1 /\ Is_Valid_Map m2.
+Proof.
+  unfold Is_Valid_Map, labels. intros Hvalid Hinter. induction Hinter; simpl.
+  - auto.
+  - inversion Hvalid. destruct IHHinter; auto. split; auto. constructor; auto.
+    unfold not in *. eauto using in_or_Interweave, map_Interweave.
+  - inversion Hvalid. destruct IHHinter; auto. split; auto. constructor; auto.
+    unfold not in *. eauto using in_or_Interweave, map_Interweave.
+Qed.
+
+Lemma Interweave_valid_l V (m1 m2 m3 : Map V) :
+  Is_Valid_Map m3 ->
+  Interweave m1 m2 m3 ->
+  Is_Valid_Map m1.
+Proof.
+  intros Hvalid Hinter. apply Interweave_valid in Hinter as (?&?); auto.
+Qed.
+
+Lemma Interweave_valid_r V (m1 m2 m3 : Map V) :
+  Is_Valid_Map m3 ->
+  Interweave m1 m2 m3 ->
+  Is_Valid_Map m2.
+Proof.
+  intros Hvalid Hinter. apply Interweave_valid in Hinter as (?&?); auto.
+Qed.
+
+Lemma star_implies_mono_valid V (P : StateAssertion V) P' Q Q' :
+  (forall c m, Is_Valid_Map m -> P c m -> P' c m) ->
+  (forall c m, Is_Valid_Map m -> Q c m -> Q' c m) ->
+  (forall c m, Is_Valid_Map m -> (P <*> Q) c m -> (P' <*> Q') c m).
+Proof.
+  unfold_all. intros. edestruct_direct.
+  eauto 13 using Interweave_valid_l, Interweave_valid_r.
+Qed.
+
 Lemma star_implies_mono_post
   (V : Set) (P : V -> StateAssertion V) P' Q Q' :
   P -->> P' ->
@@ -147,6 +185,27 @@ Proof.
   unfold triple. intros.
   eapply htriple_weaken with (P <*> _) (Q <*>+ _);
     eauto using star_implies_mono, implies_refl.
+Qed.
+
+Theorem htriple_weaken_valid (V : Set) (e : Expr V) P P' Q Q' :
+  (forall c m, Is_Valid_Map m -> P' c m -> P c m) ->
+  (forall v c m, Is_Valid_Map m -> Q v c m -> Q' v c m) ->
+  hoare_triple e P Q ->
+  hoare_triple e P' Q'.
+Proof.
+  unfold hoare_triple, sa_implies. intros ? ? H. intros.
+  edestruct H; eauto. edestruct_direct. eauto 10.
+Qed.
+
+Theorem triple_weaken_valid (V : Set) (e : Expr V) P P' Q Q' :
+  (forall c m, Is_Valid_Map m -> P' c m -> P c m) ->
+  (forall v c m, Is_Valid_Map m -> Q v c m -> Q' v c m) ->
+  triple e P Q ->
+  triple e P' Q'.
+Proof.
+  unfold triple. intros.
+  eapply htriple_weaken_valid with (P <*> _) (Q <*>+ _);
+    eauto 3 using star_implies_mono_valid.
 Qed.
 
 Theorem htriple_pure (V : Set) (e : Expr V) P Q :

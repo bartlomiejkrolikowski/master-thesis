@@ -8,6 +8,7 @@ src/Example4.v
 src/Example6.v
 src/Example6_credits.v
 src/Example7_credits.v
+src/Example7_credits_perm.v
 #src/FiniteMap.v
 src/Interweave.v
 src/LambdaAssertions.v
