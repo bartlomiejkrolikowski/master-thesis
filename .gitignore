@@ -6,3 +6,8 @@ src/*.glob
 src/*.vo
 src/*.vok
 src/*.vos
+src_arrays/.*.aux
+src_arrays/*.glob
+src_arrays/*.vo
+src_arrays/*.vok
+src_arrays/*.vos
