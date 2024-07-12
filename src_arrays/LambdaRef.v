@@ -359,16 +359,16 @@ Definition list_max (l : list nat) : nat :=
 Definition new_label {V : Set} (m : Map V) : Label :=
   OfNat (1 + list_max (List.map of_label (labels m))).
 
-Fixpoint alloc_n_cells_from {V : Set} l n (m : Map V) : Map V :=
+Fixpoint n_new_cells_from {V : Set} l n : Map V :=
   match n with
-  | 0 => m
+  | 0 => []
   | S n => let 'OfNat n' := l in
-    (l, None) :: alloc_n_cells_from (OfNat (1+n')) n m
+    (l, None) :: n_new_cells_from (OfNat (1+n')) n
   end%list.
 
 Definition alloc_array {V : Set} n (m : Map V) : Map V * Label :=
   let init := new_label m in
-  (alloc_n_cells_from init n m, init).
+  (n_new_cells_from init n ++ m, init)%list.
 
 (* SOS semantics *)
 Reserved Notation "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'".
