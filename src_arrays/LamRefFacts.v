@@ -572,7 +572,7 @@ Fact f_if A B (f : A -> B) (b : bool) x y :
 Proof.
   now destruct b.
 Qed.
-
+(*
 (* TODO *)
 Theorem red_shift (V : Set) n m m' m'' m2 m2' (e e' e2 e2' : Expr V) :
   S n = of_label (new_label m'') ->
@@ -618,7 +618,7 @@ Proof.
   intros Hn Hm2 Hm2' He2 He2' Hred. subst.
   induction Hred; econstructor; eauto using red_shift.
 Qed.
-
+*)
 (*
 Inductive equiv_v :
   forall {V : Set}, Map V -> Map V -> Value V -> Value V -> Prop :=
@@ -811,7 +811,7 @@ Ltac discriminate_red_Val :=
   match goal with
   | [ H : red (Val _) _ _ _ |- _ ] => inversion H
   end.
-
+(*
 (* uniqueness of reduction results *)
 Theorem uniqueness (V : Set)
   (e e' e'' : Expr V) (m m' m'' : Map V) :
@@ -879,7 +879,7 @@ Proof.
     end.
     subst. auto.
 Admitted.
-
+*)(*
 Lemma no_red_val (V : Set) (e e' : Expr V) (m m' : Map V) :
   C[e, m ~~> e', m' | 0] ->
   e = e' /\ m = m'.
@@ -906,7 +906,7 @@ Proof.
         as [? [? [? ?]]].
       auto.
 Qed.
-
+*)
 Theorem cost_red_comp :
   forall V (e : _ V) m e' m' c e'' m'' c',
     C[e, m ~~> e', m' | c] ->
@@ -1125,7 +1125,7 @@ Proof with eauto.
   - repeat econstructor...
   - econstructor...
 Qed.
-
+(*
 (* inversions of lemmas above *)
 Lemma cost_red_split1 :
   forall V (e : _ V) m e' m' e'' m'' c,
@@ -1263,7 +1263,7 @@ Proof.
   - inversion HR; subst; try now (cut_values Hnvalue).
     finish_inversion_proof IHHred Hnvalue.
 Qed.
-
+*)
 (*
 Theorem cost_red_binop1 :
   forall V k (m : _ V) m' e1 e1' e2 c,
@@ -1330,7 +1330,7 @@ Proof.
   - destruct Hdecidable with y x as [Hx | Hx], IHxs as [HIn | HIn];
     intuition.
 Qed.
-
+(*
 Theorem cost_red_rec_split_inv :
   forall V m m' es es' vs0 e (v : Value V) es0 c,
     L[es  ~~> vals2exprs vs0 | e | es0] ->
@@ -1363,6 +1363,7 @@ Proof.
         admit. (*TODO*)
       }
 Admitted.
+*)
 (*
 Theorem cost_red_ref_e :
   forall V (m : _ V) m' e e' c,
@@ -1832,11 +1833,31 @@ Proof.
   solve_by_induction.
 Qed.
 
+Theorem big_red_new_array (V : Set) l m1 m2 m3 c
+  (e : Expr V) i :
+  (i >= 0)%Z ->
+  (m3, l) = alloc_array (Z.to_nat i) m2 ->
+  C[e,m1 ~~> Int i,m2|c] ->
+  C[NewArray e,m1 ~~> Lab l,m3|1+c].
+Proof.
+  solve_by_induction.
+Qed.
+
 Theorem big_red_deref (V : Set) l m1 m2 c
   (e : Expr V) (v : Value V) :
   Lookup l m2 v ->
   C[e,m1 ~~> Lab l,m2|c] ->
   C[Deref e,m1 ~~> v,m2|1+c].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_shift (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) n i :
+  (i >= 0)%Z ->
+  C[e1,m1 ~~> Lab (OfNat n),m2|c1] ->
+  C[e2,m2 ~~> Int i,m3|c2] ->
+  C[Shift e1 e2,m1 ~~> Lab (OfNat (n + Z.to_nat i)),m3|1+c1+c2].
 Proof.
   solve_by_induction.
 Qed.
@@ -1847,6 +1868,15 @@ Theorem big_red_assign (V : Set) l m1 m2 m3 m4 c1 c2
   C[e1,m1 ~~> Lab l,m2|c1] ->
   C[e2,m2 ~~> v,m3|c2] ->
   C[e1 <- e2,m1 ~~> U_val,m4|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_free (V : Set) l m1 m2 m3 c
+  (e : Expr V) :
+  Dealloc l m2 m3 ->
+  C[e,m1 ~~> Lab l,m2|c] ->
+  C[Free e,m1 ~~> U_val,m3|1+c].
 Proof.
   solve_by_induction.
 Qed.
