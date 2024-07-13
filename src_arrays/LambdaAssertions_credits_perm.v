@@ -22,8 +22,18 @@ Definition sa_empty {V : Set} : StateAssertion V :=
 Definition sa_pure {V : Set} (P : Prop) : StateAssertion V :=
   fun c m => P /\ sa_empty c m.
 
+Definition sa_single_any {V : Set} (l : Label) (ov : option (Value V)) :
+  StateAssertion V :=
+  fun c m => c = 0 /\ m = [(l,ov)]%list.
+
 Definition sa_single {V : Set} (l : Label) (v : Value V) : StateAssertion V :=
   fun c m => c = 0 /\ m = [(l,Some v)]%list.
+
+Definition sa_single_decl {V : Set} (l : Label) : StateAssertion V :=
+  fun c m => c = 0 /\ m = [(l,None)]%list.
+
+Definition sa_array_decl {V : Set} (l : Label) (n : nat) : StateAssertion V :=
+  fun c m => c = 0 /\ m = n_new_cells_from l n.
 
 Definition sa_credits {V : Set} (k : nat) : StateAssertion V :=
   fun c m => c = k /\ m = []%list.
@@ -51,6 +61,8 @@ Definition sa_implies {V : Set} (A1 A2 : StateAssertion V) : Prop :=
 Notation "<[]>" := (sa_empty).
 Notation "<[ P ]>" := (sa_pure P).
 Notation "<( l :== v )>" := (sa_single l v).
+Notation "<( l :\= )>" := (sa_single_decl l).
+Notation "<( l :\ n \= )>" := (sa_array_decl l n).
 Notation "P <*> Q" := (sa_star P Q) (at level 40).
 Notation "P <*>+ Q" := (fun v => sa_star (P v) Q) (at level 40).
 Notation "'<exists>' x .. y , p" :=
@@ -73,7 +85,10 @@ Global Hint Unfold subst_map : st_assertions.
 Global Hint Unfold subst_sa : st_assertions.
 Global Hint Unfold sa_empty : st_assertions.
 Global Hint Unfold sa_pure : st_assertions.
+Global Hint Unfold sa_single_any : st_assertions.
 Global Hint Unfold sa_single : st_assertions.
+Global Hint Unfold sa_single_decl : st_assertions.
+Global Hint Unfold sa_array_decl : st_assertions.
 Global Hint Unfold sa_credits : st_assertions.
 Global Hint Unfold disjoint_maps : st_assertions.
 Global Hint Unfold sa_star : st_assertions.

@@ -15,11 +15,13 @@ From Coq Require Import Lia.
 
 Ltac unfold_all :=
   unfold triple, hoare_triple, sa_exists, sa_forall, sa_credits, sa_star,
-    sa_single, sa_pure, sa_empty, sa_implies, disjoint_maps, labels.
+    sa_single_any, sa_single, sa_single_decl, sa_array_decl, sa_pure, sa_empty,
+    sa_implies, disjoint_maps, labels.
 
 Ltac unfold_all_in H :=
   unfold triple, hoare_triple, sa_exists, sa_forall, sa_credits, sa_star,
-    sa_single, sa_pure, sa_empty, sa_implies, disjoint_maps, labels in H.
+    sa_single_any, sa_single, sa_single_decl, sa_array_decl, sa_pure, sa_empty,
+    sa_implies, disjoint_maps, labels in H.
 
 Ltac subst_case_or :=
   match goal with
@@ -1175,17 +1177,23 @@ Proof.
   intros Hin. apply n_new_cells_from_mono in Hin. lia.
 Qed.
 
+Lemma disjoint_maps_n_new_cells_from (V : Set) n (m : Map V) :
+  disjoint_maps (n_new_cells_from (new_label m) n) m.
+Proof.
+  unfold disjoint_maps, new_label. intros [n'] Hin_new Hin_m1.
+  apply n_new_cells_from_mono in Hin_new. pose proof max_list_max.
+  eapply List.Forall_forall in H; eauto using (List.in_map of_label).
+  simpl in *. lia.
+Qed.
+
 Lemma valid_map_alloc_array (V : Set) n l (m1 m2 : Map V) :
   Is_Valid_Map m1 ->
   (m2,l) = alloc_array n m1 ->
   Is_Valid_Map m2.
 Proof.
   unfold alloc_array. intros Hvalid Halloc. injection Halloc as -> _.
-  apply valid_map_app; auto using valid_n_new_cells_from.
-  unfold disjoint_maps, new_label. intros [n'] Hin_new Hin_m1.
-  apply n_new_cells_from_mono in Hin_new. pose proof max_list_max.
-  eapply List.Forall_forall in H; eauto using (List.in_map of_label).
-  simpl in *. lia.
+  apply valid_map_app;
+    auto using valid_n_new_cells_from, disjoint_maps_n_new_cells_from.
 Qed.
 
 Lemma labels_Assignment (V : Set) l v (m1 m2 : Map V) :
@@ -1271,6 +1279,43 @@ Proof.
   intros ? [? | []] ?. subst. eauto.
 Qed.
 
+Theorem htriple_new_array (V : Set) (e : Expr V) P Q :
+  hoare_triple e
+    P
+    (fun v => <exists> i, <[v = Int i]> <*> <[(i >= 0)%Z]> <*> Q i) ->
+  hoare_triple (NewArray e)
+    (sa_credits 1 <*> P)
+    (fun v =>
+      <exists> i l, <[v = Lab l]> <*> sa_array_decl l (Z.to_nat i) <*> Q i).
+Proof.
+  unfold hoare_triple. intros. make_cred_positive. edestruct_direct.
+  invert_Intwv_nil. edestruct_all. normalize_star. subst. split_all.
+  - eapply big_red_new_array; eauto. unfold alloc_array. auto.
+  - solve_star. unfold sa_star, sa_array_decl.
+    split_all; eauto using Interweave_app, disjoint_maps_n_new_cells_from.
+  - eapply valid_map_alloc_array in H5; unfold alloc_array; eauto.
+  - assumption.
+Qed.
+
+Theorem triple_new_array (V : Set) (e : Expr V) P Q :
+  triple e
+    P
+    (fun v => <exists> i, <[v = Int i]> <*> <[(i >= 0)%Z]> <*> Q i) ->
+  triple (NewArray e)
+    (sa_credits 1 <*> P)
+    (fun v =>
+      <exists> i l, <[v = Lab l]> <*> sa_array_decl l (Z.to_nat i) <*> Q i).
+Proof.
+  unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
+  edestruct_direct. invert_Intwv_nil. fold_star. edestruct_all. normalize_star.
+  subst. unfold sa_star in H13. edestruct_direct. split_all.
+  - eapply big_red_new_array; eauto. unfold alloc_array. auto.
+  - solve_star. unfold sa_star, sa_array_decl.
+    split_all; eauto using Interweave_app, disjoint_maps_n_new_cells_from.
+  - eapply valid_map_alloc_array in H10; unfold alloc_array; eauto.
+  - lia.
+Qed.
+
 Lemma valid_map_Lookup (V : Set) l v (m : Map V) :
   Is_Valid_Map m ->
   List.In (l, Some v) m ->
@@ -1319,6 +1364,34 @@ Proof.
     eauto using valid_map_Lookup with lamref.
   unfold_all_in H15. edestruct_direct.
   eapply valid_map_Lookup, in_or_Interweave; eauto. simpl. auto.
+Qed.
+
+Theorem htriple_shift (V : Set) (e1 e2 : Expr V) P Q1 Q2 :
+  hoare_triple e1
+    P
+    (fun v => <exists> n, <[v = Lab (OfNat n)]> <*> Q1 n) ->
+  (forall n, hoare_triple e2
+    (Q1 n)
+    (fun v => <exists> i, <[v = Int i]> <*> <[(i >= 0)%Z]> <*> Q2 n i)) ->
+  hoare_triple (Shift e1 e2)
+    (sa_credits 1 <*> P)
+    (fun v => <exists> n i, <[v = Lab (OfNat (n + Z.to_nat i))]> <*> Q2 n i).
+Proof.
+  solve_htriple_15 big_red_shift.
+Qed.
+
+Theorem triple_shift (V : Set) (e1 e2 : Expr V) P Q1 Q2 :
+  triple e1
+    P
+    (fun v => <exists> n, <[v = Lab (OfNat n)]> <*> Q1 n) ->
+  (forall n, triple e2
+    (Q1 n)
+    (fun v => <exists> i, <[v = Int i]> <*> <[(i >= 0)%Z]> <*> Q2 n i)) ->
+  triple (Shift e1 e2)
+    (sa_credits 1 <*> P)
+    (fun v => <exists> n i, <[v = Lab (OfNat (n + Z.to_nat i))]> <*> Q2 n i).
+Proof.
+  solve_triple_15 big_red_shift.
 Qed.
 
 Lemma valid_map_Assignment (V : Set) l v v' (m : Map V) :
@@ -1437,6 +1510,49 @@ Proof.
   eapply Interweave_update_l with (l := l) in H24; simpl in *; eauto.
   { destruct l. unfold_all_lab. rewrite Nat.eqb_refl in H24. eassumption. }
   { unfold not. intros. apply List.in_map with (f := fst) in H26. eauto. } }
+  lia.
+Qed.
+
+Lemma dealloc_Interweave (V : Set) l ov (m1 m2 : Map V) :
+  Interweave [(l,ov)]%list m1 m2 ->
+  Dealloc l m2 m1.
+Proof.
+  remember [(l,ov)]%list as m0 eqn:Hm0. intros Hinter. induction Hinter.
+  - discriminate.
+  - injection Hm0 as -> ->. invert_Intwv_nil. constructor.
+  - subst. constructor. auto.
+Qed.
+
+Theorem htriple_free (V : Set) (e : Expr V) l ov P Q :
+  hoare_triple e
+    (sa_single_any l ov <*> P)
+    (fun v => <[v = Lab l]> <*> sa_single_any l ov <*> Q) ->
+  hoare_triple (Free e)
+    (sa_credits 1 <*> sa_single_any l ov <*> P)
+    (fun v => Q).
+Proof.
+  unfold hoare_triple. intros. normalize_star. make_cred_positive.
+  edestruct_direct. invert_Intwv_nil. fold_star. edestruct_all. normalize_star.
+  subst. find_star_and_unfold_all. edestruct_direct.
+  split_all;
+    eauto using big_red_free, Interweave_valid_r, dealloc_Interweave with lamref.
+  lia.
+Qed.
+
+Theorem triple_free (V : Set) (e : Expr V) l ov P Q :
+  triple e
+    (sa_single_any l ov <*> P)
+    (fun v => <[v = Lab l]> <*> sa_single_any l ov <*> Q) ->
+  triple (Free e)
+    (sa_credits 1 <*> sa_single_any l ov <*> P)
+    (fun v => Q).
+Proof.
+  unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
+  edestruct_direct. invert_Intwv_nil. fold_star. fold_star. conormalize_star.
+  edestruct_all. normalize_star. subst. find_star_and_unfold_all.
+  edestruct_direct. fold_disjoint_maps. fold_disjoint_maps. fold_star_with Q.
+  split_all;
+    eauto using big_red_free, Interweave_valid_r, dealloc_Interweave with lamref.
   lia.
 Qed.
 

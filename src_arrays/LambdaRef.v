@@ -370,6 +370,8 @@ Definition alloc_array {V : Set} n (m : Map V) : Map V * Label :=
   let init := new_label m in
   (n_new_cells_from init n ++ m, init)%list.
 
+Global Hint Unfold alloc_array : lamref.
+
 (* SOS semantics *)
 Reserved Notation "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'".
 
