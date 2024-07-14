@@ -37,3 +37,8 @@ Definition triple {V : Set}
   (e : Expr V)
   (P : StateAssertion V) (Q : Value V -> StateAssertion V) : Prop :=
   forall H, hoare_triple e (P <*> H) (Q <*>+ H).
+
+Definition triple_fun {V : Set}
+  (v : Value V)
+  (P Q : Value V -> StateAssertion V) : Prop :=
+  forall v' : Value V, triple (v <* v') (P v') Q.

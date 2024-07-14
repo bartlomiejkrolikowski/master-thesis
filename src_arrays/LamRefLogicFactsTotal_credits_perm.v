@@ -1792,3 +1792,27 @@ Fact pure_spec (V : Set) P c (m : Map V) :
 Proof.
   unfold_all. reflexivity.
 Qed.
+
+(* other facts *)
+
+Theorem htriple_fun_app (V : Set) (v : Value V) e P Q1 Q2 :
+  triple_fun v Q1 Q2 ->
+  hoare_triple e P Q1 ->
+  hoare_triple (v <* e) P Q2.
+Proof.
+  unfold triple_fun. intros.
+  assert (forall v' : Value V, hoare_triple (v <* v') (Q1 v') Q2).
+  { auto using htriple_of_triple. }
+  unfold hoare_triple in *. intros. edestruct_all.
+  split_all; eauto using cost_red_comp, cost_red_app2, big_red_app. lia.
+Qed.
+
+Theorem triple_fun_app (V : Set) (v : Value V) e P Q1 Q2 :
+  triple_fun v Q1 Q2 ->
+  triple e P Q1 ->
+  triple (v <* e) P Q2.
+Proof.
+  unfold triple_fun. intros.
+  unfold triple, hoare_triple in *. intros. edestruct_all.
+  split_all; eauto using cost_red_comp, cost_red_app2, big_red_app. lia.
+Qed.

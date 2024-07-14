@@ -308,6 +308,28 @@ Proof.
                 all:unfold Is_fresh_label; eauto. eapply Is_Valid_Map_Interweave_fresh_inv; eauto. unfold Is_fresh_label, labels; eauto. } } } }
 Qed.
 
+Definition e_repeat : Expr string :=
+  ([-\] "x", [-\] "n",
+    [let "res"] Ref v_nil [in]
+    [let "i"] Ref (Int 0) [in]
+    [while] ! (Var "i") [<] Var "n" [do]
+      (Var "res") <- (f_cons <* (Var "x") <* (Var "res"));;
+      (Var "i") <- (Var "i" [+] Int 1)
+    [end];;
+    Free (Var "i");;
+    [let "tmp"] ! (Var "res") [in]
+      Free (Var "res");;
+      Var "tmp"
+    [end]
+    [end]
+    [end])%string.
+
+Theorem triple_e_repeat (e en : Expr string) P Q1 Q2 :
+  triple e P Q1 ->
+  (forall v, triple en (Q1 v) (fun v' => <exists> i, <[v' = Int i]> <*> <[(i >= 0)%Z]> <*> Q2 v i) ->
+  triple (e_repeat e en)
+    (sa_credits ).
+
 (*
 (* vvvv TODO vvvv *)
 Fact f_cons_app_expr :
