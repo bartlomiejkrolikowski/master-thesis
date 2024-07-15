@@ -308,6 +308,77 @@ Proof.
                 all:unfold Is_fresh_label; eauto. eapply Is_Valid_Map_Interweave_fresh_inv; eauto. unfold Is_fresh_label, labels; eauto. } } } }
 Qed.
 
+Lemma triple_fun_f_cons :
+  forall L (v : Value _),
+    triple_fun f_cons (fun v' => sa_credits 1 <*> <[v' = v]>)
+      (fun vf =>
+        <[triple_fun vf
+          (fun v' => <exists> l vl, sa_credits 1 <*> <[v' = Lab l]> <*> <(l :== vl)> <*> is_list L vl) (is_list (v::L))]>).
+Proof.
+  unfold triple_fun. intros. eapply triple_app.
+  2:apply triple_value.
+  eapply triple_weaken, triple_frame, triple_value.
+  { apply empty_star_l_intro. }
+  { simpl. intros. apply implies_spec. intros. normalize_star.
+    rewrite pure_spec in *. edestruct_direct. unfold f_cons, StringLam. simpl.
+    solve_star.
+    2:apply empty_spec; auto.
+    split_all; eauto.
+    intros. cbn. eapply triple_weaken, triple_frame, triple_value.
+    { apply empty_star_l_intro. }
+    { simpl. intros. apply implies_spec. intros. normalize_star.
+      rewrite pure_spec in *. edestruct_direct. split_all; auto. intros.
+      do 2 (apply -> triple_exists; intro).
+      eapply triple_weaken, triple_app, triple_frame, triple_value; eauto 2 using implies_trans, star_assoc_r, implies_refl.
+      eapply triple_weaken, triple_frame, triple_value; eauto 1 using empty_star_l_intro.
+      simpl. intros. apply implies_spec. intros. normalize_star. subst. solve_star.
+      2:apply empty_star_l_intro; eassumption.
+      split_all; auto.
+      intros. cbn. rewrite bind_v_shift, bind_v_id. eapply triple_weaken_valid, triple_frame, triple_value.
+      { intros. unfold_all. split_all; eauto using Interweave_nil_l. }
+      simpl. intros. normalize_star. subst. fold (v_cons v x). find_star_and_unfold_all. edestruct_direct.
+      simpl. econstructor.
+      { apply valid_map_Lookup; auto. eapply in_or_Interweave; eauto. simpl. auto. }
+      eapply is_list_Interweave_map.
+      { eapply Interweave_valid_r; eauto. }
+      { unfold Is_fresh_label, not, labels. simpl in *. eauto. }
+      { eauto. }
+      { auto. } } }
+Qed.
+
+Lemma e_of_list_is_list' :
+  forall L, triple (e_of_list L) (sa_credits (3 * List.length L)) (is_list L).
+Proof.
+  induction L; simpl.
+  - unfold v_nil.
+    apply triple_weaken with (P := <[]>) (Q := fun v => <[v = v_nil]>),
+      triple_value.
+    + apply implies_refl.
+    + intros. apply implies_spec. intros. apply -> pure_spec in H.
+      destruct H as (->&_&_). constructor.
+  - specialize triple_fun_f_cons with L a as Hfun.
+    eapply triple_fun_app2 with (e1 := f_cons <* a) (e2 := Ref (e_of_list L)).
+    + specialize (Hfun a). simpl in Hfun. eapply triple_weaken, triple_frame.
+      { apply credits_star_r with (c1 := 1) (c2 := 2 + 3*List.length L). lia. }
+      { simpl. intro. apply implies_refl. }
+      eapply triple_weaken with (P := sa_credits 1 <*> <[a = a]>).
+      { eapply implies_trans.
+        { apply empty_star_r_intro. }
+        { apply star_implies_mono.
+          { apply implies_refl. }
+          { apply implies_spec. intros. apply pure_spec. rewrite empty_spec in *. auto. } } }
+      { simpl. intro. apply implies_refl. }
+      eassumption.
+    + eapply triple_weaken with (Q := fun v => (<exists> (l : Label)(vl : Value string), ((<[ v = Lab l ]>) <*> <( l :== vl )>) <*> is_list L vl) <*> sa_credits 1), triple_frame.
+      { eapply implies_trans.
+        { apply credits_star_r with (c1 := 1 + 3*List.length L) (c2 := 1). lia. }
+        { apply star_implies_mono.
+          { apply credits_star_r with (c1 := 1) (c2 := 3*List.length L). reflexivity. }
+          { apply implies_refl. } } }
+      { apply implies_post_spec. intros. normalize_star. solve_star. apply star_comm. solve_star. assumption. }
+      apply triple_ref. assumption.
+Qed.
+
 Definition e_repeat : Expr string :=
   ([-\] "x", [-\] "n",
     [let "res"] Ref v_nil [in]

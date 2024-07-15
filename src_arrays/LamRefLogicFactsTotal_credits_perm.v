@@ -1261,7 +1261,7 @@ Proof.
   intros ? [? | []] ?. subst. eauto.
 Qed.
 
-Theorem triple_ref (V : Set) (e : Expr V) (v : Value V) P Q :
+Theorem triple_ref (V : Set) (e : Expr V) P Q :
   triple e P Q ->
   triple (Ref e)
     (sa_credits 1 <*> P)
@@ -1828,4 +1828,11 @@ Proof.
   split_all;
     eauto using cost_red_comp, cost_red_app1, cost_red_app2, big_red_app.
   lia.
+Qed.
+
+Theorem triple_fun_frame (V : Set) (v : Value V) P Q H :
+  triple_fun v P Q ->
+  triple_fun v (P <*>+ H) (Q <*>+ H).
+Proof.
+  unfold triple_fun. auto using triple_frame.
 Qed.
