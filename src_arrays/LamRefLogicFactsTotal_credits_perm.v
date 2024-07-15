@@ -1816,3 +1816,16 @@ Proof.
   unfold triple, hoare_triple in *. intros. edestruct_all.
   split_all; eauto using cost_red_comp, cost_red_app2, big_red_app. lia.
 Qed.
+
+Theorem triple_fun_app2 (V : Set) (e1 e2 : Expr V) P1 P2 Q1 Q2 :
+  triple e1 P1 (fun v => <[triple_fun v Q1 Q2]> <*> P2) ->
+  triple e2 P2 Q1 ->
+  triple (e1 <* e2) P1 Q2.
+Proof.
+  unfold triple_fun. intros.
+  unfold triple, hoare_triple in *. intros. edestruct_all. normalize_star.
+  edestruct_all.
+  split_all;
+    eauto using cost_red_comp, cost_red_app1, cost_red_app2, big_red_app.
+  lia.
+Qed.
