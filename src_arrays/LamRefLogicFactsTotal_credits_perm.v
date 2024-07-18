@@ -209,37 +209,6 @@ Proof.
     eauto 3 using star_implies_mono_valid.
 Qed.
 
-Theorem htriple_pure (V : Set) (e : Expr V) P Q :
-  (P -> hoare_triple e <[]> Q) <-> hoare_triple e <[P]> Q.
-Proof.
-  unfold hoare_triple, sa_pure, sa_empty.
-  split; intros; edestruct_direct.
-Qed.
-
-Theorem triple_pure (V : Set) (e : Expr V) P Q :
-  (P -> triple e <[]> Q) <-> triple e <[P]> Q.
-Proof.
-  unfold_all.
-  split; intros Htriple; intros; edestruct_direct; edestruct Htriple; eauto;
-    repeat eexists; eauto.
-Qed.
-
-Theorem htriple_exists A (V : Set) (e : Expr V) P Q :
-  (forall x : A, hoare_triple e (P x) Q) <->
-    hoare_triple e (<exists> x, P x) Q.
-Proof.
-  unfold hoare_triple, sa_exists.
-  split; intros; [edestruct_direct | edestruct_all].
-Qed.
-
-Theorem triple_exists A (V : Set) (e : Expr V) P Q :
-  (forall x : A, triple e (P x) Q) <-> triple e (<exists> x, P x) Q.
-Proof.
-  unfold_all.
-  split; intros Htriple; intros; edestruct_direct; edestruct Htriple; eauto;
-    repeat eexists; eauto.
-Qed.
-
 Theorem htriple_pure_post (V : Set) (e : Expr V) P Q :
   ((forall c m, Is_Valid_Map m -> P c m -> Q) /\
     hoare_triple e P (fun _ => <[]>)) <->
@@ -339,6 +308,123 @@ Lemma star_comm (V : Set) (P : StateAssertion V) Q :
 Proof.
   unfold_all. intros. edestruct_direct. split_all; eauto; try lia.
   apply Interweave_comm. assumption.
+Qed.
+
+Theorem htriple_pure (V : Set) (e : Expr V) P Q :
+  (P -> hoare_triple e <[]> Q) <-> hoare_triple e <[P]> Q.
+Proof.
+  unfold hoare_triple, sa_pure, sa_empty.
+  split; intros; edestruct_direct.
+Qed.
+
+Theorem triple_pure (V : Set) (e : Expr V) P Q :
+  (P -> triple e <[]> Q) <-> triple e <[P]> Q.
+Proof.
+  unfold_all.
+  split; intros Htriple; intros; edestruct_direct; edestruct Htriple; eauto;
+    repeat eexists; eauto.
+Qed.
+
+Theorem htriple_pure_star (V : Set) (e : Expr V) P H Q :
+  (P -> hoare_triple e H Q) <-> hoare_triple e (<[P]> <*> H) Q.
+Proof.
+  unfold hoare_triple, sa_pure, sa_star, sa_empty, disjoint_maps, labels.
+  split; intros; edestruct_direct;
+    try match goal with
+    | [p : ?P, H : ?P -> _ |- _] => specialize (H p)
+    end;
+    repeat invert_Intwv_nil; simpl in *; edestruct_all.
+  split_all; eauto. apply Interweave_nil_l.
+Qed.
+
+Theorem triple_pure_star (V : Set) (e : Expr V) P H Q :
+  (P -> triple e H Q) <-> triple e (<[P]> <*> H) Q.
+Proof.
+  unfold_all.
+  split; intros; edestruct_direct;
+    try match goal with
+    | [p : ?P, H : ?P -> _ |- _] => specialize (H p)
+    end;
+    repeat invert_Intwv_nil; simpl in *; edestruct_all;
+    split_all; eauto. apply Interweave_nil_l.
+Qed.
+
+Theorem htriple_exists A (V : Set) (e : Expr V) P Q :
+  (forall x : A, hoare_triple e (P x) Q) <->
+    hoare_triple e (<exists> x, P x) Q.
+Proof.
+  unfold hoare_triple, sa_exists.
+  split; intros; [edestruct_direct | edestruct_all].
+Qed.
+
+Theorem triple_exists A (V : Set) (e : Expr V) P Q :
+  (forall x : A, triple e (P x) Q) <-> triple e (<exists> x, P x) Q.
+Proof.
+  unfold_all.
+  split; intros Htriple; intros; edestruct_direct; edestruct Htriple; eauto;
+    repeat eexists; eauto.
+Qed.
+
+Theorem htriple_exists_star A (V : Set) (e : Expr V) H P Q :
+  (forall x : A, hoare_triple e (H <*> P x) Q) <->
+    hoare_triple e (H <*> <exists> x, P x) Q.
+Proof.
+  unfold hoare_triple, sa_star, sa_exists, disjoint_maps, labels.
+  split; intros; edestruct_direct; edestruct_all; split_all; eauto.
+Qed.
+
+Fact empty_spec (V : Set) c (m : Map V) :
+  <[]> c m <-> c = 0 /\ m = []%list.
+Proof.
+  unfold_all. reflexivity.
+Qed.
+
+Fact pure_spec (V : Set) P c (m : Map V) :
+  <[P]> c m <-> P /\ c = 0 /\ m = []%list.
+Proof.
+  unfold_all. reflexivity.
+Qed.
+
+Ltac normalize_star :=
+  repeat match goal with
+  | [H : <[]> ?c ?m |- _] => apply empty_spec in H as (?&?)
+  | [H : <[_]> ?c ?m |- _] => apply pure_spec in H as (?&?&?)
+  | [H : ((_ <*> _) <*> _) ?c ?m |- _] => apply star_assoc_r in H
+  | [H : (<[_]> <*> _) ?c ?m |- _] => apply star_pure_l in H as [? ?]
+  | [H : ((<exists> _, _) <*> _) ?c ?m |- _] => apply star_exists_l in H as [? ?]
+  | [H : (<exists> _, _) ?c ?m |- _] => destruct H
+  end.
+
+Ltac solve_star :=
+  repeat match goal with
+  | [H : <[]> ?c ?m |- _] => apply empty_spec; eauto
+  | [H : <[_]> ?c ?m |- _] => apply pure_spec; eauto
+  | [|- ((_ <*> _) <*> _) ?c ?m ] => apply star_assoc_l; eauto
+  | [|- (<[_]> <*> _) ?c ?m ] => apply star_pure_l; split; auto
+  | [|- ((<exists> _, _) <*> _) ?c ?m ] => apply star_exists_l; eexists; eauto
+  | [|- (<exists> _, _) ?c ?m] => eexists
+  end.
+
+Ltac swap_star :=
+  match goal with
+  | [|- (_ <*> _) ?c ?m] => apply star_comm
+  end.
+
+Ltac swap_star_ctx :=
+  match goal with
+  | [H : (_ <*> _) ?c ?m |- _] => apply star_comm in H
+  end.
+
+Theorem triple_exists_star A (V : Set) (e : Expr V) H P Q :
+  (forall x : A, triple e (H <*> P x) Q) <->
+    triple e (H <*> <exists> x, P x) Q.
+Proof.
+  unfold triple, hoare_triple.
+  split; intros.
+  - normalize_star. swap_star_ctx. normalize_star. swap_star_ctx.
+    normalize_star. swap_star_ctx. edestruct H0; eauto.
+  - edestruct H0; eauto. solve_star. swap_star. solve_star. swap_star.
+    solve_star. swap_star. eassumption.
 Qed.
 
 Lemma star_credits (V : Set) (k : nat) (P : StateAssertion V) c m :
@@ -450,21 +536,6 @@ Proof.
   inversion_cost_red. inversion_red.
 *)
 
-Ltac normalize_star :=
-  repeat match goal with
-  | [H : ((_ <*> _) <*> _) ?c ?m |- _] => apply star_assoc_r in H
-  | [H : (<[_]> <*> _) ?c ?m |- _] => apply star_pure_l in H as [? ?]
-  | [H : ((<exists> _, _) <*> _) ?c ?m |- _] => apply star_exists_l in H as [? ?]
-  | [H : (<exists> _, _) ?c ?m |- _] => destruct H
-  end.
-
-Ltac solve_star :=
-  repeat match goal with
-  | [|- ((_ <*> _) <*> _) ?c ?m ] => apply star_assoc_l; eauto
-  | [|- (<[_]> <*> _) ?c ?m ] => apply star_pure_l; split; auto
-  | [|- ((<exists> _, _) <*> _) ?c ?m ] => apply star_exists_l; eexists; eauto
-  | [|- (<exists> _, _) ?c ?m] => eexists
-  end.
 (*
 Ltac solve_assertion :=
   repeat match goal with
@@ -1779,18 +1850,6 @@ Fact empty_star_r_cancel (V : Set) (P : StateAssertion V) :
 Proof.
   unfold_all. intros. edestruct_direct. rewrite Nat.add_0_r.
   invert_Intwv_nil. auto.
-Qed.
-
-Fact empty_spec (V : Set) c (m : Map V) :
-  <[]> c m <-> c = 0 /\ m = []%list.
-Proof.
-  unfold_all. reflexivity.
-Qed.
-
-Fact pure_spec (V : Set) P c (m : Map V) :
-  <[P]> c m <-> P /\ c = 0 /\ m = []%list.
-Proof.
-  unfold_all. reflexivity.
 Qed.
 
 (* other facts *)
