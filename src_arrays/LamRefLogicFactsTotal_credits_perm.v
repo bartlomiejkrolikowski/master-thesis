@@ -1403,13 +1403,13 @@ Theorem htriple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
     (fun v' => <[v' = Lab l]> <*> <(l :== v)> <*> Q) ->
   hoare_triple (Deref e)
     (sa_credits 1 <*> <(l :== v)> <*> P)
-    (fun v => <(l :== v)> <*> Q).
+    (fun v' => <[v' = v']> <*> <(l :== v)> <*> Q).
 Proof.
   unfold hoare_triple. intros. normalize_star. make_cred_positive.
   edestruct_direct. fold_star. repeat invert_Intwv_nil. edestruct_all.
   simpl in *. injection_on_all S. normalize_star. subst.
   split_all; try eapply big_red_deref; simpl in *;
-    eauto using valid_map_Lookup with lamref.
+    eauto using valid_map_Lookup with lamref; solve_star.
   unfold_all_in H10. edestruct_direct.
   eapply valid_map_Lookup, in_or_Interweave; eauto. simpl. auto.
 Qed.
@@ -1425,7 +1425,7 @@ Theorem triple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
     (fun v' => <[v' = Lab l]> <*> <(l :== v)> <*> Q) ->
   triple (Deref e)
     (sa_credits 1 <*> <(l :== v)> <*> P)
-    (fun v => <(l :== v)> <*> Q).
+    (fun v' => <[v' = v]> <*> <(l :== v)> <*> Q).
 Proof.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
   edestruct_direct. fold_star. fold_star. conormalize_star.

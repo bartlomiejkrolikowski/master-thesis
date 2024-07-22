@@ -395,6 +395,101 @@ Definition v_repeat : Value string :=
     [end]
     [end])%string.
 
+Theorem star_exists_l' V A P (Q : StateAssertion V) :
+  (<exists> x : A, P x) <*> Q ->> <exists> x : A, P x <*> Q.
+Proof.
+  unfold sa_implies. intros. apply star_exists_l. assumption.
+Qed.
+
+Ltac extract_exists P H :=
+  match P with
+  | <exists> x, _ => idtac
+  | (<exists> x, _) <*> ?Q' => apply star_exists_l' in H
+  | ?Q <*> (<exists> x, _) => apply star_comm in H; apply star_exists_l' in H
+  | ?Q <*> ?Q' => eapply star_implies_mono in H; [clear H; apply implies_spec; intro H; extract_exists Q H|apply implies_refl]; apply star_exists_l' in H
+  | ?Q <*> ?Q' => apply star_comm in H; eapply star_implies_mono in H; [clear H; apply implies_spec; intro H; extract_exists Q H|apply implies_refl]; extract_exists Q' H; apply star_exists_l' in H
+  end.
+
+Ltac extract_exists_in H :=
+  match type of H with
+  | ?P ?c ?m => extract_exists P H
+  end.
+
+Ltac extract_pure P H :=
+  multimatch P with
+  | <[_]> => idtac
+  | <[_]> <*> ?Q' => idtac
+  | ?Q <*> <[_]> => apply star_comm in H
+  | ?Q <*> ?Q' => eapply star_implies_mono in H; [|clear H; apply implies_spec; intro H; extract_pure Q H|apply implies_refl]; apply star_assoc_l in H
+  | ?Q <*> ?Q' => apply star_comm in H; eapply star_implies_mono in H; [|clear H; apply implies_spec; intro H; extract_pure Q H|apply implies_refl]; apply star_assoc_l in H
+  end.
+
+Ltac extract_pure_in H :=
+  match type of H with
+  | ?P ?c ?m => extract_pure P H
+  end.
+Ltac id' H :=
+  match ltac:(H) with
+  | ?X => exact X
+  end.
+
+Ltac reorder_pure P :=
+  match P with
+  | ?Q <*> ?Q' =>
+    match ltac:(eval simpl in (ltac:(reorder_pure Q) <*> ltac:(reorder_pure Q'))) with
+    | <[?P']> <*> ?Q1' => exact (<[P']> <*> ltac:(reorder_pure Q1'))
+    | (<[?P']> <*> ?Q1) <*> ?Q1' => exact (<[P']> <*> ltac:(reorder_pure (Q1 <*> Q1')))
+    | ?Q1 <*> <[?P']> => exact (<[P']> <*> ltac:(reorder_pure Q1))
+    | ?Q1 <*> (<[?P']> <*> ?Q1') => exact (<[P']> <*> ltac:(reorder_pure (Q1 <*> Q1')))
+    end
+  | _ => exact P
+  end.
+
+Ltac prove_implies_reorder :=
+  match goal with
+  | [|- ?Q <*> ?Q' ->> _] =>
+    eapply implies_trans;
+    [apply star_implies_mono; prove_implies_reorder|];
+    match goal with
+    | [|- <[?P]> <*> ?Q1' ->> _ ] =>
+      apply star_implies_mono; [apply implies_refl|];
+      prove_implies_reorder
+    | [|- (<[?P]> <*> ?Q1) <*> ?Q1' ->> _ ] =>
+      eapply implies_trans; [apply star_assoc_r|];
+      apply star_implies_mono; [apply implies_refl|];
+      (*apply star_implies_mono;*) prove_implies_reorder
+    | [|- ?Q1 <*> <[?P]> ->> _ ] =>
+      eapply implies_trans; [apply star_comm|];
+      apply star_implies_mono; [apply implies_refl|];
+      prove_implies_reorder
+    | [|- ?Q1 <*> (<[?P]> <*> ?Q1') ->> _ ] =>
+      eapply implies_trans; [apply star_comm|];
+      eapply implies_trans; [apply star_assoc_r|];
+      apply star_implies_mono; [apply implies_refl|];
+      (*apply star_implies_mono;*) prove_implies_reorder
+    end
+  | [|- ?P ->> _] => apply implies_refl
+  end.
+
+Ltac triple_reorder_pure :=
+  match goal with
+  | [|- triple ?e ?P' ?Q'] =>
+    apply triple_weaken with (P := ltac:(reorder_pure P')) (Q := Q');
+      [prove_implies_reorder|intros; apply implies_refl|]
+  end.
+(*
+  | [|- ?P <*> ?Q ->> ?P <*> ?Q'] =>
+    apply star_implies_mono; [apply implies_refl|prove_implies_reorder]
+  | [|- ?Q <*> ?P ->> ?Q' <*> ?P] =>
+    apply star_implies_mono; [prove_implies_reorder|apply implies_refl]
+  | [|- ?P <*> ?Q ->> ?Q' <*> ?P] =>
+    apply implies_trans with (?Q <*> ?P);
+    apply star_implies_mono; [prove_implies_reorder|apply implies_refl]
+  | [|- ?Q <*> ?P ->> ?P <*> ?Q'] =>
+    apply implies_trans with (?P <*> ?Q);
+    apply star_implies_mono; [apply implies_refl|prove_implies_reorder]
+*)
+
 Theorem triple_fun_v_repeat v n :
   triple_fun v_repeat
     (fun v' => sa_credits 1 <*> <[v' = v]>)
@@ -514,34 +609,98 @@ Proof.
             { intros. apply implies_refl. }
             do 2 (apply triple_pure_star; intros ->).
             eapply triple_seq.
-            - eapply triple_weaken with (P := sa_credits 2 <*> (sa_credits _ <*> (<exists> i vl, <[i <= n]> <*> <( x :== vl )> <*> <( x0 :== (Int (Z.of_nat i)) )> <*> is_list (List.repeat v i) vl))).
+            - eapply triple_weaken with (P := sa_credits 2 <*> (<exists> i vl, <[i <= n]> <*> sa_credits (6+((n-i)*10)) <*> <( x :== vl )> <*> <( x0 :== (Int (Z.of_nat i)) )> <*> is_list (List.repeat v i) vl)).
               { apply star_implies_mono.
                 { apply implies_refl. }
-                { apply star_implies_mono.
-                  { apply implies_refl. }
-                  { apply implies_spec. intros. unfold sa_exists.
-                    exists 0, (RecV [Int 0]). unfold_all. unfold_all_in H.
-                    edestruct_direct.
-                    split_all; simpl in *;
-                      eauto using Interweave_nil_l, Interweave_nil_r, is_nil, Nat.le_0_l.
-                    simpl. auto. } } }
+                { apply implies_spec. intros. unfold sa_exists.
+                  exists 0, (RecV [Int 0]). solve_star; [lia|]. simpl. rewrite Nat.sub_0_r.
+                  apply star_assoc. apply star_assoc. eapply star_implies_mono.
+                  { apply star_assoc. }
+                  { apply implies_spec. intros. constructor. }
+                  apply empty_star_r_intro. assumption. } }
               { intros. apply implies_refl. }
+              (*eapply triple_weaken.
+              { apply implies_spec. intros. extract_exists_in H. normalize_star. }*)
               eapply triple_while with
-                (Q := fun b : bool => _ <*> <exists> (i : nat) (vl : Value _), _ <*> if b
-                  then <[i < n]>
-                  else <[i = n]>).
-              + do 2 (apply -> triple_exists_star; intros).
+                (Q := fun b : bool => <exists> (i : nat) (vl : Value _), <[i <= n]> <*> sa_credits (4 + (n-i)*10) <*> <(x :== vl)> <*> <(x0 :== Int (Z.of_nat i))> <*> is_list (List.repeat v i) vl <*> <[b = (Z.of_nat i <? Z.of_nat n)%Z]>).
+              + do 2 (apply -> triple_exists; intros).
                 eapply triple_weaken.
                 { eapply implies_trans.
-                  { apply star_comm. }
+                  { apply star_assoc. }
                   { eapply implies_trans.
                     { apply star_assoc. }
+                    { apply star_assoc. } } }
+                { intros. apply implies_refl. }
+                apply triple_pure_star. intros.
+                eapply triple_weaken.
+                { eapply implies_trans.
+                  { apply star_implies_mono.
+                    { apply credits_star_r with (c1 := 1). reflexivity. }
+                    { apply implies_refl. } }
+                  { simpl. apply star_assoc. } }
+                { intros. apply implies_refl. }
+                eapply triple_weaken with
+                  (Q := fun v0 => <exists> i1 i2 : Z, <[v0 = Bool (i1 <? i2)%Z]> <*> (<[i1 = Z.of_nat x1]> <*> <[i2 = Z.of_nat n]> <*> <exists> (i : nat) (vl : Value _), _)).
+                { apply implies_refl. }
+                { apply implies_post_spec. intros. destruct H0 as (?&?&?). (* TODO: extract_exists_in H0. *)
+                  apply star_pure_l in H0. destruct H0.
+                  apply star_assoc in H3. apply star_pure_l in H3. destruct H3.
+                  apply star_pure_l in H5. destruct H5.
+                  eexists. eapply star_implies_mono.
+                  { apply implies_spec. intros. apply pure_spec. split.
+                    { eassumption. }
+                    { apply -> empty_spec. eassumption. } }
+                  { eapply implies_refl. }
+                  apply empty_star_l_intro. eassumption. }
+                eapply triple_clt.
+                2:{ intros. eapply triple_weaken, triple_frame, triple_value.
+                  { apply empty_star_l_intro. }
+                  { intros. simpl. apply implies_spec. intros. normalize_star. subst. apply H3. } }
+                * eapply triple_weaken, triple_deref, triple_weaken, triple_frame, triple_value.
+                  { eapply implies_trans.
+                    { apply star_implies_mono.
+                      { apply credits_star_r with (c1 := 1). reflexivity. }
+                      { apply star_comm. } }
                     { eapply implies_trans.
                       { apply star_assoc. }
-                      { apply star_assoc. } } } }
+                      { eapply implies_trans.
+                        { apply star_implies_mono.
+                          { apply implies_refl. }
+                          { eapply implies_trans.
+                            { apply star_assoc. }
+                            { eapply implies_trans.
+                              { apply star_implies_mono.
+                                { eapply implies_trans.
+                                  { apply star_comm. }
+                                  { apply star_assoc. } }
+                                { apply implies_refl. } }
+                              { apply star_assoc. } } } }
+                        { apply star_assoc. } } } }
+                  2:apply empty_star_l_intro.
+                  2:{ apply implies_post_spec. intros. apply star_assoc_l. eassumption. }
+                  { apply implies_post_spec. intros. normalize_star. subst.
+                    eexists. apply star_pure_l. split; [reflexivity|].
+                    eexists. apply star_pure_l. split; [reflexivity|].
+                    apply star_assoc. apply star_pure_l. split; [reflexivity|].
+                    apply star_pure_l. split; [reflexivity|].
+                    do 2 eexists. repeat apply star_assoc_l. apply star_pure_l. split; [eassumption|].
+                    swap_star. solve_star. swap_star. solve_star. swap_star. solve_star. swap_star. solve_star.
+                    swap_star. solve_star. swap_star. solve_star. eapply star_implies_mono.
+                    { apply implies_refl. }
+                    { apply star_assoc. }
+                    eassumption. }
+              + do 2 (apply -> triple_exists; intros).
+                triple_reorder_pure. prove_implies_reorder. eapply triple_weaken; [
+                prove_implies_reorder| intros; apply implies_refl|].
+                (*simpl. eauto 6 using star_assoc_l, star_assoc_r, star_implies_mono, implies_trans, implies_refl, star_comm.*)
+                eapply triple_weaken.
+                { apply star_comm. }
                 { intros. apply implies_refl. }
-                apply triple_pure_star. intros. Admitted. (* TODO *)
-                (*apply triple_clt.  } }
+                apply triple_pure_star. intros.
+                apply -> triple_exists. intros.
+                symmetry in H. apply Z.ltb_lt in H. apply Nat2Z.inj_lt in H as H'.
+                eapply triple_weaken, triple_seq. fold f_cons.
+                Search Z.of_nat Z.lt.
         { eapply implies_trans.
           { apply star_comm. }
           { apply star_implies_mono.
@@ -557,7 +716,7 @@ Proof.
       apply triple_pure. intros ->.
       eapply triple_weaken, triple_value.
       } }
-Admitted.*)
+Admitted.
 (*
 (* vvvv TODO vvvv *)
 Fact f_cons_app_expr :
