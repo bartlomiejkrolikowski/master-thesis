@@ -452,6 +452,67 @@ Proof.
   intros m Hm. subst. eauto 10 with lamref.
 Qed.
 
+(** facts about StateAssertion *)
+
+Fact credits_star_l (V : Set) c1 c2 c :
+  c = c1 + c2 ->
+  sa_credits c1 <*> sa_credits c2 ->> sa_credits (V := V) c.
+Proof.
+  unfold_all. intros. edestruct_direct. invert_Intwv_nil. auto.
+Qed.
+
+Fact credits_star_r (V : Set) c1 c2 c :
+  c = c1 + c2 ->
+  sa_credits (V := V) c ->> sa_credits c1 <*> sa_credits c2.
+Proof.
+  unfold_all. intros. edestruct_direct. split_all; auto using Interweave_nil.
+Qed.
+
+Fact implies_trans (V : Set) (P Q R : StateAssertion V) :
+  P ->> Q ->
+  Q ->> R ->
+  P ->> R.
+Proof.
+  unfold_all. auto.
+Qed.
+
+Fact implies_spec (V : Set) (P Q : StateAssertion V) :
+  (P ->> Q) <-> forall c m, P c m -> Q c m.
+Proof.
+  unfold_all. reflexivity.
+Qed.
+
+Fact implies_post_spec (V : Set) (P Q : Value V -> StateAssertion V) :
+  (P -->> Q) <-> forall v c m, P v c m -> Q v c m.
+Proof.
+  unfold_all. reflexivity.
+Qed.
+
+Fact empty_star_l_intro (V : Set) (P : StateAssertion V) :
+  P ->> <[]> <*> P.
+Proof.
+  unfold_all. intros. split_all; eauto using Interweave_nil_l.
+Qed.
+
+Fact empty_star_r_intro (V : Set) (P : StateAssertion V) :
+  P ->> P <*> <[]>.
+Proof.
+  unfold_all. intros. split_all; eauto using Interweave_nil_r.
+Qed.
+
+Fact empty_star_l_cancel (V : Set) (P : StateAssertion V) :
+  <[]> <*> P ->> P.
+Proof.
+  unfold_all. intros. edestruct_direct. invert_Intwv_nil. auto.
+Qed.
+
+Fact empty_star_r_cancel (V : Set) (P : StateAssertion V) :
+  P <*> <[]> ->> P.
+Proof.
+  unfold_all. intros. edestruct_direct. rewrite Nat.add_0_r.
+  invert_Intwv_nil. auto.
+Qed.
+
 Ltac solve_simple_triple n :=
   unfold_all; intros; edestruct_direct; eauto n using Interweave_nil_l with lamref.
 Ltac solve_simple_triple_30 :=
@@ -474,6 +535,16 @@ Theorem triple_value' (V : Set) (v : Value V) (P : StateAssertion V) :
   triple v P (fun v' => <[v' = v]> <*> P).
 Proof.
   solve_simple_triple_30.
+Qed.
+
+Theorem triple_value_implies (V : Set) (v : Value V) (P : StateAssertion V) Q :
+  P ->> Q v ->
+  triple v P Q.
+Proof.
+  intros H. eapply triple_weaken, triple_frame, triple_value.
+  - apply empty_star_l_intro.
+  - apply implies_post_spec. intros. normalize_star. subst. apply H.
+    assumption.
 Qed.
 
 Theorem htriple_value_untimed (V : Set) (v : Value V) (P : StateAssertion V) :
@@ -1789,67 +1860,6 @@ Proof.
   - solve_star; eauto.
   - assumption.
   - lia.
-Qed.
-
-(** facts about StateAssertion *)
-
-Fact credits_star_l (V : Set) c1 c2 c :
-  c = c1 + c2 ->
-  sa_credits c1 <*> sa_credits c2 ->> sa_credits (V := V) c.
-Proof.
-  unfold_all. intros. edestruct_direct. invert_Intwv_nil. auto.
-Qed.
-
-Fact credits_star_r (V : Set) c1 c2 c :
-  c = c1 + c2 ->
-  sa_credits (V := V) c ->> sa_credits c1 <*> sa_credits c2.
-Proof.
-  unfold_all. intros. edestruct_direct. split_all; auto using Interweave_nil.
-Qed.
-
-Fact implies_trans (V : Set) (P Q R : StateAssertion V) :
-  P ->> Q ->
-  Q ->> R ->
-  P ->> R.
-Proof.
-  unfold_all. auto.
-Qed.
-
-Fact implies_spec (V : Set) (P Q : StateAssertion V) :
-  (P ->> Q) <-> forall c m, P c m -> Q c m.
-Proof.
-  unfold_all. reflexivity.
-Qed.
-
-Fact implies_post_spec (V : Set) (P Q : Value V -> StateAssertion V) :
-  (P -->> Q) <-> forall v c m, P v c m -> Q v c m.
-Proof.
-  unfold_all. reflexivity.
-Qed.
-
-Fact empty_star_l_intro (V : Set) (P : StateAssertion V) :
-  P ->> <[]> <*> P.
-Proof.
-  unfold_all. intros. split_all; eauto using Interweave_nil_l.
-Qed.
-
-Fact empty_star_r_intro (V : Set) (P : StateAssertion V) :
-  P ->> P <*> <[]>.
-Proof.
-  unfold_all. intros. split_all; eauto using Interweave_nil_r.
-Qed.
-
-Fact empty_star_l_cancel (V : Set) (P : StateAssertion V) :
-  <[]> <*> P ->> P.
-Proof.
-  unfold_all. intros. edestruct_direct. invert_Intwv_nil. auto.
-Qed.
-
-Fact empty_star_r_cancel (V : Set) (P : StateAssertion V) :
-  P <*> <[]> ->> P.
-Proof.
-  unfold_all. intros. edestruct_direct. rewrite Nat.add_0_r.
-  invert_Intwv_nil. auto.
 Qed.
 
 (* other facts *)
