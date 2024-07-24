@@ -513,6 +513,24 @@ Proof.
   invert_Intwv_nil. auto.
 Qed.
 
+Fact single_single_any (V : Set) l (v : Value V) :
+  sa_single l v <<->> sa_single_any l (Some v).
+Proof.
+  unfold_all. auto.
+Qed.
+
+Fact single_single_any_l (V : Set) l (v : Value V) :
+  sa_single_any l (Some v) ->> sa_single l v.
+Proof.
+  apply single_single_any.
+Qed.
+
+Fact single_single_any_r (V : Set) l (v : Value V) :
+  sa_single l v ->> sa_single_any l (Some v).
+Proof.
+  apply single_single_any.
+Qed.
+
 Ltac solve_simple_triple n :=
   unfold_all; intros; edestruct_direct; eauto n using Interweave_nil_l with lamref.
 Ltac solve_simple_triple_30 :=
@@ -1671,14 +1689,15 @@ Theorem htriple_free (V : Set) (e : Expr V) l ov P Q :
     (fun v => <[v = Lab l]> <*> sa_single_any l ov <*> Q) ->
   hoare_triple (Free e)
     (sa_credits 1 <*> sa_single_any l ov <*> P)
-    (fun v => Q).
+    (fun v => <[v = U_val]> <*> Q).
 Proof.
   unfold hoare_triple. intros. normalize_star. make_cred_positive.
   edestruct_direct. invert_Intwv_nil. fold_star. edestruct_all. normalize_star.
   subst. find_star_and_unfold_all. edestruct_direct.
   split_all;
     eauto using big_red_free, Interweave_valid_r, dealloc_Interweave with lamref.
-  lia.
+  - solve_star. eassumption.
+  - lia.
 Qed.
 
 Theorem triple_free (V : Set) (e : Expr V) l ov P Q :
@@ -1687,7 +1706,7 @@ Theorem triple_free (V : Set) (e : Expr V) l ov P Q :
     (fun v => <[v = Lab l]> <*> sa_single_any l ov <*> Q) ->
   triple (Free e)
     (sa_credits 1 <*> sa_single_any l ov <*> P)
-    (fun v => Q).
+    (fun v => <[v = U_val]> <*> Q).
 Proof.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
   edestruct_direct. invert_Intwv_nil. fold_star. fold_star. conormalize_star.
@@ -1695,7 +1714,8 @@ Proof.
   edestruct_direct. fold_disjoint_maps. fold_disjoint_maps. fold_star_with Q.
   split_all;
     eauto using big_red_free, Interweave_valid_r, dealloc_Interweave with lamref.
-  lia.
+  - solve_star. eassumption.
+  - lia.
 Qed.
 
 Theorem htriple_seq (V : Set) (e1 e2 : Expr V) P1 Q1 Q2 :
