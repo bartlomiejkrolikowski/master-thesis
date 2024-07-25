@@ -11,3 +11,8 @@ src_arrays/*.glob
 src_arrays/*.vo
 src_arrays/*.vok
 src_arrays/*.vos
+src_arrays_strings/.*.aux
+src_arrays_strings/*.glob
+src_arrays_strings/*.vo
+src_arrays_strings/*.vok
+src_arrays_strings/*.vos
