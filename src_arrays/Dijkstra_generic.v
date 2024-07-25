@@ -35,7 +35,7 @@ Definition free_array : Value string :=
 Definition generic_dijkstra (get_size get_neighbours mkheap h_insert h_empty h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string) : Value string :=
   [-\] "g", [-\] "src", [-\] "dst",
     [let "n"] get_size <* Var "g" [in]
-    [let "h"] mkheap <* Var "n" [in]
+    [let "h"] mkheap <* U_val [in]
     [let "dist"] NewArray (Var "n") [in]
       init_array <* (Var "dist") <* (Var "n") <* (Int (-1));;
       (Var "array" >> ! Var "i") <- Int 0;;

@@ -59,4 +59,5 @@ src_arrays/LamRefFacts.v
 #src_arrays/LamRefLogicFactsTotal.v
 #src_arrays/LamRefLogicFactsTotal_credits.v
 src_arrays/LamRefLogicFactsTotal_credits_perm.v
+src_arrays/RadixHeap.v
 src_arrays/Tactics.v
