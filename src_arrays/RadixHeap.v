@@ -69,4 +69,4 @@ Definition mkheap : Value string :=
     [end]
     [end]
     [end]
-    [end]%string.more in RadixHepa
+    [end]%string.
