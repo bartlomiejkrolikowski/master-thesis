@@ -913,7 +913,7 @@ Proof.
                           change (Z.of_nat n1 + Z.of_nat 1 = Z.of_nat n2)%Z
                         end.
                         rewrite Nat2Z.inj_add. reflexivity. }
-                      { unfold_all_in H5. unfold_all. edestruct_direct. invert_Intwv_nil. split_all; eauto using Interweave_nil_l, Interweave_nil_r; simpl in *; eauto; try lia; admit. }
+                      { rewrite bind_v_shift, bind_v_id in *. (*TODO*) unfold_all_in H5. unfold_all. edestruct_direct. invert_Intwv_nil. split_all; eauto using Interweave_nil_l, Interweave_nil_r; simpl in *; eauto; try lia; admit. }
             - repeat triple_pull_exists.
               triple_reorder_pure. repeat triple_pull_pure.
               rewrite Z.ltb_nlt in *. assert (x1 = n) as -> by lia.
