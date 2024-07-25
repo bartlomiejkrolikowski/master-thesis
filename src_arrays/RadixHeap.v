@@ -63,8 +63,10 @@ Definition mkheap : Value string :=
       [end];;
       Free (Var "i")
     [end];;
-      RecV [Var "buckets"; Ref (Var "size"); Var "min_rngs"; Var "max_rngs"]
+    [let "x"] Ref (Var "size") [in]
+      RecV [Var "buckets"; Var "x"; Var "min_rngs"; Var "max_rngs"]
     [end]
     [end]
     [end]
-    [end]%string.
+    [end]
+    [end]%string.more in RadixHepa
