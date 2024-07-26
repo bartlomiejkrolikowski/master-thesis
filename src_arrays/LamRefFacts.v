@@ -13,7 +13,13 @@ Fact liftS_inc (V V' : Set) (f : V -> Value V') x v' :
 Proof.
   destruct x; reflexivity.
 Qed.
-
+(*
+Fact liftS_liftS (V V' : Set) (f : V -> Value V') x :
+  liftS (liftS f) (option_map Some x) = map_v (option_map Some) (liftS f x).
+Proof.
+  destruct x; simpl. unfold shift_v ; reflexivity.
+Qed.
+*)
 Fact liftS_ext (V V' : Set) (f g : V -> Value V') x :
   (forall x, f x = g x) ->
   liftS f x = liftS g x.
@@ -25,6 +31,33 @@ Fact liftS_Var V (x : inc_set V) :
   liftS Var x = Var x.
 Proof.
   destruct x; reflexivity.
+Qed.
+
+Fixpoint map_v_ext (V V' : Set) (f g : V -> V') v {struct v} :
+  (forall x, f x = g x) ->
+  map_v f v = map_v g v
+with map_e_ext (V V' : Set) (f g : V -> V') e {struct e} :
+  (forall x, f x = g x) ->
+  map_e f e = map_e g e.
+Proof.
+  - destruct v; simpl; trivial; intro Hext; f_equal; auto.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + apply map_e_ext. intros. destruct x; simpl; f_equal. auto.
+  - destruct e; simpl; intro; f_equal; auto.
+    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Fixpoint map_v_map_v (V V' V'' : Set) (f : V' -> V'') (g : V -> V') v {struct v} :
+  map_v f (map_v g v) = map_v (fun x => f (g x)) v
+with map_e_map_e (V V' V'' : Set) (f : V' -> V'') (g : V -> V') e {struct e} :
+  map_e f (map_e g e) = map_e (fun x => f (g x)) e.
+Proof.
+  - destruct v; simpl; trivial; f_equal.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + erewrite map_e_ext with (f := option_map (fun x => f (g x)));
+        [|destruct x]; auto.
+  - destruct e; simpl; f_equal; auto.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
 Qed.
 
 Fixpoint bind_v_ext (V V' : Set) (f g : V -> Value V') v {struct v} :
@@ -54,6 +87,20 @@ Proof.
     revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
 Qed.
 
+Fixpoint bind_v_map_v_l (V V' V'' : Set) (f : V' -> V'') (g : V -> Value V') v {struct v} :
+  map_v f (bind_v g v) = bind_v (fun x => map_v f (g x)) v
+with bind_e_map_e_l (V V' V'' : Set) (f : V' -> V'') (g : V -> Value V') e {struct e} :
+  map_e f (bind_e g e) = bind_e (fun x => map_v f (g x)) e.
+Proof.
+  - destruct v; simpl; trivial; f_equal.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + erewrite bind_e_ext with (f := liftS (fun x => map_v f (g x)));
+        [|destruct x]; eauto.
+      simpl. unfold shift_v. do 2 rewrite map_v_map_v. auto.
+  - destruct e; simpl; f_equal; eauto.
+    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
 Fixpoint bind_v_shift (V V' : Set) (f : V -> Value V') v v' {struct v} :
   bind_v (inc_fun f v') (shift_v v) = bind_v f v
 with bind_e_shift (V V' : Set) (f : V -> Value V') e v' {struct e} :
@@ -79,6 +126,32 @@ Proof.
     + erewrite bind_e_ext; auto using liftS_Var.
   - destruct e; simpl; f_equal; auto.
     revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Fixpoint bind_v_liftS_shift (A B : Set) (f : A -> Value B) (v : Value A) {struct v} :
+  bind_v (liftS f) (shift_v v) = bind_v (fun x => shift_v (f x)) v
+with bind_e_liftS_shift (A B : Set) (f : A -> Value B) (e : Expr A) {struct e} :
+  bind_e (liftS f) (shift_e e) = bind_e (fun x => shift_v (f x)) e.
+Proof.
+  - destruct v; cbn; trivial; f_equal.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + erewrite bind_e_ext with (f := liftS (fun x => shift_v (f x))).
+      * apply bind_e_map_e.
+      * destruct x; reflexivity.
+  - destruct e; cbn; f_equal; eauto.
+    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Theorem bind_v_liftS_shift_swap (A B : Set) (f : A -> Value B) (v : Value A) :
+  bind_v (liftS f) (shift_v v) = shift_v (bind_v f v).
+Proof.
+  unfold shift_v. rewrite bind_v_map_v, bind_v_map_v_l. auto using bind_v_ext.
+Qed.
+
+Theorem bind_e_liftS_shift_swap (A B : Set) (f : A -> Value B) (e : Expr A) :
+  bind_e (liftS f) (shift_e e) = shift_e (bind_e f e).
+Proof.
+  unfold shift_e. rewrite bind_e_map_e, bind_e_map_e_l. auto using bind_e_ext.
 Qed.
 
 (** OTHER LEMMAS *)
