@@ -143,18 +143,14 @@ Proof.
 Qed.
 
 Lemma is_list_Interweave_map (A : Set) L (v : Value A) c (m m' : Map A) l v' :
-  Is_Valid_Map m ->
-  Is_fresh_label l m ->
   Interweave [(l,v')] m m' ->
   is_list L v c m ->
   is_list L v c m'.
 Proof with auto.
-  intros Hvalid Hfresh Hinter His_list. induction His_list.
+  intros Hinter His_list. induction His_list.
   - constructor.
   - econstructor...
-    + apply valid_map_Lookup.
-      * eapply Is_Valid_Map_Interweave_fresh; eauto.
-      * eauto using in_or_Interweave, Lookup_in.
+    + eauto using valid_map_Lookup, in_or_Interweave, Lookup_in.
 Qed.
 
 (* goal 1 *)
@@ -236,8 +232,8 @@ Proof.
             repeat econstructor.
             { apply valid_map_Lookup; auto. unfold_all_in H3. edestruct_direct.
               eapply in_or_Interweave; eauto. simpl. auto. }
-            { eapply is_list_any_credits. simpl in *. eapply is_list_Interweave_map. 3:eauto.
-              all:unfold Is_fresh_label; eauto. eapply Is_Valid_Map_Interweave_fresh_inv; eauto. unfold Is_fresh_label, labels; eauto. } } } }
+            { eapply is_list_any_credits. simpl in *.
+              eapply is_list_Interweave_map; unfold Is_fresh_label; eauto. } } } }
 Qed.
 
 (* goal 3 *)
@@ -304,8 +300,8 @@ Proof.
               repeat econstructor.
               { apply valid_map_Lookup; auto. unfold_all_in H3. edestruct_direct.
                 eapply in_or_Interweave; eauto. simpl. auto. }
-              { eapply is_list_any_credits. simpl in *. eapply is_list_Interweave_map. 3:eauto.
-                all:unfold Is_fresh_label; eauto. eapply Is_Valid_Map_Interweave_fresh_inv; eauto. unfold Is_fresh_label, labels; eauto. } } } }
+              { eapply is_list_any_credits. simpl in *.
+                eapply is_list_Interweave_map; unfold Is_fresh_label; eauto. } } } }
 Qed.
 
 Lemma triple_fun_f_cons :
@@ -339,11 +335,7 @@ Proof.
       simpl. intros. normalize_star. subst. fold (v_cons v x). find_star_and_unfold_all. edestruct_direct.
       simpl. econstructor.
       { apply valid_map_Lookup; auto. eapply in_or_Interweave; eauto. simpl. auto. }
-      eapply is_list_Interweave_map.
-      { eapply Interweave_valid_r; eauto. }
-      { unfold Is_fresh_label, not, labels. simpl in *. eauto. }
-      { eauto. }
-      { auto. } } }
+      eapply is_list_Interweave_map; eauto. } }
 Qed.
 
 Lemma e_of_list_is_list' :
@@ -384,7 +376,7 @@ Definition v_repeat : Value string :=
     [let "res"] Ref v_nil [in]
     [let "i"] Ref (Int 0) [in]
     [while] ! (Var "i") [<] Var "n" [do]
-      (Var "res") <- (f_cons <* (Var "x") <* (Var "res"));;
+      (Var "res") <- (f_cons <* (Var "x") <* Ref (! Var "res"));;
       (Var "i") <- (! Var "i" [+] Int 1)
     [end];;
     Free (Var "i");;
@@ -643,7 +635,7 @@ Theorem triple_fun_v_repeat v n :
     (fun v' => sa_credits 1 <*> <[v' = v]>)
     (fun vf => <[
       triple_fun vf
-        (fun v' => sa_credits (16 + n*12) <*> <[v' = Int (Z.of_nat n)]>)
+        (fun v' => sa_credits (16 + n*14) <*> <[v' = Int (Z.of_nat n)]>)
         (is_list (List.repeat v n))
     ]>).
 Proof.
@@ -757,7 +749,7 @@ Proof.
             { intros. apply implies_refl. }
             do 2 (apply triple_pure_star; intros ->).
             eapply triple_seq.
-            - eapply triple_weaken with (P := sa_credits 2 <*> (<exists> i vl, <[i <= n]> <*> sa_credits (8+((n-i)*12)) <*> <( x :== vl )> <*> <( x0 :== (Int (Z.of_nat i)) )> <*> is_list (List.repeat v i) vl)).
+            - eapply triple_weaken with (P := sa_credits 2 <*> (<exists> i vl, <[i <= n]> <*> sa_credits (8+((n-i)*14)) <*> <( x :== vl )> <*> <( x0 :== (Int (Z.of_nat i)) )> <*> is_list (List.repeat v i) vl)).
               { apply star_implies_mono.
                 { apply implies_refl. }
                 { apply implies_spec. intros. unfold sa_exists.
@@ -770,7 +762,7 @@ Proof.
               (*eapply triple_weaken.
               { apply implies_spec. intros. extract_exists_in H. normalize_star. }*)
               eapply triple_while with
-                (Q := fun b : bool => <exists> (i : nat) (vl : Value _), <[i <= n]> <*> sa_credits (6 + (n-i)*12) <*> <(x :== vl)> <*> <(x0 :== Int (Z.of_nat i))> <*> is_list (List.repeat v i) vl <*> <[(Z.of_nat i <? Z.of_nat n)%Z = b]>).
+                (Q := fun b : bool => <exists> (i : nat) (vl : Value _), <[i <= n]> <*> sa_credits (6 + (n-i)*14) <*> <(x :== vl)> <*> <(x0 :== Int (Z.of_nat i))> <*> is_list (List.repeat v i) vl <*> <[(Z.of_nat i <? Z.of_nat n)%Z = b]>).
               + do 2 (apply -> triple_exists; intros).
                 eapply triple_weaken.
                 { eapply implies_trans.
@@ -851,27 +843,73 @@ Proof.
                       { apply implies_refl. }
                       { prove_implies_reorder <(x :== x2)>. } }
                     { apply star_assoc. } }
-                  { intros. apply star_assoc_r. }
+                  { intros. apply implies_refl. }
                   eapply triple_assign.
                   -- apply triple_value_implies.
                     apply implies_spec. intros. solve_star. eassumption.
-                  -- triple_pull_1_credit.
+                  -- triple_pull_1_credit. (*
+                    eapply triple_weaken, triple_ref.
+                    { apply implies_refl. }
+                    { apply implies_post_spec. intros. swap_star. apply star_exists_l. destruct H3.
+                      exists x3. apply star_exists_l. destruct H3. exists x4. apply star_assoc_l. apply H3. }
+                    triple_pull_1_credit. *)
                     eapply triple_app.
-                    2:apply triple_frame, triple_value.
-                    simpl. triple_pull_1_credit.
+                    2:{ apply triple_ref, triple_deref, triple_value_implies, implies_spec.
+                      intros. solve_star. eassumption. }
+                    simpl. repeat rewrite bind_v_liftS_shift_swap.
+                    repeat rewrite bind_v_shift. repeat rewrite bind_v_id.
+                    triple_pull_1_credit.
                     eapply triple_app.
                     2:apply triple_frame, triple_value.
                     simpl. apply triple_value_implies.
                     apply implies_spec. intros. solve_star.
                     2:apply empty_star_l_intro; eassumption.
-                    split; auto. intros. apply triple_value_implies. simpl.
+                    split; auto. intros. cbn. apply triple_value_implies. simpl.
                     apply implies_spec. intros. normalize_star. subst. solve_star.
-                    2:apply empty_star_l_intro; eassumption.
-                    split; auto. intros. cbn. triple_pull_pure. subst.
+                    2:{ conormalize_star. swap_star_ctx. swap_star. solve_star. swap_star. solve_star.
+                      eapply star_implies_mono; eauto.
+                      { apply implies_refl. }
+                      { apply implies_spec. intros. swap_star. apply star_assoc. swap_star.
+                        do 2 apply star_assoc_r. normalize_star.
+                        eapply star_implies_mono; eauto.
+                        { eapply implies_trans.
+                          { apply credits_star_r with (c1 := 2). reflexivity. }
+                          { apply star_implies_mono.
+                            { apply credits_star_r. reflexivity. }
+                            { apply implies_refl. } } }
+                        { apply implies_refl. } } }
+                    split; auto. intros. cbn.
+                    repeat triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure. subst.
                     triple_reorder <(x :== x2)>.
                     apply triple_value_implies. apply implies_spec. intros.
-                    solve_star. eassumption.
-                * triple_pull_1_credit. eapply triple_weaken, triple_assign.
+                    solve_star. rewrite bind_v_shift, bind_v_id. fold (v_cons v x3).
+                    eassert ((<(x:==x2)> <*> (fun vl => sa_credits _ <*> <(x0:==Int (Z.of_nat x1))> <*> is_list (List.repeat v (x1+1)) vl) (v_cons v x3)) c4 m4).
+                    { eapply star_implies_mono; eauto.
+                      { apply implies_refl. }
+                      { apply implies_spec. intros. normalize_star. solve_star. eapply star_implies_mono; eauto.
+                        { apply implies_refl. }
+                        { eapply implies_trans.
+                          { apply star_assoc. }
+                          { apply star_implies_mono.
+                            { apply implies_refl. }
+                            { apply implies_spec. intros. rewrite Nat.add_1_r. simpl. unfold_all_in H8. edestruct_direct.
+                              econstructor.
+                              { apply valid_map_Lookup. eapply in_or_Interweave; eauto. simpl. auto. }
+                              { eapply is_list_Interweave_map; eauto using Interweave_comm.
+                                rewrite Nat.add_0_r. assumption. } } } } } }
+                    eapply star_implies_mono; eauto.
+                    { apply implies_refl. }
+                    { generalize (v_cons v x3). intros. apply implies_refl. }
+                * triple_pull_exists. (* eapply triple_weaken.
+                  { apply implies_spec. intros. swap_star_ctx.
+                    eassert ((<exists> l vl, _ <*> <(x:==x3)>) c2 m2).
+                    { apply -> star_exists_l in H3. destruct H3. exists x4.
+                      apply -> star_exists_l in H3. destruct H3. exists x5.
+                      eassumption. }
+                    exact H5. }
+                  { intros. apply implies_refl. }*)
+                  repeat triple_pull_exists. triple_reorder_pure. (*triple_pull_pure.*) subst.
+                  triple_pull_1_credit. eapply triple_weaken, triple_assign.
                   { eapply implies_trans.
                     { apply star_implies_mono.
                       { apply implies_refl. }
@@ -884,7 +922,16 @@ Proof.
                     eapply star_implies_mono.
                     { apply implies_refl. }
                     { apply star_comm. }
-                    swap_star. solve_star. }
+                    eassert ((<[x4 = Int (Z.of_nat _)]> <*> <(x0:==x4)> <*> _) c2 m2).
+                    { apply star_assoc_l, star_comm, star_assoc_l.
+                      match goal with
+                      | [|- (?P1 <*> (?P2 <*> <[ ?j = ?i ]>)) ?c ?m] =>
+                        change ((P1 <*> (fun t => P2 <*> <[ t = i ]>) j) c m)
+                      end.
+                      eassumption. }
+                    simpl in *. swap_star. solve_star. normalize_star. subst. eassumption. (*eapply star_implies_mono in H3; eauto.
+                    { apply implies_spec. intros. normalize_star. rewrite H5 in H7. eassumption. }
+                    { apply implies_refl. }*) }
                   -- apply triple_value_implies. apply implies_spec. intros.
                     solve_star. eassumption.
                   -- triple_pull_1_credit. eapply triple_weaken, triple_iadd.
@@ -906,14 +953,16 @@ Proof.
                           change ((fun i : Z => <[i = j]> <*> (<(v :== Int i)> <*> Q)) j c m) in H
                         end. eassumption. }
                       apply triple_value_implies. apply implies_spec. intros. solve_star. eassumption.
-                    ++ intros. apply triple_value_implies. apply implies_spec. intros. normalize_star. subst. solve_star.
+                    ++ intros. apply triple_value_implies. apply implies_spec. intros. normalize_star. subst. solve_star. apply star_assoc. swap_star. solve_star.
                       { f_equal.
                         match goal with
                         | [|- (Z.of_nat ?n1 + 1)%Z = Z.of_nat ?n2] =>
                           change (Z.of_nat n1 + Z.of_nat 1 = Z.of_nat n2)%Z
                         end.
                         rewrite Nat2Z.inj_add. reflexivity. }
-                      { rewrite bind_v_shift, bind_v_id in *. (*TODO*) unfold_all_in H5. unfold_all. edestruct_direct. invert_Intwv_nil. split_all; eauto using Interweave_nil_l, Interweave_nil_r; simpl in *; eauto; try lia; admit. }
+                      { (*repeat rewrite bind_v_liftS_shift_swap in *. repeat rewrite bind_v_shift, bind_v_id in *.*)
+                        unfold_all_in H5. unfold_all. edestruct_direct. invert_Intwv_nil.
+                        split_all; eauto using Interweave_nil_l, Interweave_nil_r; simpl in *; eauto; lia. }
             - repeat triple_pull_exists.
               triple_reorder_pure. repeat triple_pull_pure.
               rewrite Z.ltb_nlt in *. assert (x1 = n) as -> by lia.
@@ -953,263 +1002,4 @@ Proof.
                       3:eassumption.
                       { apply implies_refl. }
                       { apply credits_star_r. reflexivity. } } } } } } }
-Admitted.
-(*
-(* vvvv TODO vvvv *)
-Fact f_cons_app_expr :
-  forall (e : Expr _) (v vl : Value _) (m m' m'' : Map _) c c',
-    C[e, m ~~> v, m' | c] ->
-    C[f_cons <* v, m' ~~> vl, m'' | c'] ->
-    C[f_cons <* e, m ~~> vl, m'' | c + c'].
-Proof.
-  eauto using cost_red_comp, cost_red_app2.
 Qed.
-
-Fact f_cons_app_expr2 :
-  forall (e el : Expr _) (v vl vl' : Value _) (m m' m'' m''' : Map _) c c' c'',
-    Is_Valid_Map m ->
-    C[e, m ~~> v, m' | c] ->
-    C[el, m' ~~> vl, m'' | c'] ->
-    C[f_cons <* v <* vl, m'' ~~> vl', m''' | c''] ->
-    exists c''', C[f_cons <* e <* el, m ~~> vl', m''' | c'''].
-Proof.
-  intros e el v vl vl' m m' m'' m''' c c' c'' Hvalid Hred1 Hred2 Hred3.
-  eassert (forall m0, C[f_cons <* v, m0 ~~> _, m0 | 1]) as Hred.
-  { econstructor 2; cbn; econstructor. }
-  cbn in *. remember (-\ RecV [Int 1; shift_v v; Var None]) as vl'' eqn:Hvl''.
-  assert (C[f_cons <* e, m ~~> vl'', m' | c + 1]) as Hred'.
-  { subst. eapply f_cons_app_expr; eauto. }
-  eassert (forall m0, C[ vl'' <* vl, m0 ~~> _, m0 | 1]) as Hred''.
-  { subst. econstructor 2; cbn; econstructor. }
-  cbn in *.
-  remember (RecV [Int 1; bind_v (inc_fun Var vl) (shift_v v); vl])
-    as vl''' eqn:Hvl'''.
-  assert (C[f_cons <* e <* el, m ~~> vl'' <* vl, m'' | (c + 1) + c'])
-    as Hred'''.
-  { eapply cost_red_comp.
-    + eapply cost_red_app1. eassumption.
-    + eapply cost_red_app2. eassumption. }
-  assert (C[f_cons <* e <* el, m ~~> vl''', m'' | ((c + 1) + c') + 1])
-    as Hred''''.
-  { eapply cost_red_comp; eauto. }
-  assert (forall m0, C[f_cons <* v <* vl, m0 ~~> vl'' <* vl, m0 | 1])
-    as Hred'''''.
-  { subst. econstructor 2; repeat econstructor. }
-  assert (forall m0, C[f_cons <* v <* vl, m0 ~~> vl''', m0 | 2])
-    as Hred''''''.
-  { subst. econstructor 2; repeat econstructor. }
-  assert (Is_Valid_Map m') as Hvalid'.
-  { edestruct uniqueness_full as [? [? [? ?]]].
-    + eassumption.
-    + apply Hred1.
-    + eassumption.
-    + assumption. }
-  assert (Is_Valid_Map m'') as Hvalid''.
-  { edestruct uniqueness_full as [? [? [? ?]]].
-    + eassumption.
-    + apply Hred2.
-    + eassumption.
-    + assumption. }
-  destruct (uniqueness_full _ _ _ _ _ _ _ _ _ Hvalid'' Hred3 (Hred'''''' m''))
-    as [? [? ?]].
-  subst. eauto.
-Qed.
-
-(* goal 3 *)
-Lemma f_cons_red_to_list :
-  forall L (e el : Expr _) l (v vl vl' : Value _) c1 c1' (m m' m'' m''' m'''' : Map _)
-    c c' c'' c''',
-    Is_Valid_Map m ->
-    C[e, m ~~> v, m' | c] ->
-    C[el, m' ~~> vl, m'' | c'] ->
-    C[Ref vl, m'' ~~> Lab l, m''' | c''] ->
-    C[f_cons <* e <* Ref el, m ~~> vl', m'''' | c'''] ->
-    is_list L vl c1 m'' ->
-    is_list (v::L) vl' c1' m''''.
-Proof.
-  intros L e el l v vl vl' c1 c1' m m' m'' m''' m'''' c c' c'' c'''
-    Hvalid Hred Hred1 Hred2 Hred3 His_list.
-  assert (Is_Valid_Map m') as Hvalid'.
-  { edestruct uniqueness_full as [? [? [? ?]]].
-    + eassumption.
-    + apply Hred.
-    + eassumption.
-    + assumption. }
-  assert (Is_Valid_Map m'') as Hvalid''.
-  { edestruct uniqueness_full as [? [? [? ?]]].
-    + eassumption.
-    + apply Hred1.
-    + eassumption.
-    + assumption. }
-  eassert (C[Ref el, m' ~~> Lab l, m''' | c' + c'']) as Hred'.
-  { eapply cost_red_comp.
-    + eapply cost_red_ref_e. eassumption.
-    + eassumption. }
-  eassert (Lookup l m''' vl /\ is_list L vl c1 m''') as [Hlookup His_list'].
-  { inversion Hred2. subst. inversion H; try discriminate_red_Val.
-    subst. inversion H0; try discriminate_red_Val. subst. split.
-    + constructor.
-    + apply is_list_cons_map.
-      * apply new_label_is_fresh.
-      * assumption. }
-  eassert (forall m0, C[f_cons <* v <* vl, m0 ~~> _, m0 | 2])
-    as Hred''.
-  { econstructor.
-    + repeat econstructor.
-    + cbn. econstructor.
-      * econstructor.
-      * cbn. econstructor. }
-  remember (RecV [Int 1; bind_v (inc_fun Var vl) (shift_v v); vl]) as v'
-    eqn:Hv'.
-  specialize Hred'' with m''' as Hred'''.
-  edestruct f_cons_app_expr2 as [c'''' Hred''''].
-  - eapply Hvalid.
-  - eapply Hred.
-  - eapply Hred'.
-  - econstructor 2.
-    + repeat econstructor.
-    + cbn. econstructor 2.
-      * repeat econstructor.
-      * cbn. econstructor.
-  - destruct (uniqueness_full _ _ _ _ _ _ _ _ _ Hvalid Hred3 Hred'''')
-      as [? [? ?]].
-    subst. rewrite bind_v_shift, bind_v_id. econstructor; eauto.
-Qed.
-
-(* alternative goal 4 *)
-Lemma e_of_list_v_of_list :
-  forall xs v m,
-    v_of_list xs = (v, m) ->
-    exists c, C[e_of_list xs, nil ~~> v, m | c].
-Proof.
-  induction xs; simpl; intros v m Heq.
-  - eexists. injection Heq as [] []. constructor.
-  - destruct v_of_list. destruct (IHxs v0 m0); trivial. eexists.
-    injection Heq as [] []. eapply cost_red_comp.
-    + eapply cost_red_app1. econstructor 2.
-      * econstructor.
-      * cbn. econstructor.
-    + eapply cost_red_comp.
-      * eapply cost_red_app2, cost_red_ref_e. eauto.
-      * econstructor 2.
-        -- eapply red_app2. econstructor. reflexivity.
-        -- econstructor 2.
-          ++ econstructor.
-          ++ cbn. unfold v_cons. rewrite bind_v_shift, bind_v_id.
-            econstructor.
-Qed.
-
-Lemma e_of_list_shift f xs :
-  map_labels_e f (e_of_list xs) = e_of_list (List.map (map_labels_v f) xs).
-Proof.
-  induction xs; simpl; repeat f_equal. assumption.
-Qed.
-
-Corollary v_of_list_e_of_list :
-  forall xs (v : Value _) m c,
-    C[e_of_list xs, nil ~~> v, m | c] ->
-    v_of_list xs = (v, m).
-Proof.
-  intros xs v m c Hred. destruct v_of_list as (v', m') eqn:Heq.
-  apply e_of_list_v_of_list in Heq as [c' Hred'].
-  eapply uniqueness_full in Hred as [? [? [? ?]]];
-    [| constructor | eassumption].
-  now subst.
-Qed.
-
-Corollary e_of_list_v_of_list_general :
-  forall xs xs2 n v v2 m m' m2,
-    v_of_list xs = (v, m) ->
-    S n = of_label (new_label m') ->
-    xs2 = List.map (map_labels_v (lift (fun n' => OfNat (plus n n')))) xs ->
-    m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m ->
-    v2 = map_labels_v (lift (fun n' => OfNat (plus n n'))) v ->
-    exists c, C[e_of_list xs2, m' ~~> v2, m2 ++ m' | c]%list.
-Proof.
-  intros xs xs2 n v v2 m m' m2 Heq. intros. subst.
-  apply e_of_list_v_of_list in Heq as [c Hred].
-  eexists.
-  match goal with
-  | [|- cost_red ?e ?m ?e' ?m' ?c] => change (cost_red e ([]++m)%list e' m' c)
-  end.
-  eapply cost_red_shift; eauto; simpl; trivial.
-  now rewrite e_of_list_shift.
-Qed.
-
-Corollary v_of_list_e_of_list_general :
-  forall xs xs2 n (v v2 : Value _) m m' m2 c,
-    Is_Valid_Map m' ->
-    C[e_of_list xs2, m' ~~> v2, m2 ++ m' | c]%list ->
-    S n = of_label (new_label m') ->
-    xs2 = List.map (map_labels_v (lift (fun n' => OfNat (plus n n')))) xs ->
-    m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m ->
-    v2 = map_labels_v (lift (fun n' => OfNat (plus n n'))) v ->
-    v_of_list xs = (v, m).
-Proof.
-  intros xs xs2 n v v2 m m'' m2 c Hvalid Hred. intros. subst.
-  destruct v_of_list as (v', m') eqn:Heq.
-  eapply e_of_list_v_of_list_general in Heq as [c' Hred']; eauto.
-  eapply uniqueness_full in Hred as [Hv [Hm [Hc ?]]]; try eassumption.
-  apply shift_inj_v in Hv; [|
-    intros ? ? Heq'; apply lift_inj in Heq'; auto; intros ? ? Heq''; injection Heq''; lia
-  ].
-  apply List.app_inv_tail, list_map_inj in Hm.
-  - now subst.
-  - intros [[n0] v0] [[n0'] v0'] Heq. injection Heq as Hn0 Hv0.
-    apply shift_inj_v in Hv0; [|
-      intros ? ? Heq'; apply lift_inj in Heq'; auto; intros ? ? Heq''; injection Heq''; lia
-    ].
-    subst; repeat f_equal. lia.
-Qed.
-
-(* goal 4 *)
-Lemma e_of_list_is_list :
-  forall xs xs2 n (v : Value _) c1 (m m' : Map _) c,
-    Is_Valid_Map m ->
-    C[e_of_list xs2, m ~~> v, m' | c] ->
-    S n = of_label (new_label m) ->
-    xs2 = List.map (map_labels_v (lift (fun n' => OfNat (plus n n')))) xs ->
-    is_list xs2 v c1 m'.
-Proof.
-  intros xs xs2 n v m m' c Hvalid Hred. intros; subst.
-(*  eapply v_of_list_e_of_list_general in Hred as Heq.
-  destruct (v_of_list xs) eqn:Hxs.
-  destruct e_of_list_v_of_list with xs v0 m0. specialize (H Hxs).*)
-(*
-  eapply extend_state in H.
-  - inversion Hred; [constructor | discriminate_red_Val].
-  - eapply f_cons_red_to_list.
-
-  induction xs; simpl; intros v m m' c Hvalid Hred.
-  - inversion Hred; [constructor | discriminate_red_Val].
-  - eapply f_cons_red_to_list.
-    + eassumption.
-    + econstructor 1.
-    +
-  
-   inversion Hred; subst.
-    repeat match goal with
-    | [H : red _ _ _ _ |- _] =>
-      inversion H; subst; cbn in *; clear H
-    end.
-    inversion H0; subst.
-    inversion H; subst; cbn in *; clear H; try discriminate_red_Val.
-    destruct xs; simpl in *.
-    inversion H7; subst; cbn in *; clear H7.
-    + unfold e_of_list in H. destruct xs; try discriminate.
-      injection H. intro. subst. simpl in *. eapply IHxs.
-        .
-    repeat match goal with
-    | [H : red _ _ _ _ |- _] =>
-      inversion H; subst; cbn in *; clear H
-    end.
-   eapply f_cons_is_list.
-    + exact Hred. eassumption.
-   destruct v_of_list. injection Heq as [] [].
-    econstructor.
-    + apply Lookup_spec_eq. apply lookup_same.
-    + apply is_list_update; auto. apply new_label_is_fresh.
-Qed.
-*)
-Abort.
-*)

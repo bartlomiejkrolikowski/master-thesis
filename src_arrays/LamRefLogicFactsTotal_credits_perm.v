@@ -1477,13 +1477,12 @@ Proof.
 Qed.
 
 Lemma valid_map_Lookup (V : Set) l v (m : Map V) :
-  Is_Valid_Map m ->
   List.In (l, Some v) m ->
   Lookup l m v.
 Proof.
   unfold Is_Valid_Map. unfold_all. revert l v. induction m; simpl; intros.
   - contradiction.
-  - inversion H. destruct H0 as [-> | ?]; eauto_lr.
+  - destruct H as [-> | ?]; eauto_lr.
 Qed.
 
 Theorem htriple_deref (V : Set) (e : Expr V) (v : Value V) l P Q :
@@ -1555,13 +1554,12 @@ Proof.
 Qed.
 
 Lemma valid_map_Assignment (V : Set) l v v' (m : Map V) :
-  Is_Valid_Map m ->
   List.In (l,v) m ->
   Assignment l v' m (update l v' m).
 Proof.
   unfold Is_Valid_Map. unfold_all. revert l v. induction m; simpl; intros.
   - contradiction.
-  - inversion H. destruct l as (n). destruct H0 as [-> | ?].
+  - destruct l as (n). destruct H as [-> | ?].
     + unfold_all_lab. rewrite Nat.eqb_refl. constructor.
     + destruct a as ((n')&?). unfold_all_lab. destruct Nat.eqb_spec with n n'.
       * subst. constructor.
@@ -1620,16 +1618,16 @@ Proof.
 Qed.
 
 (* TODO *)
-Theorem htriple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 :
+Theorem htriple_assign (V : Set) (e1 e2 : Expr V) (v : Value V) l P1 P2 Q2 :
   hoare_triple e1
     (<(l :== v)> <*> P1)
     (fun v'' => <[v'' = Lab l]> <*> <(l :== v)> <*> P2) ->
   hoare_triple e2
     (<(l :== v)> <*> P2)
-    (fun v'' => <[v'' = v']> <*> <(l :== v)> <*> Q2) ->
+    (fun v' => <(l :== v)> <*> Q2 v') ->
   hoare_triple (Assign e1 e2)
     (sa_credits 1 <*> <(l :== v)> <*> P1)
-    (fun v'' => <[v'' = U_val]> <*> <(l :== v')> <*> Q2).
+    (fun v'' => <[v'' = U_val]> <*> <exists> v', <(l :== v')> <*> Q2 v').
 Proof.
   unfold hoare_triple. intros. normalize_star. make_cred_positive.
   edestruct_direct. fold_star. repeat invert_Intwv_nil.
@@ -1646,16 +1644,16 @@ Proof.
   lia.
 Qed.
 
-Theorem triple_assign (V : Set) (e1 e2 : Expr V) (v v' : Value V) l P1 P2 Q2 :
+Theorem triple_assign (V : Set) (e1 e2 : Expr V) (v : Value V) l P1 P2 Q2 :
   triple e1
     (<(l :== v)> <*> P1)
     (fun v'' => <[v'' = Lab l]> <*> <(l :== v)> <*> P2) ->
   triple e2
     (<(l :== v)> <*> P2)
-    (fun v'' => <[v'' = v']> <*> <(l :== v)> <*> Q2) ->
+    (fun v' => <(l :== v)> <*> Q2 v') ->
   triple (Assign e1 e2)
     (sa_credits 1 <*> <(l :== v)> <*> P1)
-    (fun v'' => <[v'' = U_val]> <*> <(l :== v')> <*> Q2).
+    (fun v'' => <[v'' = U_val]> <*> <exists> v', <(l :== v')> <*> Q2 v').
 Proof.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.
   edestruct_direct. fold_star. fold_star. repeat invert_Intwv_nil.
