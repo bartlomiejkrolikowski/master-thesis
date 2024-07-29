@@ -1617,16 +1617,15 @@ Proof.
       rewrite labels_update; unfold labels; auto.
 Qed.
 
-(* TODO *)
-Theorem htriple_assign (V : Set) (e1 e2 : Expr V) (v : Value V) l P1 P2 Q2 :
+Theorem htriple_assign (V : Set) (e1 e2 : Expr V) (v : option (Value V)) l P1 P2 Q2 :
   hoare_triple e1
-    (<(l :== v)> <*> P1)
-    (fun v'' => <[v'' = Lab l]> <*> <(l :== v)> <*> P2) ->
+    (<(l :?= v)> <*> P1)
+    (fun v'' => <[v'' = Lab l]> <*> <(l :?= v)> <*> P2) ->
   hoare_triple e2
-    (<(l :== v)> <*> P2)
-    (fun v' => <(l :== v)> <*> Q2 v') ->
+    (<(l :?= v)> <*> P2)
+    (fun v' => <(l :?= v)> <*> Q2 v') ->
   hoare_triple (Assign e1 e2)
-    (sa_credits 1 <*> <(l :== v)> <*> P1)
+    (sa_credits 1 <*> <(l :?= v)> <*> P1)
     (fun v'' => <[v'' = U_val]> <*> <exists> v', <(l :== v')> <*> Q2 v').
 Proof.
   unfold hoare_triple. intros. normalize_star. make_cred_positive.
@@ -1644,15 +1643,15 @@ Proof.
   lia.
 Qed.
 
-Theorem triple_assign (V : Set) (e1 e2 : Expr V) (v : Value V) l P1 P2 Q2 :
+Theorem triple_assign (V : Set) (e1 e2 : Expr V) (v : option (Value V)) l P1 P2 Q2 :
   triple e1
-    (<(l :== v)> <*> P1)
-    (fun v'' => <[v'' = Lab l]> <*> <(l :== v)> <*> P2) ->
+    (<(l :?= v)> <*> P1)
+    (fun v'' => <[v'' = Lab l]> <*> <(l :?= v)> <*> P2) ->
   triple e2
-    (<(l :== v)> <*> P2)
-    (fun v' => <(l :== v)> <*> Q2 v') ->
+    (<(l :?= v)> <*> P2)
+    (fun v' => <(l :?= v)> <*> Q2 v') ->
   triple (Assign e1 e2)
-    (sa_credits 1 <*> <(l :== v)> <*> P1)
+    (sa_credits 1 <*> <(l :?= v)> <*> P1)
     (fun v'' => <[v'' = U_val]> <*> <exists> v', <(l :== v')> <*> Q2 v').
 Proof.
   unfold triple, hoare_triple. intros. normalize_star. make_cred_positive.

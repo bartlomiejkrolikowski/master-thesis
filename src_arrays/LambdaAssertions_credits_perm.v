@@ -60,6 +60,7 @@ Definition sa_implies {V : Set} (A1 A2 : StateAssertion V) : Prop :=
 
 Notation "<[]>" := (sa_empty).
 Notation "<[ P ]>" := (sa_pure P).
+Notation "<( l :?= v )>" := (sa_single_any l v).
 Notation "<( l :== v )>" := (sa_single l v).
 Notation "<( l :\= )>" := (sa_single_decl l).
 Notation "<( l :\ n \= )>" := (sa_array_decl l n).
