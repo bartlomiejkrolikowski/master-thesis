@@ -32,10 +32,13 @@ Definition free_array : Value string :=
       Free (Var "i")
     [end]%string.
 
+(*
 Parameter log : Value string.
+*)
 Parameter pow : Value string.
 Parameter mkset : Value string.
-
+Parameter mklinkedlist : Value string.
+(*
 Definition mkheap : Value string :=
   [-\] "C",
     [let "size"] log <* Var "C" [in]
@@ -70,3 +73,40 @@ Definition mkheap : Value string :=
     [end]
     [end]
     [end]%string.
+*)
+
+Definition mkheap : Value string :=
+  [-\] "n",
+    [let "buckets"] mklinkedlist <* U_val [in]
+    [let "key_positions"] NewArray (Var "n") [in]
+    [let "key_refs"] NewArray (Var "n") [in]
+      RecE [
+        Val (Var "buckets");
+        Val (Var "key_positions");
+        Val (Var "key_refs");
+        Ref (Int 0) (* size *)
+      ]
+    [end]
+    [end]
+    [end]%string.
+
+Definition h_buckets : nat := 0.
+Definition h_key_positions : nat := 1.
+Definition h_key_refs : nat := 2.
+Definition h_size : nat := 3.
+
+Definition in_range : Value string :=
+  ([-\] "x", [-\] "min", [-\] "max",
+    (Var "min" [=] Var "x") [||]
+    (Var "min" [<] Var "x") [||]
+    (Var "x" [<] Var "max"))%string.
+
+Parameter h_insert : Value string.
+
+Definition h_empty : Value string :=
+  ([-\] "h",
+    Get h_size (Var "h") [=] Int 0)%string.
+
+Parameter h_extract_min : Value string.
+Parameter h_decrease_key : Value string.
+Parameter h_free : Value string.
