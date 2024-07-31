@@ -37,8 +37,9 @@ Parameter pow : Value string.
 Parameter mkset : Value string.
 Parameter s_add : Value string. (* add to a set *)
 Parameter s_get : Value string. (* take any value from a set *)
-Parameter s_extract : Value string. (* take a given value from a set *)
+Parameter s_extract_ref : Value string. (* take a given value from a set *)
 Parameter s_get_min : Value string. (* take min from the set *)
+Parameter s_decrease_ref : Value string. (* change a given value in the set *)
 Parameter s_empty : Value string. (* a set is empty *)
 Parameter s_free : Value string.
 
@@ -194,7 +195,8 @@ Definition h_extract_min : Value string :=
                 (Var "key_positions" >> Var "x_key") <- Var "j";;
                 (Var "key_refs" >> Var "x_key") <-
                   s_add <* Get b_content (Var "new_bucket") <* Var "rec_x"
-              [end]
+              [end];;
+              Free (Var "j")
             [end]
             [end]
             [end]
@@ -219,7 +221,47 @@ Definition h_extract_min : Value string :=
     [end]
     [end])%string.
 
-Parameter h_decrease_key : Value string.
+Definition h_decrease_key : Value string :=
+  [-\] "h", [-\] "key", [-\] "value",
+    [let "buckets"] Get h_buckets (Var "h") [in]
+    [let "key_positions"] Get h_key_positions (Var "h") [in]
+    [let "key_refs"] Get h_key_positions (Var "h") [in]
+    [let "key_i"] ! (Var "key_positions" >> Var "key") [in]
+    [let "key_r"] ! (Var "key_refs" >> Var "key") [in]
+    [let "bucket"] ! (Var "buckets" >> Var "key_i") [in]
+    [let "content"] Get b_content (Var "bucket") [in]
+    [let "rng_lo"] Get b_rng_lo (Var "bucket") [in]
+    [let "rng_hi"] Get b_rng_hi (Var "bucket") [in]
+      [if] in_range <* Var "value" <* Var "rng_lo" <* Var "rng_hi" [then]
+        (Var "key_refs" >> Var "key_i") <-
+          s_decrease_ref <* Var "content" <* Var "key_r" <* Var "value"
+      [else]
+        s_extract_ref <* Var "content" <* Var "key_r";;
+        [let "j"] Ref (Var "key_i" [-] Int 1) [in]
+          [while] [~] (
+            in_range <* Var "value"
+              <* (! Get b_rng_lo (Var "buckets" >> Var "j"))
+              <* ! Get b_rng_hi (Var "buckets" >> Var "j")
+          ) [do]
+            Var "j" <- (! Var "j") [-] Int 1
+          [end];;
+          [let "new_bucket"] ! (Var "buckets" >> ! Var "j") [in]
+            (Var "key_positions" >> Var "key") <- Var "j";;
+            (Var "key_refs" >> Var "key") <-
+              s_add <* Get b_content (Var "new_bucket") <* RecV [Var "key"; Var "value"]
+          [end];;
+          Free (Var "j")
+        [end]
+      [end]
+    [end]
+    [end]
+    [end]
+    [end]
+    [end]
+    [end]
+    [end]
+    [end]
+    [end]%string.
 
 Definition h_free : Value string :=
   [-\] "h",
