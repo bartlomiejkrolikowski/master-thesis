@@ -30,6 +30,13 @@ Definition g_total {A} V : graph A := {|
     let '(conj _ HV) := HE in HV
 |}.
 
+Definition g_empty {A} : graph A := {|
+  V x := False;
+  E u v := False;
+  E_closed1 _ _ HE := match HE with end;
+  E_closed2 _ _ HE := match HE with end
+|}.
+
 Definition intersect {A} (P Q : A -> Prop) (x : A) : Prop := P x /\ Q x.
 Definition intersect2 {A} (P Q : A -> A -> Prop) (x y : A) : Prop :=
   P x y /\ Q x y.
@@ -195,8 +202,25 @@ Fixpoint walk_cost {A} (W : A -> A -> nat) (p : list A) : nat :=
   | u::(v::_) as p' => W u v + walk_cost W p'
   end.
 
-Definition min_cost_elem {A} (P : A -> Prop) (cost : A -> nat) (x : A) :=
-  P x /\ forall (y : A), P y -> cost x <= cost y.
+Class Ordered A := {
+  le : A -> A -> Prop
+}.
+
+Instance Ordered_nat : Ordered nat := {|
+  le := Peano.le
+|}.
+
+Instance Ordered_option A `(Ordered A) : Ordered (option A) := {|
+  le x y := match x, y with
+  | Some x, Some y => le x y
+  | Some x, None => True
+  | None, Some y => False
+  | None, None => True
+  end
+|}.
+
+Definition min_cost_elem {A B} `{Ordered B} (P : A -> Prop) (cost : A -> B) (x : A) :=
+  P x /\ forall (y : A), P y -> le (cost x) (cost y).
 
 Definition is_shortest_walk {A} (g : wgraph A) (u v : A) (p : list A) :=
   min_cost_elem (is_walk g u v) (walk_cost (W g)) p.
@@ -237,8 +261,8 @@ Definition is_shortest_paths_tree {A} (s : A) (t : graph A) (g : wgraph A) :=
   is_rooted_tree s t /\
     forall v p, is_path t s v p -> is_shortest_path g s v p.
 
-Definition are_valid_distances {A} (D : A -> nat) (s : A) (g : wgraph A) :=
-  forall v p, is_shortest_path g s v p -> D v = walk_cost (W g) p.
+Definition are_valid_distances {A} (D : A -> option nat) (s : A) (g : wgraph A) :=
+  forall v p, is_shortest_path g s v p -> D v = Some (walk_cost (W g) p).
 
 Definition pred2graph {A} (root : A) (pred : A -> option A) : graph A := {|
   V x := x = root \/ (exists y, Some y = pred x) \/ exists y, Some x = pred y;
@@ -256,7 +280,7 @@ Definition are_maximal_predecessors {A}
   forall v p, is_walk g s v p -> exists p', is_walk (pred2graph s pred) s v p'.
 
 Definition Dijkstra_distance_invariant {A}
-  (D : A -> nat) (P : A -> Prop) (s : A) (g : wgraph A) :=
+  (D : A -> option nat) (P : A -> Prop) (s : A) (g : wgraph A) :=
   are_valid_distances D s (wg_lift (induced_subgraph_with_edge P) g).
 
 Definition Dijkstra_predecessors_invariant {A}
@@ -265,6 +289,243 @@ Definition Dijkstra_predecessors_invariant {A}
     are_valid_predecessors pred s g' /\ are_maximal_predecessors pred s g'.
 
 Definition Dijkstra_invariant {A}
-  (D : A -> nat) (pred : A -> option A) (P : A -> Prop) (s : A) (g : wgraph A) :=
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop) (s : A) (g : wgraph A) :=
   Dijkstra_distance_invariant D P s g /\
   Dijkstra_predecessors_invariant pred P s g.
+
+Definition Dijkstra_final {A}
+  (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :=
+  are_valid_distances D s g /\
+  are_valid_predecessors pred s g /\
+  are_maximal_predecessors pred s g.
+
+Definition empty {A} (x : A) : Prop := False.
+Definition single {A} (x y : A) : Prop := x = y.
+
+Definition Dijkstra_initial {A}
+  (D : A -> option nat) (pred : A -> option A) (s : A) :=
+  D s = Some 0 /\ (forall v, v <> s -> D v = None) /\ (forall v, pred v = None).
+
+Definition add_single {A} (P : A -> Prop) (x : A) := set_sum P (single x).
+
+Definition distance_decrease {A}
+  (g : wgraph A) (v : A) (D D' : A -> option nat) (pred pred' : A -> option A) :=
+  exists dv, D v = Some dv /\
+  forall u,
+    (E g v u ->
+      (D u = None -> D' u = Some (dv + W g v u) /\ pred' u = Some v) /\
+      (forall du, D u = Some du ->
+        (dv + W g v u < du -> D' u = Some (dv + W g v u) /\ pred' u = Some v) /\
+        (dv + W g v u >= du -> D' u = D u /\ pred' u = pred u))) /\
+    (~ E g v u -> D' u = D u /\ pred' u = pred u).
+
+Definition closest_neighbour {A}
+  (g : wgraph A) (P : A -> Prop) (D : A -> option nat) (v : A) :=
+  min_cost_elem (neighbourhood g P) D v.
+
+Definition set_equiv {A} (P Q : A -> Prop) : Prop :=
+  forall x, P x <-> Q x.
+
+Definition set_equiv2 {A} (P Q : A -> A -> Prop) : Prop :=
+  forall x y, P x y <-> Q x y.
+
+Definition gr_equiv {A} (g1 g2 : graph A) : Prop :=
+  set_equiv (V g1) (V g2) /\ set_equiv2 (E g1) (E g2).
+
+Notation "g1 ~= g2" := (gr_equiv g1 g2) (at level 60).
+
+Definition is_empty {A} (g : wgraph A) : Prop :=
+  g ~= g_empty.
+
+(* proofs of properties *)
+
+Fact intersect_empty_l A (P : A -> Prop) x :
+  intersect empty P x <-> empty x.
+Proof.
+  unfold intersect, empty. intuition.
+Qed.
+
+Fact intersect_empty_r A (P : A -> Prop) x :
+  intersect P empty x <-> empty x.
+Proof.
+  unfold intersect, empty. intuition.
+Qed.
+
+Fact set_sum_empty_l A (P : A -> Prop) x :
+  set_sum empty P x <-> P x.
+Proof.
+  unfold set_sum, empty. intuition.
+Qed.
+
+Fact set_sum_empty_r A (P : A -> Prop) x :
+  set_sum P empty x <-> P x.
+Proof.
+  unfold set_sum, empty. intuition.
+Qed.
+
+Fact neighbourhood_empty A (g : graph A) x :
+  neighbourhood g empty x <-> empty x.
+Proof.
+  unfold neighbourhood, empty. split.
+  - intros (_&?&?&_). assumption.
+  - intros [].
+Qed.
+
+Fact set_equiv_spec A (P Q : A -> Prop) :
+  set_equiv P Q <-> forall x, P x <-> Q x.
+Proof.
+  reflexivity.
+Qed.
+
+Fact set_equiv_spec_r A (P Q : A -> Prop) :
+  set_equiv P Q -> forall x, P x <-> Q x.
+Proof.
+  apply set_equiv_spec.
+Qed.
+
+Fact vx_edge_empty A (g : graph A) x :
+  vx_edge g empty x <-> empty x.
+Proof.
+  unfold vx_edge, empty. intuition.
+Qed.
+
+Lemma induced_subgraph_empty A (g : graph A) :
+  induced_subgraph empty g ~= g_empty.
+Proof.
+  unfold gr_equiv. simpl.
+  unfold set_equiv, set_equiv2. split; intros.
+  - rewrite intersect_empty_l. unfold empty. reflexivity.
+  - unfold empty. intuition.
+Qed.
+
+Lemma induced_subgraph_edge_empty A (g : graph A) :
+  induced_subgraph_edge empty g ~= g_empty.
+Proof.
+  unfold gr_equiv. simpl.
+  unfold set_equiv, set_equiv2, set_sum. split; intros.
+  - rewrite vx_edge_empty, neighbourhood_empty. unfold empty. intuition.
+  - unfold empty. intuition.
+Qed.
+
+Fact set_sum_equiv A (P P' Q Q' : A -> Prop) :
+  set_equiv P P' -> set_equiv Q Q' -> set_equiv (set_sum P Q) (set_sum P' Q').
+Proof.
+  unfold set_equiv, set_sum. intros HP HQ x. rewrite HP, HQ. reflexivity.
+Qed.
+
+Fact set_sum2_equiv A (P P' Q Q' : A -> A -> Prop) :
+  set_equiv2 P P' -> set_equiv2 Q Q' -> set_equiv2 (set_sum2 P Q) (set_sum2 P' Q').
+Proof.
+  unfold set_equiv2, set_sum2. intros HP HQ x y. rewrite HP, HQ. reflexivity.
+Qed.
+
+Lemma g_sum_equiv A (g1 g1' g2 g2' : graph A) :
+  g1 ~= g1' -> g2 ~= g2' -> (g1 ||| g2) ~= (g1' ||| g2').
+Proof.
+  unfold gr_equiv. simpl. intros (HV1&HE1) (HV2&HE2).
+  auto using set_sum_equiv, set_sum2_equiv.
+Qed.
+
+Fact gr_equiv_trans A (g1 g2 g3 : graph A) :
+  g1 ~= g2 -> g2 ~= g3 -> g1 ~= g3.
+Proof.
+  unfold gr_equiv, set_equiv, set_equiv2. intros (HV1&HE1) (HV2&HE2).
+  split; etransitivity; eauto.
+Qed.
+
+Fact g_sum_empty_l A (g : graph A) :
+  g_empty ||| g ~= g.
+Proof.
+  unfold gr_equiv. simpl. unfold set_sum, set_sum2, set_equiv, set_equiv2.
+  intuition.
+Qed.
+
+Fact g_sum_empty_r A (g : graph A) :
+  g ||| g_empty ~= g.
+Proof.
+  unfold gr_equiv. simpl. unfold set_sum, set_sum2, set_equiv, set_equiv2.
+  intuition.
+Qed.
+
+Lemma induced_subgraph_with_edge_empty A (g : graph A) :
+  induced_subgraph_with_edge empty g ~= g_empty.
+Proof.
+  unfold induced_subgraph_with_edge. eapply gr_equiv_trans.
+  - auto using g_sum_equiv, induced_subgraph_empty, induced_subgraph_edge_empty.
+  - apply g_sum_empty_l.
+Qed.
+
+Lemma no_walk_empty A (g : graph A) (s v : A) :
+  g ~= g_empty ->
+  set_equiv (is_walk g s v) empty.
+Proof.
+  unfold gr_equiv, set_equiv, set_equiv2, empty. simpl. intros (HV&HE) p. split.
+  - inversion 1.
+    + now rewrite HV in *.
+    + now rewrite HE in *.
+  - intros [].
+Qed.
+
+Lemma no_path_empty A (g : graph A) (s v : A) :
+  g ~= g_empty ->
+  set_equiv (is_path g s v) empty.
+Proof.
+  unfold set_equiv, empty, is_path. intros Hg p.
+  eapply no_walk_empty in Hg as Hnowalk. unfold set_equiv in Hnowalk.
+  rewrite Hnowalk. unfold empty. intuition.
+Qed.
+
+Lemma no_min_cost_elem_empty A B `(Ordered B) (P : A -> Prop) (C : A -> B) (x : A) :
+  set_equiv P empty ->
+  ~ min_cost_elem P C x.
+Proof.
+  unfold set_equiv, min_cost_elem, empty, not. intros Hempty (HP&_).
+  now rewrite Hempty in HP.
+Qed.
+
+Lemma no_shortest_path_empty A
+  (g : wgraph A) (s v : A) (p : list A) :
+  g ~= g_empty ->
+  ~ is_shortest_path g s v p.
+Proof.
+  unfold is_shortest_path. intros.
+  auto using no_min_cost_elem_empty, no_path_empty.
+Qed.
+
+Lemma valid_initial_distance A
+  (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
+  Dijkstra_initial D pred s ->
+  Dijkstra_distance_invariant D empty s g.
+Proof.
+  unfold Dijkstra_initial, Dijkstra_distance_invariant.
+  intros (HDs&HD&Hpred). unfold wg_lift, are_valid_distances. simpl.
+  intros v p Hpaths. apply no_shortest_path_empty in Hpaths as [].
+  simpl. apply induced_subgraph_with_edge_empty.
+Qed.
+
+Lemma valid_initial_predecessors A
+  (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
+  Dijkstra_initial D pred s ->
+  Dijkstra_predecessors_invariant pred empty s g.
+Proof.
+  unfold Dijkstra_initial, Dijkstra_predecessors_invariant.
+  intros (HDs&HD&Hpred) g' Hg'. subst.
+Admitted.
+
+Theorem valid_initial A
+  (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
+  Dijkstra_initial D pred s ->
+  Dijkstra_invariant D pred empty s g.
+Proof.
+  unfold Dijkstra_invariant.
+Admitted.
+
+Theorem valid_invariant A
+  (D D' : A -> option nat) (pred pred' : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) (v : A) :
+  Dijkstra_invariant D pred P s g ->
+  closest_neighbour g P D v ->
+  distance_decrease g v D D' pred pred' ->
+  Dijkstra_invariant D' pred' (add_single P v) s g.
+Proof.
+  Admitted.
