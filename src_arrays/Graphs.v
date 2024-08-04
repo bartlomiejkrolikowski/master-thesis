@@ -374,6 +374,34 @@ Proof.
   unfold set_sum, empty. intuition.
 Qed.
 
+Fact intersect_single_l A (P : A -> Prop) x y :
+  P y ->
+  (intersect (single y) P x <-> single y x).
+Proof.
+  unfold intersect, empty, single. intuition. now subst.
+Qed.
+
+Fact intersect_single_r A (P : A -> Prop) x y :
+  P y ->
+  (intersect P (single y) x <-> single y x).
+Proof.
+  unfold intersect, empty, single. intuition. now subst.
+Qed.
+
+Fact intersect_equiv_l A (P P' Q : A -> Prop) x :
+  set_equiv P P' ->
+  intersect P Q x <-> intersect P' Q x.
+Proof.
+  unfold set_equiv, intersect. intros Hequiv. rewrite Hequiv. reflexivity.
+Qed.
+
+Fact intersect_equiv_r A (P Q Q' : A -> Prop) x :
+  set_equiv Q Q' ->
+  intersect P Q x <-> intersect P Q' x.
+Proof.
+  unfold set_equiv, intersect. intros Hequiv. rewrite Hequiv. reflexivity.
+Qed.
+
 Fact neighbourhood_empty A (g : graph A) x :
   neighbourhood g empty x <-> empty x.
 Proof.
@@ -394,6 +422,12 @@ Proof.
   apply set_equiv_spec.
 Qed.
 
+Fact set_equiv_spec_l A (P Q : A -> Prop) :
+  (forall x, P x <-> Q x) -> set_equiv P Q.
+Proof.
+  apply set_equiv_spec.
+Qed.
+
 Fact vx_edge_empty A (g : graph A) x :
   vx_edge g empty x <-> empty x.
 Proof.
@@ -407,6 +441,21 @@ Proof.
   unfold set_equiv, set_equiv2. split; intros.
   - rewrite intersect_empty_l. unfold empty. reflexivity.
   - unfold empty. intuition.
+Qed.
+
+Lemma induced_subgraph_single A (P : A -> Prop) (v : A) (g : graph A) :
+  V g v ->
+  ~ E g v v ->
+  set_equiv P (single v) ->
+  induced_subgraph P g ~= g_single v.
+Proof.
+  unfold gr_equiv. simpl. intros Hv Hvv Hequiv.
+  unfold set_equiv, set_equiv2. split; intros.
+  - rewrite intersect_equiv_l; eauto. rewrite intersect_single_l.
+    + unfold single. intuition.
+    + assumption.
+  - unfold set_equiv, single in Hequiv. repeat rewrite Hequiv. intuition.
+    subst. auto.
 Qed.
 
 Lemma induced_subgraph_edge_empty A (g : graph A) :
@@ -466,6 +515,18 @@ Proof.
   - apply g_sum_empty_l.
 Qed.
 
+Lemma induced_subgraph_with_edge_and_vx_empty A (s : A) (g : graph A) :
+  V g s ->
+  ~ E g s s ->
+  induced_subgraph_with_edge_and_vx empty s g ~= g_single s.
+Proof.
+  unfold induced_subgraph_with_edge_and_vx. intros. eapply gr_equiv_trans.
+  - eauto using
+      g_sum_equiv, induced_subgraph_single, set_equiv_spec_l, set_sum_empty_l,
+      induced_subgraph_edge_empty.
+  - apply g_sum_empty_r.
+Qed.
+
 Lemma no_walk_empty A (g : graph A) (s v : A) :
   g ~= g_empty ->
   set_equiv (is_walk g s v) empty.
@@ -501,17 +562,6 @@ Lemma no_shortest_path_empty A
 Proof.
   unfold is_shortest_path. intros.
   auto using no_min_cost_elem_empty, no_path_empty.
-Qed.
-
-Lemma valid_initial_distance A
-  (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
-  Dijkstra_initial D pred s ->
-  Dijkstra_distance_invariant D empty s g.
-Proof.
-  unfold Dijkstra_initial, Dijkstra_distance_invariant.
-  intros (HDs&HD&Hpred). unfold wg_lift, are_valid_distances. simpl.
-  intros v p Hpaths. apply no_shortest_path_empty in Hpaths as [].
-  simpl. apply induced_subgraph_with_edge_empty.
 Qed.
 
 Lemma pred2graph_all_None_empty A
@@ -576,6 +626,21 @@ Proof.
   eapply all_undir_walks_trivial_single; eassumption.
 Qed.
 
+Lemma valid_initial_distance A
+  (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
+  V g s ->
+  ~ E g s s ->
+  Dijkstra_initial D pred s ->
+  Dijkstra_distance_invariant D empty s g.
+Proof.
+  unfold Dijkstra_initial, Dijkstra_distance_invariant.
+  intros HVs HEs (HDs&HD&Hpred).
+  unfold wg_lift, are_valid_distances, is_shortest_path, min_cost_elem.
+  simpl. intros v p (Hpath&_). eapply all_paths_trivial_single in Hpath as (_&->&->).
+  - simpl. eassumption.
+  - apply induced_subgraph_with_edge_and_vx_empty; eassumption.
+Qed.
+
 Lemma no_cycle_single A (s : A) (g : graph A) (p : list A) :
   g ~= g_single s -> ~ is_cycle g p.
 Proof.
@@ -635,35 +700,43 @@ Proof.
 Qed.
 
 Lemma are_maximal_predecessors_all_None A
-  (pred : A -> option A) (s : A) (g : wgraph A) :
-  V g s ->
+  (pred : A -> option A) (s : A) (g : graph A) :
+  g ~= g_single s ->
   (forall v : A, pred v = None) ->
   are_maximal_predecessors pred s g.
 Proof.
-  unfold are_maximal_predecessors. intros Hs Hpred v p Hwalk.
-Admitted.
+  unfold are_maximal_predecessors. intros Hsingle Hpred v p Hwalk.
+  eapply all_walks_trivial_single in Hwalk as (_&->&_); eauto.
+  exists [s]. constructor. simpl. auto.
+Qed.
 
 Lemma valid_initial_predecessors A
   (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
   V g s ->
+  ~ E g s s ->
   Dijkstra_initial D pred s ->
-  Dijkstra_predecessors_invariant pred (single s) s g.
+  Dijkstra_predecessors_invariant pred empty s g.
 Proof.
   unfold Dijkstra_initial, Dijkstra_predecessors_invariant.
-  intros Hs (HDs&HD&Hpred) g' Hg'. subst. split.
+  intros HVs HEs (HDs&HD&Hpred) g' Hg'. subst. split.
   - apply are_valid_predecessors_all_None.
     + simpl. unfold set_sum, intersect, single. auto.
     + assumption.
   - simpl.
-Admitted.
+    apply are_maximal_predecessors_all_None;
+      auto using induced_subgraph_with_edge_and_vx_empty.
+Qed.
 
 Theorem valid_initial A
   (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
+  V g s ->
+  ~ E g s s ->
   Dijkstra_initial D pred s ->
   Dijkstra_invariant D pred empty s g.
 Proof.
-  unfold Dijkstra_invariant.
-Admitted.
+  unfold Dijkstra_invariant. intros.
+  eauto using valid_initial_distance, valid_initial_predecessors.
+Qed.
 
 Theorem valid_invariant A
   (D D' : A -> option nat) (pred pred' : A -> option A) (P : A -> Prop)
