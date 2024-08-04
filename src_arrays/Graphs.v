@@ -30,8 +30,18 @@ Definition g_total {A} V : graph A := {|
     let '(conj _ HV) := HE in HV
 |}.
 
+Definition empty {A} (x : A) : Prop := False.
+Definition single {A} (x y : A) : Prop := x = y.
+
 Definition g_empty {A} : graph A := {|
   V x := False;
+  E u v := False;
+  E_closed1 _ _ HE := match HE with end;
+  E_closed2 _ _ HE := match HE with end
+|}.
+
+Definition g_single {A} (v : A) : graph A := {|
+  V x := x = v;
   E u v := False;
   E_closed1 _ _ HE := match HE with end;
   E_closed2 _ _ HE := match HE with end
@@ -105,6 +115,10 @@ Notation "g1 ||| g2" := (g_sum g1 g2) (at level 50).
 Definition induced_subgraph_with_edge {A}
   (P : A -> Prop) (g : graph A) : graph A :=
   induced_subgraph P g ||| induced_subgraph_edge P g.
+
+Definition induced_subgraph_with_edge_and_vx {A}
+  (P : A -> Prop) (v : A) (g : graph A) : graph A :=
+  induced_subgraph (set_sum P (single v)) g ||| induced_subgraph_edge P g.
 
 Definition is_total {A} (g : graph A) :=
   forall u v, E g u v.
@@ -236,11 +250,11 @@ Definition is_shortest_undir_path {A} (g : wgraph A) (u v : A) (p : list A) :=
 
 (* directed cycles *)
 Definition is_dicycle {A} (g : graph A) (p : list A) :=
-  exists (u v : A) (p' : list A), is_path g u v p' /\ p = v::p'.
+  exists (u v : A) (p' : list A), is_path g u v p' /\ E g v u /\ p = v::p'.
 
 (* undirected cycles *)
 Definition is_cycle {A} (g : graph A) (p : list A) :=
-  exists (u v : A) (p' : list A), is_undir_path g u v p' /\ p = v::p'.
+  exists (u v : A) (p' : list A), is_undir_path g u v p' /\ E g v u /\ p = v::p'.
 
 Definition is_acyclic {A} (g : graph A) :=
   forall p : list A, ~ is_cycle g p.
@@ -252,7 +266,7 @@ Definition is_tree {A} (g : graph A) (p : list A) :=
   is_conected g /\ is_acyclic g.
 
 Definition is_root {A} (g : graph A) (r : A) :=
-  forall v : A, exists p, is_walk g r v p.
+  forall v : A, V g v -> exists p, is_walk g r v p.
 
 Definition is_rooted_tree {A} (r : A) (g : graph A) :=
   is_root g r /\ is_acyclic g.
@@ -281,11 +295,11 @@ Definition are_maximal_predecessors {A}
 
 Definition Dijkstra_distance_invariant {A}
   (D : A -> option nat) (P : A -> Prop) (s : A) (g : wgraph A) :=
-  are_valid_distances D s (wg_lift (induced_subgraph_with_edge P) g).
+  are_valid_distances D s (wg_lift (induced_subgraph_with_edge_and_vx P s) g).
 
 Definition Dijkstra_predecessors_invariant {A}
   (pred : A -> option A) (P : A -> Prop) (s : A) (g : wgraph A) :=
-  forall g', g' = (wg_lift (induced_subgraph_with_edge P) g) ->
+  forall g', g' = (wg_lift (induced_subgraph_with_edge_and_vx P s) g) ->
     are_valid_predecessors pred s g' /\ are_maximal_predecessors pred s g'.
 
 Definition Dijkstra_invariant {A}
@@ -298,9 +312,6 @@ Definition Dijkstra_final {A}
   are_valid_distances D s g /\
   are_valid_predecessors pred s g /\
   are_maximal_predecessors pred s g.
-
-Definition empty {A} (x : A) : Prop := False.
-Definition single {A} (x y : A) : Prop := x = y.
 
 Definition Dijkstra_initial {A}
   (D : A -> option nat) (pred : A -> option A) (s : A) :=
@@ -503,13 +514,147 @@ Proof.
   simpl. apply induced_subgraph_with_edge_empty.
 Qed.
 
+Lemma pred2graph_all_None_empty A
+  (pred : A -> option A) (s : A) :
+  (forall v : A, pred v = None) ->
+  pred2graph s pred ~= g_single s.
+Proof.
+  unfold gr_equiv, set_equiv, set_equiv2. simpl. intros Hnone.
+  split; intros; split.
+  - intros [Heq | [(y&Hpred) | (y&Hpred)]];
+      auto; try rewrite Hnone in Hpred; discriminate.
+  - auto.
+  - rewrite Hnone. discriminate.
+  - contradiction.
+Qed.
+
+Lemma is_root_single A (s : A) (g : graph A) :
+  g ~= g_single s -> is_root g s.
+Proof.
+  unfold gr_equiv, set_equiv, set_equiv2, is_root. simpl. intros (HV&HE) v Hv.
+  apply HV in Hv as ->. exists [s]. constructor. apply HV. reflexivity.
+Qed.
+
+Lemma all_walks_trivial_single A (s : A) (g : graph A) (u v : A) (p : list A) :
+  g ~= g_single s ->
+  is_walk g u v p ->
+  u = s /\ v = s /\ p = [s].
+Proof.
+  unfold gr_equiv, set_equiv, set_equiv2. simpl. intros (HV&HE) Hwalk.
+  destruct Hwalk.
+  - rewrite HV in *. repeat split; f_equal; assumption.
+  - rewrite HE in *. contradiction.
+Qed.
+
+Lemma all_paths_trivial_single A (s : A) (g : graph A) (u v : A) (p : list A) :
+  g ~= g_single s ->
+  is_path g u v p ->
+  u = s /\ v = s /\ p = [s].
+Proof.
+  unfold is_path. intros Hequiv (Hwalk&_).
+  eapply all_walks_trivial_single; eassumption.
+Qed.
+
+Lemma all_undir_walks_trivial_single A (s : A) (g : graph A) (u v : A) (p : list A) :
+  g ~= g_single s ->
+  is_undir_walk g u v p ->
+  u = s /\ v = s /\ p = [s].
+Proof.
+  unfold gr_equiv, set_equiv, set_equiv2. simpl. intros (HV&HE) Hwalk.
+  destruct Hwalk.
+  - rewrite HV in *. repeat split; f_equal; assumption.
+  - rewrite HE in *. contradiction.
+  - rewrite HE in *. contradiction.
+Qed.
+
+Lemma all_undir_paths_trivial_single A (s : A) (g : graph A) (u v : A) (p : list A) :
+  g ~= g_single s ->
+  is_undir_path g u v p ->
+  u = s /\ v = s /\ p = [s].
+Proof.
+  unfold is_undir_path. intros Hequiv (Hwalk&_).
+  eapply all_undir_walks_trivial_single; eassumption.
+Qed.
+
+Lemma no_cycle_single A (s : A) (g : graph A) (p : list A) :
+  g ~= g_single s -> ~ is_cycle g p.
+Proof.
+  unfold gr_equiv, set_equiv, set_equiv2, is_cycle, not. simpl.
+  intros (HV&HE) (u&v&p'&Hpath&Hvu&Hp). rewrite HE in Hvu. assumption.
+Qed.
+
+Lemma is_acyclic_single A (s : A) (g : graph A) :
+  g ~= g_single s -> is_acyclic g.
+Proof.
+  unfold is_acyclic. intros Hequiv p. eapply no_cycle_single. eassumption.
+Qed.
+
+Lemma is_rooted_tree_single A (s : A) (g : graph A) :
+  g ~= g_single s ->
+  is_rooted_tree s g.
+Proof.
+  unfold is_rooted_tree. eauto using is_root_single, is_acyclic_single.
+Qed.
+
+Lemma trivial_path_is_path A (v : A) (g : graph A) :
+  V g v -> is_path g v v [v].
+Proof.
+  unfold is_path. intros Hv. split; repeat constructor; simpl; auto.
+Qed.
+
+Lemma trivial_path_is_shortest A (v : A) (g : wgraph A) :
+  V g v -> is_shortest_path g v v [v].
+Proof.
+  unfold is_shortest_path, min_cost_elem. intros Hv. split.
+  - apply trivial_path_is_path. assumption.
+  - intros p Hpath. simpl. apply le_0_n.
+Qed.
+
+Lemma is_shortest_paths_tree_single A (s : A) (g : graph A) (wg : wgraph A) :
+  g ~= g_single s ->
+  V wg s ->
+  is_shortest_paths_tree s g wg.
+Proof.
+  unfold is_shortest_paths_tree. intros Hequv Hs. split.
+  - apply is_rooted_tree_single. assumption.
+  - intros v p Hpath.
+    eapply all_paths_trivial_single in Hpath as (_&->&->); [|eassumption].
+    apply trivial_path_is_shortest. assumption.
+Qed.
+
+Lemma are_valid_predecessors_all_None A
+  (pred : A -> option A) (s : A) (g : wgraph A) :
+  V g s ->
+  (forall v : A, pred v = None) ->
+  are_valid_predecessors pred s g.
+Proof.
+  unfold are_valid_predecessors. intros Hs Hpred.
+  apply is_shortest_paths_tree_single.
+  - apply pred2graph_all_None_empty. assumption.
+  - assumption.
+Qed.
+
+Lemma are_maximal_predecessors_all_None A
+  (pred : A -> option A) (s : A) (g : wgraph A) :
+  V g s ->
+  (forall v : A, pred v = None) ->
+  are_maximal_predecessors pred s g.
+Proof.
+  unfold are_maximal_predecessors. intros Hs Hpred v p Hwalk.
+Admitted.
+
 Lemma valid_initial_predecessors A
   (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
+  V g s ->
   Dijkstra_initial D pred s ->
-  Dijkstra_predecessors_invariant pred empty s g.
+  Dijkstra_predecessors_invariant pred (single s) s g.
 Proof.
   unfold Dijkstra_initial, Dijkstra_predecessors_invariant.
-  intros (HDs&HD&Hpred) g' Hg'. subst.
+  intros Hs (HDs&HD&Hpred) g' Hg'. subst. split.
+  - apply are_valid_predecessors_all_None.
+    + simpl. unfold set_sum, intersect, single. auto.
+    + assumption.
+  - simpl.
 Admitted.
 
 Theorem valid_initial A
