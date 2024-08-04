@@ -1,6 +1,11 @@
 .lia.cache
 .Makefile.coq.d
 Makefile.coq*
+graphs/.*.aux
+graphs/*.glob
+graphs/*.vo
+graphs/*.vok
+graphs/*.vos
 src/.*.aux
 src/*.glob
 src/*.vo

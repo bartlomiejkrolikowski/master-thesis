@@ -1,4 +1,5 @@
 -R . Top
+graphs/Graphs.v
 src/Aux.v
 src/Example1.v
 src/Example2.v
@@ -43,7 +44,6 @@ src_arrays/Dijkstra_graphs.v
 #src_arrays/Example6_credits.v
 #src_arrays/Example7_credits.v
 src_arrays/Example7_credits_perm.v
-src_arrays/Graphs.v
 src_arrays/Interweave.v
 #src_arrays/LambdaAssertions.v
 #src_arrays/LambdaAssertions_credits.v
