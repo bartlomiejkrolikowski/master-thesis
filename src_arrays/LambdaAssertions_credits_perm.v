@@ -49,6 +49,9 @@ Definition sa_star {V : Set} (A1 A2 : StateAssertion V) : StateAssertion V :=
     disjoint_maps m1 m2 /\
     Interweave m1 m2 m.
 
+Definition sa_and {V : Set} (A1 A2 : StateAssertion V) : StateAssertion V :=
+  fun c m => A1 c m /\ A2 c m.
+
 Definition sa_exists {T} {V : Set} (F : T -> StateAssertion V) : StateAssertion V :=
   fun c m => exists x : T, F x c m.
 
@@ -66,6 +69,7 @@ Notation "<( l :\= )>" := (sa_single_decl l).
 Notation "<( l :\ n \= )>" := (sa_array_decl l n).
 Notation "P <*> Q" := (sa_star P Q) (at level 40).
 Notation "P <*>+ Q" := (fun v => sa_star (P v) Q) (at level 40).
+Notation "P </\> Q" := (sa_and P Q) (at level 20).
 Notation "'<exists>' x .. y , p" :=
   (sa_exists (fun x => .. (sa_exists (fun y => p)) ..))
   (at level 200, x binder, right associativity,
@@ -93,6 +97,7 @@ Global Hint Unfold sa_array_decl : st_assertions.
 Global Hint Unfold sa_credits : st_assertions.
 Global Hint Unfold disjoint_maps : st_assertions.
 Global Hint Unfold sa_star : st_assertions.
+Global Hint Unfold sa_and : st_assertions.
 Global Hint Unfold sa_exists : st_assertions.
 Global Hint Unfold sa_forall : st_assertions.
 Global Hint Unfold sa_implies : st_assertions.

@@ -32,6 +32,7 @@ Definition g_total {A} V : graph A := {|
 
 Definition empty {A} (x : A) : Prop := False.
 Definition single {A} (x y : A) : Prop := x = y.
+Definition total {A} (x : A) : Prop := True.
 
 Definition g_empty {A} : graph A := {|
   V x := False;
@@ -122,6 +123,9 @@ Definition induced_subgraph_with_edge_and_vx {A}
 
 Definition is_total {A} (g : graph A) :=
   forall u v, E g u v.
+
+Definition is_irreflexive {A} (g : graph A) :=
+  forall u, ~ E g u u.
 
 Definition is_subset {A} (P Q : A -> Prop) := forall x, P x -> Q x.
 
@@ -746,4 +750,11 @@ Theorem valid_invariant A
   distance_decrease g v D D' pred pred' ->
   Dijkstra_invariant D' pred' (add_single P v) s g.
 Proof.
-  Admitted.
+Admitted.
+
+Theorem valid_final A
+  (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
+  Dijkstra_invariant D pred total s g ->
+  Dijkstra_final D pred s g.
+Proof.
+Admitted.
