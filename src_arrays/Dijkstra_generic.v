@@ -146,52 +146,64 @@ Definition is_nat_function {V} (f : nat -> option nat) '(OfNat n0) : StateAssert
 
 (*Parameter get_size get_neighbours mkheap h_insert h_empty h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string.*)
 
-Definition get_size_spec {A} g (get_size : Value A) : Prop :=
-  triple_fun get_size
-    (is_weighted_graph g)
-    (fun v => <exists> n v', <[v = Int (Z.of_nat n)]> <*> <[is_set_size (V g) n]> <*> is_weighted_graph g v').
+Definition get_size_spec {A} (get_size : Value A) : Prop :=
+  forall g,
+    triple_fun get_size
+      (is_weighted_graph g)
+      (fun v => <exists> n v',
+        <[v = Int (Z.of_nat n)]> <*> <[is_set_size (V g) n]> <*>
+          is_weighted_graph g v').
 
-Definition get_neighbours_spec {A} l n (g : wgraph nat) (get_neighbours : Value A) : Prop :=
-  triple_fun get_neighbours
-    (fun v => <[v = Lab l]>)
-    (fun v => <[
-      triple_fun v
-        (fun v => <[v = Int (Z.of_nat n)]> <*> <[V g n]> <*> is_weighted_graph g (Lab l))
-        (fun v => <exists> L, <[is_elem_weighted_unique_list (neighbours g n) (W g n) L]> <*> is_list (nat_pairs2values L) v </\> is_weighted_graph g (Lab l))
-    ]>).
+Definition get_neighbours_spec {A} (get_neighbours : Value A) : Prop :=
+  forall l n (g : wgraph nat),
+    triple_fun get_neighbours
+      (fun v => <[v = Lab l]>)
+      (fun v => <[
+        triple_fun v
+          (fun v => <[v = Int (Z.of_nat n)]> <*> <[V g n]> <*>
+            is_weighted_graph g (Lab l))
+          (fun v => <exists> L,
+            <[is_elem_weighted_unique_list (neighbours g n) (W g n) L]> <*>
+            is_list (nat_pairs2values L) v </\> is_weighted_graph g (Lab l))
+      ]>).
 
-Parameter is_heap : forall {V} (n : nat) (P : nat -> Prop) (W : nat -> option nat), Value V -> StateAssertion V.
+Parameter is_heap :
+  forall {V} (n : nat) (P : nat -> Prop) (W : nat -> option nat),
+    Value V -> StateAssertion V.
 
-Definition mkheap_spec {V} n (mkheap : Value V) : Prop :=
-  triple_fun mkheap
-    (fun v => <[v = Int (Z.of_nat n)]>)
-    (is_heap n empty (fun _ => None)).
+Definition mkheap_spec {V} (mkheap : Value V) : Prop :=
+  forall n,
+    triple_fun mkheap
+      (fun v => <[v = Int (Z.of_nat n)]>)
+      (is_heap n empty (fun _ => None)).
 
 Definition set_value_at (W : nat -> option nat) (x y n : nat) : option nat :=
   if n =? x then Some y else W n.
 
-Definition h_insert_spec {V}
-  n (P : nat -> Prop) (W : nat -> option nat) h (s k d : nat) (h_insert : Value V) : Prop :=
-  is_set_size P s ->
-  s < n ->
-  ~ P k ->
-  triple_fun h_insert
-    (fun v => <[v = h]>)
-    (fun v => <[
-      triple_fun v
-        (fun v => <[v = Int (Z.of_nat k)]>)
-        (fun v => <[
-          triple_fun v
-            (fun v => <[v = Int (Z.of_nat d)]> <*> is_heap n P W h)
-            (fun v => <[v = U_val]> <*> is_heap n (set_sum P (single k)) (set_value_at W k d) h)
-        ]>)
-    ]>).
+Definition h_insert_spec {V} (h_insert : Value V) : Prop :=
+  forall n (P : nat -> Prop) (W : nat -> option nat) h (s k d : nat),
+    is_set_size P s ->
+    s < n ->
+    ~ P k ->
+    triple_fun h_insert
+      (fun v => <[v = h]>)
+      (fun v => <[
+        triple_fun v
+          (fun v => <[v = Int (Z.of_nat k)]>)
+          (fun v => <[
+            triple_fun v
+              (fun v => <[v = Int (Z.of_nat d)]> <*> is_heap n P W h)
+              (fun v => <[v = U_val]> <*>
+                is_heap n (set_sum P (single k)) (set_value_at W k d) h)
+          ]>)
+      ]>).
 
-Definition h_empty_spec {V} n (P : nat -> Prop) (W : nat -> option nat) h s (h_empty : Value V) : Prop :=
-  is_set_size P s ->
-  triple_fun h_empty
-    (fun v => <[v = h]> <*> is_heap n P W h)
-    (fun v => <[v = Bool (s =? 0)]> <*> is_heap n P W h).
+Definition h_empty_spec {V} (h_empty : Value V) : Prop :=
+  forall n (P : nat -> Prop) (W : nat -> option nat) h s,
+    is_set_size P s ->
+    triple_fun h_empty
+      (fun v => <[v = h]> <*> is_heap n P W h)
+      (fun v => <[v = Bool (s =? 0)]> <*> is_heap n P W h).
 
 Definition unset_value_at (W : nat -> option nat) (x n : nat) : option nat :=
   if n =? x then None else W n.
@@ -199,16 +211,17 @@ Definition unset_value_at (W : nat -> option nat) (x n : nat) : option nat :=
 Definition set_remove {A} (P : A -> Prop) (x y : A) : Prop :=
   P y /\ y <> x.
 
-Definition h_extract_min_spec {V}
-  n (P : nat -> Prop) (W : nat -> option nat) h k d (h_extract_min : Value V) : Prop :=
-  min_cost_elem P W k ->
-  W k = Some d ->
-  triple_fun h_extract_min
-    (fun v => <[v = h]> <*> is_heap n P W h)
-    (fun v => <[v = pair2Value nat2value nat2value (k,d)]> <*> is_heap n (set_remove P k) W h).
+Definition h_extract_min_spec {V} (h_extract_min : Value V) : Prop :=
+  forall n (P : nat -> Prop) (W : nat -> option nat) h k d,
+    min_cost_elem P W k ->
+    W k = Some d ->
+    triple_fun h_extract_min
+      (fun v => <[v = h]> <*> is_heap n P W h)
+      (fun v => <[v = pair2Value nat2value nat2value (k,d)]> <*>
+        is_heap n (set_remove P k) W h).
 
-Definition h_decrease_key_spec {V}
-  n (P : nat -> Prop) (W : nat -> option nat) h k d (h_decrease_key : Value V) : Prop :=
+Definition h_decrease_key_spec {V} (h_decrease_key : Value V) : Prop :=
+  forall n (P : nat -> Prop) (W : nat -> option nat) h k d,
   P k ->
   triple_fun h_decrease_key
     (fun v => <[v = h]>)
@@ -222,20 +235,61 @@ Definition h_decrease_key_spec {V}
         ]>)
     ]>).
 
-Definition h_free_spec {V}
-  n (P : nat -> Prop) (W : nat -> option nat) (h_free : Value V) : Prop :=
+Definition h_free_spec {V} (h_free : Value V) : Prop :=
+  forall n (P : nat -> Prop) (W : nat -> option nat),
   triple_fun h_free
     (is_heap n P W)
     (fun v => <[]>).
 
+Definition is_nil_b {A} (L : list A) : bool :=
+  match L with
+  | nil => true
+  | _ => false
+  end.
+
+Definition l_is_nil_spec {V} (l_is_nil : Value V) : Prop :=
+  forall (L : list (Value V)) l,
+    triple_fun l_is_nil
+      (fun v => <[v = l]> <*> is_list L l)
+      (fun v => <[v = Bool (is_nil_b L)]> <*> is_list L l).
+
+Definition l_head_spec {V} (l_head : Value V) : Prop :=
+  forall (L : list (Value V)) h l,
+    triple_fun l_head
+      (fun v => <[v = l]> <*> is_list (h::L)%list l)
+      (fun v => <[v = h]> <*> is_list (h::L)%list l).
+
+Definition l_tail_spec {V} (l_tail : Value V) : Prop :=
+  forall (L : list (Value V)) h l t,
+    triple_fun l_tail
+      (fun v => <[v = l]> <*> is_list (h::L)%list l)
+      (fun v => <[v = t]> <*> is_list (h::L)%list l </\> is_list L t).
+
 Theorem triple_fun_generic_dijkstra
-  (get_size get_neighbours mkheap h_insert h_empty h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string)
+  (get_size get_neighbours mkheap h_insert h_empty
+    h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string)
   g l src D pred :
+  get_size_spec       get_size ->
+  get_neighbours_spec get_neighbours ->
+  mkheap_spec         mkheap ->
+  h_insert_spec       h_insert ->
+  h_empty_spec        h_empty ->
+  h_extract_min_spec  h_extract_min ->
+  h_decrease_key_spec h_decrease_key ->
+  h_free_spec         h_free ->
+  l_is_nil_spec       l_is_nil ->
+  l_head_spec         l_head ->
+  l_tail_spec         l_tail ->
   triple_fun
-    (generic_dijkstra get_size get_neighbours mkheap h_insert h_empty h_extract_min h_decrease_key h_free l_is_nil l_head l_tail)
+    (generic_dijkstra
+      get_size get_neighbours mkheap h_insert h_empty
+      h_extract_min h_decrease_key h_free l_is_nil l_head l_tail)
     (fun v => <[v = Lab l]>)
     (fun v => <[triple_fun v
-      (fun v => <[v = Int (Z.of_nat src)]> <*> is_weighted_graph g (Lab l) <*> <[V g src]> <*> <[Dijkstra_initial D pred src]>)
-        (fun v => <exists> lD lpred, <[v = RecV [Lab lD; Lab lpred]]> <*> is_weighted_graph g (Lab l) <*> is_nat_function D lD <*> is_nat_function pred lpred <*> <[Dijkstra_final D pred src g]>)]>).
+      (fun v => <[v = Int (Z.of_nat src)]> <*> is_weighted_graph g (Lab l) <*>
+        <[V g src]> <*> <[Dijkstra_initial D pred src]>)
+      (fun v => <exists> lD lpred, <[v = RecV [Lab lD; Lab lpred]]> <*>
+        is_weighted_graph g (Lab l) <*> is_nat_function D lD <*>
+        is_nat_function pred lpred <*> <[Dijkstra_final D pred src g]>)]>).
 Proof.
 Admitted.
