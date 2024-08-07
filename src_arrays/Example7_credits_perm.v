@@ -699,15 +699,15 @@ Proof.
     split_all; auto.
     intros. cbn.
     apply triple_pure. intros ->.
-    apply triple_value_implies.
-    { apply implies_spec. intros. rewrite pure_spec in *.
+    solve_simple_value.
+    { rewrite pure_spec in *.
       rewrite_empty_spec. split_all; auto. intros.
       triple_pull_1_credit.
       eapply triple_app.
       2:apply triple_frame, triple_value.
-      triple_reorder_pure. triple_pull_pure.
+      triple_reorder_pure. triple_pull_pure. subst.
       apply triple_value_implies.
-      { apply implies_spec. intros. subst. solve_star.
+      { apply implies_spec. intros. solve_star.
         2:apply empty_star_l_intro; eassumption.
         split_all; auto. cbn. intros.
         triple_pull_1_credit.
