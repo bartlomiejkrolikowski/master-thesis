@@ -240,6 +240,12 @@ Instance Ordered_option A `(Ordered A) : Ordered (option A) := {|
 Definition min_cost_elem {A B} `{Ordered B} (P : A -> Prop) (cost : A -> B) (x : A) :=
   P x /\ forall (y : A), P y -> le (cost x) (cost y).
 
+Definition max_cost_elem {A B} `{Ordered B} (P : A -> Prop) (cost : A -> B) (x : A) :=
+  P x /\ forall (y : A), P y -> le (cost y) (cost x).
+
+Definition max_cost {A B} `{Ordered B} (P : A -> Prop) (cost : A -> B) (y : B) :=
+  exists x, P x /\ y = cost x /\ forall (x' : A), P x' -> le (cost x') y.
+
 Definition is_shortest_walk {A} (g : wgraph A) (u v : A) (p : list A) :=
   min_cost_elem (is_walk g u v) (walk_cost (W g)) p.
 

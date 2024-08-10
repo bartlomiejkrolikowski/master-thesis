@@ -265,10 +265,15 @@ Definition l_tail_spec {V} (l_tail : Value V) : Prop :=
       (fun v => <[v = l]> <*> is_list (h::L)%list l)
       (fun v => <[v = t]> <*> is_list (h::L)%list l </\> is_list L t).
 
+Definition uncurry {A B C} (f : A -> B -> C) '(x,y) := f x y.
+
+(*Definition is_max_label {A} (g : wgraph A) (C : nat) :=
+  max_cost (uncurry (E g)) (uncurry (W g)) C.*)
+
 Theorem triple_fun_generic_dijkstra
   (get_size get_neighbours mkheap h_insert h_empty
     h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string)
-  g l src D pred :
+  (g : wgraph nat) l src D pred :
   get_size_spec       get_size ->
   get_neighbours_spec get_neighbours ->
   mkheap_spec         mkheap ->
@@ -280,6 +285,8 @@ Theorem triple_fun_generic_dijkstra
   l_is_nil_spec       l_is_nil ->
   l_head_spec         l_head ->
   l_tail_spec         l_tail ->
+  exists c0 c2, forall n,
+  is_set_size (V g) n ->
   triple_fun
     (generic_dijkstra
       get_size get_neighbours mkheap h_insert h_empty
@@ -287,9 +294,9 @@ Theorem triple_fun_generic_dijkstra
     (fun v => <[v = Lab l]>)
     (fun v => <[triple_fun v
       (fun v => <[v = Int (Z.of_nat src)]> <*> is_weighted_graph g (Lab l) <*>
-        <[V g src]> <*> <[Dijkstra_initial D pred src]>)
-      (fun v => <exists> lD lpred, <[v = RecV [Lab lD; Lab lpred]]> <*>
+        <[V g src]> <*> <[Dijkstra_initial D pred src]> <*> sa_credits (c0 + c2*n*n))
+      (fun v => <exists> lD lpred c, <[v = RecV [Lab lD; Lab lpred]]> <*>
         is_weighted_graph g (Lab l) <*> is_nat_function D lD <*>
-        is_nat_function pred lpred <*> <[Dijkstra_final D pred src g]>)]>).
+        is_nat_function pred lpred <*> <[Dijkstra_final D pred src g]> <*> sa_credits c)]>).
 Proof.
 Admitted.
