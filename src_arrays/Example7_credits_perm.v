@@ -758,7 +758,7 @@ Ltac triple_reorder1 X :=
   end.
 
 Ltac clear_empty P :=
-  match P with
+  lazymatch P with
   | ?Q <*> ?Q' => idtac Q Q';
     match ltac:(eval simpl in (ltac:(clear_empty Q) <*> ltac:(clear_empty Q'))) with
     | <[]> <*> ?Q1' => idtac 1 Q1'; exact Q1'
@@ -767,18 +767,25 @@ Ltac clear_empty P :=
     end
   | <exists> t : ?T, @?Q t => idtac t T Q;
     match ltac:(eval simpl in ltac:(clear_empty Q)) with
-    | ?Q' => idtac T Q'; ((exact (<exists> t : T, Q' t); idtac "OK") || idtac "!")
+    | ?Q' => idtac T Q'; idtac ">"; ((exact (<exists> t : T, Q' t); idtac "OK") || idtac "!")
     end
-  | fun t : ?T => @?Q t => idtac t T Q; (*exact (fun x : T => ltac:(eval simpl in ltac:(clear_empty Q)))*)
-    match constr:(fun u => ltac:(eval simpl in ltac:(clear_empty ltac:(eval simpl in (Q u))))) with
-    | ?Q' => idtac T Q'; ((exact (fun t : T => Q' t); idtac "OK!") || idtac "!!")
+  | fun t : ?T => @?Q t => idtac t T Q; let u := fresh t in(*exact (fun x : T => ltac:(eval simpl in ltac:(clear_empty Q)))*)
+    match ltac:(eval simpl in (fun u =>ltac:(clear_empty ltac:(eval simpl in (Q u))))) with
+    | ?Q' => idtac t T Q'; idtac ">!"; ((exact Q'; idtac "OK!") || idtac "!!")
     end
-  | _ => exact P
+  | _ => exact P; idtac "<>"
   end.
-
-Check (ltac:(clear_empty ltac:(eval simpl in (fun (x:Label) (y : Expr (inc_set string)) =>  (<[]> <*> <[1=1]> <*> (<[2=2]> <*> <exists> n m : nat, (<[3=3]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <[]>(*<(x :== -\y)>*)) <*> <[]> <*> <[6=6]>)):StateAssertion string))))).
-Goal True. match constr:(fun x xx : nat => (x + 1) * 3) with
-| fun z v => @?y z * 3 => idtac "y =" y; pose (fun z: nat => (y z) * 5)
+Goal True.
+match constr:(fun x => x + 1) with
+| fun t => @?y t => let a := fresh t in let b := constr:(fun a => y a) in idtac a b y
+end.
+Abort.
+Check (ltac:(clear_empty ltac:(eval simpl in (fun (x:Label) (y : Expr (inc_set string)) =>  (<[]> <*> <[1=1]> <*> (<[2=2]> <*> <exists> n m : nat, (<[n=m]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <(x :== -\y)>) <*> <[]> <*> <[6=6]>)):StateAssertion string))))).
+Goal True. match constr:(fun x xx : nat => ((fun t => t + xx) x + 1) * 3) with
+| fun z v => @?y z v * 3 => idtac "y =" y; pose (fun z : nat => ltac:(
+  match ltac:(eval simpl in (fun v : nat => y z v)) with
+  | fun r => @?a r => idtac "r =" r "; a =" a; let aa := (ltac:(eval simpl in (a))) in exact (aa 8)
+  end) * 5)
 end.
 Ltac prove_implies_clear_empty :=
   match goal with
