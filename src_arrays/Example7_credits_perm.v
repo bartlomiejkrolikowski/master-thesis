@@ -656,18 +656,6 @@ Ltac triple_reorder X :=
       [prove_implies_reorder X|intros; apply implies_refl|]
   end.
 
-Ltac prove_implies :=
-  match goal with
-  | [|- ?P ->> ?Q] => unify P Q; apply implies_refl
-  | [|- (?P <*> ?P') <*> ?P'' ->> ?Q] =>
-    apply implies_trans with (P <*> (P' <*> P'')); [apply star_assoc_r|]
-    (*prove_implies*)
-  | [|- ?P <*> ?P' ->> ?Q] =>
-    apply implies_trans with ltac:(reorder P Q); [|prove_implies_reorder_bwd P];
-    apply star_implies_mono; [apply implies_refl|]
-    (*prove_implies*)
-  end.
-
 Ltac prove_implies_refl :=
   intros; simpl; apply implies_refl.
 
@@ -686,11 +674,14 @@ Ltac rewrite_empty_spec :=
   | [H : <[]> ?c ?m |- _] => apply empty_spec in H as (->&->)
   end.
 
+Ltac unify_not_evar X Y :=
+  not_evar Y; unify X Y.
+
 Ltac remove X P :=
-  match ltac:(type of X) with
+  lazymatch ltac:(type of X) with
   | StateAssertion ?V =>
     match P with
-    | X => exact (sa_empty : StateAssertion V)
+    | ?Y => unify_not_evar X Y; exact (sa_empty : StateAssertion V)
     | ?Q <*> ?Q' =>
       match ltac:(eval simpl in (ltac:(remove X Q))) with
       | <[]> => exact Q'
@@ -706,48 +697,54 @@ Ltac remove X P :=
 
 Ltac prove_implies_reorder1 X :=
   match goal with
-  | [|- X ->> _] => apply empty_star_r_intro
+  | [|- ?Y ->> _] => unify_not_evar X Y; apply implies_refl
   | [|- ?Q <*> ?Q' ->> _] =>
     eapply implies_trans;
-    [apply star_implies_mono; [prove_implies_reorder X|apply implies_refl]|];
-    match goal with
-    | [|- (X <*> ?Q1) <*> ?Q1' ->> _ ] => apply star_assoc_r
+    [apply star_implies_mono; [prove_implies_reorder1 X|apply implies_refl]|];
+    lazymatch goal with
+    | [|- (?Y <*> ?Q1) <*> ?Q1' ->> _ ] => unify_not_evar X Y; apply star_assoc_r
+    | [|- ?Y <*> ?Q1' ->> _ ] => unify_not_evar X Y; apply implies_refl
     end
   | [|- ?Q <*> ?Q' ->> _] =>
     eapply implies_trans;
-    [apply star_implies_mono; [apply implies_refl|prove_implies_reorder X]|];
-    match goal with
-    | [|- ?Q1 <*> (X <*> ?Q1') ->> _ ] =>
+    [apply star_implies_mono; [apply implies_refl|prove_implies_reorder1 X]|];
+    lazymatch goal with
+    | [|- ?Q1 <*> (?Y <*> ?Q1') ->> _ ] =>
+      unify_not_evar X Y;
       eapply implies_trans;
       [apply star_assoc_l|];
       eapply implies_trans;
       [apply star_implies_mono; [apply star_comm|apply implies_refl]|];
       apply star_assoc_r
-    | [|- ?Q1 <*> X ->> _ ] => apply star_comm
+    | [|- ?Q1 <*> ?Y ->> _ ] => unify_not_evar X Y; apply star_comm
     end
+  | [|- ?P ->> ?Q] => unify_not_evar Q P; apply implies_refl
   end.
 
 Ltac prove_implies_reorder1_bwd X :=
   match goal with
-  | [|- _ ->> X] => apply empty_star_r_cancel
+  | [|- _ ->> ?Y] => unify_not_evar X Y; apply implies_refl
   | [|- _ ->> ?Q <*> ?Q'] =>
     eapply implies_trans;
-    [|apply star_implies_mono; [prove_implies_reorder X|apply implies_refl]];
-    match goal with
-    | [|- _ ->> (X <*> ?Q1) <*> ?Q1' ] => apply star_assoc_l
+    [|apply star_implies_mono; [prove_implies_reorder1_bwd X|apply implies_refl]];
+    lazymatch goal with
+    | [|- _ ->> (?Y <*> ?Q1) <*> ?Q1' ] => unify_not_evar X Y; apply star_assoc_l
+    | [|- _ ->> ?Y <*> ?Q1' ] => unify_not_evar X Y; apply implies_refl
     end
   | [|- _ ->> ?Q <*> ?Q'] =>
     eapply implies_trans;
-    [|apply star_implies_mono; [apply implies_refl|prove_implies_reorder X]];
-    match goal with
-    | [|- _ ->> ?Q1 <*> (X <*> ?Q1') ] =>
+    [|apply star_implies_mono; [apply implies_refl|prove_implies_reorder1_bwd X]];
+    lazymatch goal with
+    | [|- _ ->> ?Q1 <*> (?Y <*> ?Q1') ] =>
+      unify_not_evar X Y;
       eapply implies_trans;
       [|apply star_assoc_r];
       eapply implies_trans;
       [|apply star_implies_mono; [apply star_comm|apply implies_refl]];
       apply star_assoc_l
-    | [|- _ ->> ?Q1 <*> X ] => apply star_comm
+    | [|- _ ->> ?Q1 <*> ?Y ] => unify_not_evar X Y; apply star_comm
     end
+  | [|- ?P ->> ?Q] => unify_not_evar P Q; apply implies_refl
   end.
 
 Ltac triple_reorder1 X :=
@@ -793,7 +790,7 @@ Ltac prove_implies_clear_empty :=
   | [|- ?Q <*> ?Q' ->> _ ] =>
     eapply implies_trans;
     [apply star_implies_mono; prove_implies_clear_empty|];
-    match goal with
+    lazymatch goal with
     | [|- <[]> <*> ?Q1' ->> _] => apply empty_star_l_cancel
     | [|- ?Q1 <*> <[]> ->> _] => apply empty_star_r_cancel
     | [|- ?Q1 ->> _] => apply implies_refl
@@ -836,6 +833,77 @@ Ltac triple_clear_empty_r :=
       [prove_implies_refl|prove_implies_clear_empty_bwd|]
   end.
 (*Check (fun x (y : Expr (_ string)) => ltac:(clear_empty ltac:(eval simpl in ltac:(remove (<(x :== -\y)>) (<[]> <*> <[1=1]> <*> (<[2=2]> <*> (<[3=3]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <(x :== -\ y)>) <*> <[]> <*> <[6=6]>))))))).*)
+(*
+Goal True.
+eassert (option (Value string)). shelve.
+eassert (H = _). shelve.
+lazymatch goal with
+| [_ : H = ?yy |- _] =>
+  epose (fun x (y : Expr (_ string)) => ltac:(clear_empty ltac:(eval simpl in ltac:(remove (<(x :?= Some (-\ y))> : StateAssertion string) (<[]> <*> <[1=1]> <*> (<[2=2]> <*> (<[3=3]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <(x :== -\ y)>) <*> <[]> <*> <[6=6]>)))))))
+end.
+lazymatch goal with
+| [_ : H = ?yy |- _] =>
+  epose (fun x (y : Expr (_ string)) => ltac:(clear_empty ltac:(eval simpl in ltac:(remove (<(x :?= yy)> : StateAssertion string) (<[]> <*> <[1=1]> <*> (<[2=2]> <*> (<[3=3]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <(x :== @U_val string)>) <*> <[]> <*> <[6=6]>)))))))
+end.
+Abort.
+
+Ltac tmp P :=
+  lazymatch P with
+  | ?Q <*> ?Q' => (*idtac Q Q';*)
+    tmp Q; tmp Q'
+  | <exists> t : ?T, @?Q t => (*idtac t T Q;*)
+    tmp Q
+  | fun t : ?T => @?Q t => (*idtac t T Q;*)
+    let u := fresh t in(*exact (fun x : T => ltac:(eval simpl in ltac:(clear_empty Q)))*)
+    tmp (Q u)
+  | ?X => (is_evar X; idtac "is_evar -" X) || idtac "!" X
+  end.
+*)
+
+Ltac get_leftmost P :=
+  lazymatch P with
+  | ?Q <*> ?Q' => exact ltac:(get_leftmost Q)
+  | _ => exact P
+  end.
+
+Ltac reorder_leftmost P :=
+  let l := (ltac:(eval simpl in ltac:(get_leftmost P))) in
+  exact (l <*> ltac:(remove l P)).
+(*Check (fun x (y : Expr (_ string)) => ltac:(reorder_leftmost (((<[1=1]> <*> <[8=8]>) <*> <[7=7]>) <*> (<[2=2]> <*> (<[3=3]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <(x :== -\ y)>) <*> <[]> <*> <[6=6]>))))).*)
+Ltac prove_implies1 :=
+  lazymatch goal with
+  | [|- ?P ->> ?QQ] =>
+    (unify P QQ; apply implies_refl) ||
+    (let l := (ltac:(eval simpl in ltac:(get_leftmost P))) in
+     let P' := (ltac:(eval simpl in ltac:(remove l P))) in
+     let Q' := (ltac:(eval simpl in ltac:(remove l QQ))) in
+     apply implies_trans with (Q := l <*> P');
+     [prove_implies_reorder1 l|];
+     apply implies_trans with (Q := l <*> Q');
+     [|prove_implies_reorder1_bwd l];
+     apply star_implies_mono;
+     [apply implies_refl|])
+  end.
+
+Ltac prove_implies1_rev :=
+  lazymatch goal with
+  | [|- ?P ->> ?QQ] =>
+    (unify P QQ; apply implies_refl) ||
+    (let l := (ltac:(eval simpl in ltac:(get_leftmost QQ))) in
+     let P' := (ltac:(eval simpl in ltac:(remove l P))) in
+     let Q' := (ltac:(eval simpl in ltac:(remove l QQ))) in
+     apply implies_trans with (Q := l <*> Q');
+     [|prove_implies_reorder1_bwd l];
+     apply implies_trans with (Q := l <*> P');
+     [prove_implies_reorder1 l|];
+     apply star_implies_mono;
+     [apply implies_refl|])
+  end.
+
+Ltac prove_implies :=
+  repeat prove_implies1.
+Ltac prove_implies_rev :=
+  repeat prove_implies1_rev.
 
 Theorem triple_fun_v_repeat v n :
   triple_fun v_repeat
@@ -937,12 +1005,8 @@ Proof.
                 triple_pull_1_credit.
                 eapply triple_seq.
                 * triple_pull_credits 1. triple_reorder_credits.
-                  eapply triple_weaken, triple_assign; [|prove_implies_refl|solve_simple_value|].
-                  { eapply implies_trans.
-                    { apply star_implies_mono.
-                      { apply implies_refl. }
-                      { prove_implies_reorder1 <(x :== x2)>. } }
-                    { apply star_assoc. } }
+                  eapply triple_weaken, triple_assign;
+                    [prove_implies_rev|prove_implies_refl|solve_simple_value|].
                   -- triple_pull_1_credit.
                     eapply triple_app; [|apply triple_ref, triple_deref; solve_simple_value].
                     simpl. repeat rewrite bind_v_liftS_shift_swap.
@@ -1041,8 +1105,7 @@ Proof.
               eapply triple_seq.
               + triple_pull_1_credit.
                 eapply triple_weaken, triple_free; [|prove_implies_refl|solve_simple_value].
-                prove_implies.
-                prove_implies_reorder (<(x0 :== Int (Z.of_nat n))> : _ string).
+                prove_implies_rev.
               + triple_pull_1_credit. eapply triple_app.
                 * solve_simple_value. split; auto. intros. cbn.
                   eapply triple_seq; [apply triple_free|]; solve_simple_value.
