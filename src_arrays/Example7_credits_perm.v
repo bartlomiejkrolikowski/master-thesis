@@ -874,13 +874,7 @@ Proof.
           repeat triple_pull_pure. subst. triple_pull_1_credit.
           eapply triple_app.
           2:eapply triple_ref, triple_frame, triple_value.
-          simpl. solve_simple_value.
-          2:apply star_comm; solve_star;
-              eapply empty_star_l_intro, star_assoc_l, star_implies_mono;
-              [apply implies_refl
-              |eapply implies_trans;
-                [apply credits_star_r with (c1:=1); reflexivity|apply star_comm]
-              |swap_star; eassumption].
+          simpl. triple_clear_empty_r. triple_pull_1_credit. solve_simple_value.
           { split_all; auto.
             intros. cbn.
             repeat triple_pull_exists.
@@ -889,17 +883,16 @@ Proof.
             triple_pull_1_credit.
             eapply triple_seq.
             - triple_pull_credits 2.
+              triple_reorder_credits.
               eapply triple_weaken with (P := sa_credits 2 <*> (<exists> i vl, <[i <= n]> <*> sa_credits (8+((n-i)*14)) <*> <( x :== vl )> <*> <( x0 :== (Int (Z.of_nat i)) )> <*> is_list (List.repeat v i) vl)).
-              { eapply implies_trans.
-                { apply star_assoc. }
-                { apply star_implies_mono.
-                  { apply implies_refl. }
-                  { apply implies_spec. intros. unfold sa_exists.
-                    exists 0, (RecV [Int 0]). solve_star; [lia|]. simpl. rewrite Nat.sub_0_r.
-                    apply star_assoc. apply star_assoc. eapply star_implies_mono.
-                    { apply star_assoc. }
-                    { apply implies_spec. intros. constructor. }
-                    apply empty_star_r_intro. assumption. } } }
+              { apply star_implies_mono.
+                { apply implies_refl. }
+                { apply implies_spec. intros. unfold sa_exists.
+                  exists 0, (RecV [Int 0]). solve_star; [lia|]. simpl. rewrite Nat.sub_0_r.
+                  apply star_assoc. apply star_assoc. eapply star_implies_mono.
+                  { apply star_assoc. }
+                  { apply implies_spec. intros. constructor. }
+                  apply empty_star_r_intro. assumption. } }
               { intros. apply implies_refl. }
               eapply triple_while with
                 (Q := fun b : bool => <exists> (i : nat) (vl : Value _), <[i <= n]> <*> sa_credits (6 + (n-i)*14) <*> <(x :== vl)> <*> <(x0 :== Int (Z.of_nat i))> <*> is_list (List.repeat v i) vl <*> <[(Z.of_nat i <? Z.of_nat n)%Z = b]>).
@@ -957,9 +950,8 @@ Proof.
                     triple_pull_1_credit.
                     eapply triple_app.
                     2:apply triple_frame, triple_value.
-                    simpl. solve_simple_value.
-                    2:apply empty_star_l_intro; eassumption.
-                    split; auto. intros. cbn. solve_simple_value. normalize_star. subst.
+                    simpl. triple_clear_empty_r. solve_simple_value.
+                    split; auto. intros. cbn. solve_simple_value.
                     2:{ conormalize_star. swap_star_ctx. swap_star. solve_star. swap_star. solve_star.
                       eapply star_implies_mono; eauto.
                       { apply implies_refl. }
@@ -972,7 +964,7 @@ Proof.
                             { apply credits_star_r. reflexivity. }
                             { apply implies_refl. } } }
                         { apply implies_refl. } } }
-                    split; auto. intros. cbn.
+                    normalize_star. subst. split; auto. intros. cbn.
                     repeat triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure. subst.
                     triple_reorder <(x :== x2)>.
                     solve_simple_value. rewrite bind_v_shift, bind_v_id. fold (v_cons v x3).
