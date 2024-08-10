@@ -108,6 +108,13 @@ Proof.
   unfold_all. split; intros H; edestruct_direct; eauto 10.
 Qed.
 
+Lemma exists_implies A (V : Set) (P Q : A -> StateAssertion V) :
+  (forall x, P x ->> Q x) ->
+  (<exists> x, P x) ->> (<exists> x, Q x).
+Proof.
+  unfold_all. intros. edestruct_direct.
+Qed.
+
 Ltac edestruct_all_in n :=
   repeat match goal with
   | [ Hvalid : Is_Valid_Map ?m,

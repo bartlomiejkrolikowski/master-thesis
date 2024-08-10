@@ -789,7 +789,7 @@ Goal True. match constr:(fun x xx : nat => ((fun t => t + xx) x + 1) * 3) with
 end.*)
 
 Ltac prove_implies_clear_empty :=
-  match goal with
+  lazymatch goal with
   | [|- ?Q <*> ?Q' ->> _ ] =>
     eapply implies_trans;
     [apply star_implies_mono; prove_implies_clear_empty|];
@@ -798,19 +798,27 @@ Ltac prove_implies_clear_empty :=
     | [|- ?Q1 <*> <[]> ->> _] => apply empty_star_r_cancel
     | [|- ?Q1 ->> _] => apply implies_refl
     end
+  | [|- (<exists> x, @?P' x) ->> _] =>
+    apply exists_implies with (P := P'); prove_implies_clear_empty
+  | [|- forall x, ?Q ->> _] =>
+    intros; prove_implies_clear_empty
   | [|- ?P ->> _] => apply implies_refl
   end.
 
 Ltac prove_implies_clear_empty_bwd :=
-  match goal with
+  lazymatch goal with
   | [|- _ ->> ?Q <*> ?Q' ] =>
     eapply implies_trans;
-    [apply star_implies_mono; prove_implies_clear_empty_bwd|];
-    match goal with
-    | [|- _ ->> <[]> <*> ?Q1'] => apply empty_star_r_cancel
-    | [|- _ ->> ?Q1 <*> <[]>] => apply empty_star_l_cancel
+    [|apply star_implies_mono; prove_implies_clear_empty_bwd];
+    lazymatch goal with
+    | [|- _ ->> <[]> <*> ?Q1'] => apply empty_star_l_intro
+    | [|- _ ->> ?Q1 <*> <[]>] => apply empty_star_r_intro
     | [|- _ ->> ?Q1] => apply implies_refl
     end
+  | [|- _ ->> (<exists> x, @?Q' x)] =>
+    apply exists_implies with (Q := Q'); prove_implies_clear_empty_bwd
+  | [|- forall x, ?Q ->> _] =>
+    intros; prove_implies_clear_empty_bwd
   | [|- _ ->> ?P] => apply implies_refl
   end.
 
@@ -818,14 +826,14 @@ Ltac triple_clear_empty :=
   match goal with
   | [|- triple ?e ?P' ?Q'] =>
     apply triple_weaken with (P := ltac:(clear_empty P')) (Q := Q');
-      [prove_implies_clear_empty|prove_implies_refl]
+      [prove_implies_clear_empty|prove_implies_refl|]
   end.
 
 Ltac triple_clear_empty_r :=
   match goal with
   | [|- triple ?e ?P' ?Q'] =>
-    apply triple_weaken with (P := P') (Q := fun v => ltac:(clear_empty ltac:(eval simpl in (Q' v))));
-      [prove_implies_refl|prove_implies_clear_empty_bwd]
+    apply triple_weaken with (P := P') (Q := ltac:(clear_empty Q'));
+      [prove_implies_refl|prove_implies_clear_empty_bwd|]
   end.
 (*Check (fun x (y : Expr (_ string)) => ltac:(clear_empty ltac:(eval simpl in ltac:(remove (<(x :== -\y)>) (<[]> <*> <[1=1]> <*> (<[2=2]> <*> (<[3=3]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <(x :== -\ y)>) <*> <[]> <*> <[6=6]>))))))).*)
 
@@ -853,13 +861,8 @@ Proof.
       eapply triple_app.
       2:apply triple_frame, triple_value.
       triple_reorder_pure. triple_pull_pure.
-  match goal with
-  | [|- triple ?e ?P' ?Q'] =>
-     pose (fun v => ltac:(clear_empty ltac:(eval simpl in (Q' v))))
-  end.
-       triple_clear_empty_r. subst.
+      triple_clear_empty_r. subst.
       solve_simple_value.
-      2:apply empty_star_l_intro; eassumption.
       { split_all; auto. cbn. intros.
         triple_pull_1_credit.
         eapply triple_app.
