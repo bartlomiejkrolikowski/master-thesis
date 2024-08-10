@@ -759,23 +759,23 @@ Ltac triple_reorder1 X :=
 
 Ltac clear_empty P :=
   lazymatch P with
-  | ?Q <*> ?Q' => idtac Q Q';
+  | ?Q <*> ?Q' => (*idtac Q Q';*)
     match ltac:(eval simpl in (ltac:(clear_empty Q) <*> ltac:(clear_empty Q'))) with
-    | <[]> <*> ?Q1' => idtac 1 Q1'; exact Q1'
-    | ?Q1 <*> <[]> => idtac 2 Q1; exact Q1
-    | ?Q1 => idtac 3 Q1; exact Q1
+    | <[]> <*> ?Q1' => (*idtac 1 Q1';*) exact Q1'
+    | ?Q1 <*> <[]> => (*idtac 2 Q1;*) exact Q1
+    | ?Q1 => (*idtac 3 Q1;*) exact Q1
     end
-  | <exists> t : ?T, @?Q t => idtac t T Q;
-    match ltac:(eval simpl in ltac:(clear_empty Q)) with
-    | ?Q' => idtac T Q'; idtac ">"; ((exact (<exists> t : T, Q' t); idtac "OK") || idtac "!")
-    end
-  | fun t : ?T => @?Q t => idtac t T Q; let u := fresh t in(*exact (fun x : T => ltac:(eval simpl in ltac:(clear_empty Q)))*)
-    match ltac:(eval simpl in (fun u =>ltac:(clear_empty ltac:(eval simpl in (Q u))))) with
-    | ?Q' => idtac t T Q'; idtac ">!"; ((exact Q'; idtac "OK!") || idtac "!!")
-    end
-  | _ => exact P; idtac "<>"
+  | <exists> t : ?T, @?Q t => (*idtac t T Q;*)
+    let Q' := ltac:(eval simpl in ltac:(clear_empty Q)) in
+    (*idtac T Q'; idtac ">";*) exact (<exists> t : T, Q' t) (*; idtac "OK") || idtac "!")*)
+  | fun t : ?T => @?Q t => (*idtac t T Q;*)
+    let u := fresh t in(*exact (fun x : T => ltac:(eval simpl in ltac:(clear_empty Q)))*)
+    let Q' := ltac:(eval simpl in (fun u =>ltac:(clear_empty ltac:(eval simpl in (Q u))))) in
+    (*idtac t T Q'; idtac ">!";*) exact Q' (*; idtac "OK!") || idtac "!!")*)
+  | _ => exact P (*; idtac "<>"*)
   end.
-Goal True.
+
+(*Goal True.
 match constr:(fun x => x + 1) with
 | fun t => @?y t => let a := fresh t in let b := constr:(fun a => y a) in idtac a b y
 end.
@@ -786,7 +786,8 @@ Goal True. match constr:(fun x xx : nat => ((fun t => t + xx) x + 1) * 3) with
   match ltac:(eval simpl in (fun v : nat => y z v)) with
   | fun r => @?a r => idtac "r =" r "; a =" a; let aa := (ltac:(eval simpl in (a))) in exact (aa 8)
   end) * 5)
-end.
+end.*)
+
 Ltac prove_implies_clear_empty :=
   match goal with
   | [|- ?Q <*> ?Q' ->> _ ] =>
