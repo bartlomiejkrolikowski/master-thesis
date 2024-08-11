@@ -462,7 +462,33 @@ Ltac prove_implies_reorder_pure :=
     end
   | [|- ?P ->> _] => apply implies_refl
   end.
-
+(*
+Ltac prove_implies_reorder_pure_bwd :=
+  match goal with
+  | [|- _ ->> ?Q <*> ?Q'] =>
+    eapply implies_trans;
+    [|apply star_implies_mono; prove_implies_reorder_pure_bwd];
+    match goal with
+    | [|- _ ->> <[?P]> <*> ?Q1' ] =>
+      apply star_implies_mono; [apply implies_refl|];
+      prove_implies_reorder_pure_bwd
+    | [|- _ ->> (<[?P]> <*> ?Q1) <*> ?Q1' ] =>
+      eapply implies_trans; [|apply star_assoc_r];
+      apply star_implies_mono; [apply implies_refl|];
+      prove_implies_reorder_pure_bwd
+    | [|- _ ->> ?Q1 <*> <[?P]> ] =>
+      eapply implies_trans; [|apply star_comm];
+      apply star_implies_mono; [apply implies_refl|];
+      prove_implies_reorder_pure_bwd
+    | [|- _ ->> ?Q1 <*> (<[?P]> <*> ?Q1') ] =>
+      eapply implies_trans; [|apply star_comm];
+      eapply implies_trans; [|apply star_assoc_r];
+      apply star_implies_mono; [apply implies_refl|];
+      prove_implies_reorder_pure_bwd
+    end
+  | [|- _ ->> ?P] => apply implies_refl
+  end.
+*)
 Ltac triple_reorder_pure :=
   match goal with
   | [|- triple ?e ?P' ?Q'] =>
@@ -658,16 +684,6 @@ Ltac triple_reorder X :=
 
 Ltac prove_implies_refl :=
   intros; simpl; apply implies_refl.
-
-Ltac solve_simple_value :=
-  apply triple_value_implies; apply implies_spec; intros; solve_star;
-  try eassumption.
-
-Ltac solve_value_unify :=
-  match goal with
-  | [|- triple (Val ?v) ?P ?Q] =>
-    unify P (Q v); apply triple_value_implies; apply implies_refl
-  end.
 
 Ltac rewrite_empty_spec :=
   match goal with
@@ -915,6 +931,47 @@ Ltac revert_implies :=
   | [H : ?P ?c ?m |- ?Q ?c ?m] => revert c m H; fold_implies
   end.
 
+Ltac triple_value_revert :=
+  match goal with
+  | [v : Value _ |- triple (Val ?v') _ _] => unify v v'; generalize dependent v
+  | [|- triple (Val ?v') _ _] => remember v' as t; generalize dependent t
+  end.
+
+Ltac eta_expand_pre_triple_value :=
+  triple_value_revert;
+  lazymatch goal with
+  | [|- forall v : ?T, triple (Val v) (@?P v) ?Q] =>
+    change (forall v : T, triple v (P v) Q)
+  | [|- forall (v : ?T) (x : ?H), triple (Val v) (@?P v) ?Q] =>
+    change (forall (v : T) (x : H), triple v (P v) Q)
+  end;
+  intros.
+
+Ltac solve_simple_value :=
+  apply triple_value_implies; apply implies_spec; intros; solve_star;
+  try eassumption.
+
+Ltac solve_value_unify :=
+  match goal with
+  | [|- triple (Val ?v) ?P ?Q] =>
+    unify P (Q v); apply triple_value_implies; apply implies_refl
+  end.
+
+Ltac app_lambda :=
+  lazymatch goal with
+  | [|- triple (Val (-\ ?e1') <* Val ?v2) (sa_credits 1 <*> ?P) ?Q] => (*idtac e1' v2 P Q;*)
+    eapply triple_app with (P2 := P); [|eta_expand_pre_triple_value; solve_value_unify]
+  | [|- triple (Val (-\ ?e1') <* ?e2) (sa_credits 1 <*> ?P) ?Q] => (*idtac e1' e2 P Q;*)
+    eapply triple_app with (P2 := P)
+  end.
+
+Ltac triple_expand_empty_pre_r :=
+  lazymatch goal with
+  | [|- triple ?e ?P' ?Q'] =>
+    apply triple_weaken with (P := P' <*> <[]>) (Q := Q');
+      [apply empty_star_r_intro|prove_implies_refl|]
+  end.
+
 Theorem triple_fun_v_repeat v n :
   triple_fun v_repeat
     (fun v' => sa_credits 1 <*> <[v' = v]>)
@@ -924,24 +981,20 @@ Theorem triple_fun_v_repeat v n :
         (is_list (List.repeat v n))
     ]>).
 Proof.
-  unfold triple_fun, v_repeat, StringLam. simpl. intros. eapply triple_app.
-  2:apply triple_value.
-  triple_pull_pure.
+  unfold triple_fun, v_repeat, StringLam. simpl. intros. app_lambda.
   solve_simple_value.
-  { rewrite_empty_spec.
-    split_all; auto.
+  { split_all; auto.
     intros. cbn.
     triple_pull_pure.
     solve_simple_value.
     { rewrite pure_spec in *.
       rewrite_empty_spec. split_all; auto. intros.
       triple_pull_1_credit.
-      eapply triple_app.
-      2:apply triple_frame, triple_value.
-      triple_reorder_pure. triple_pull_pure.
-      triple_clear_empty_r. subst.
+      app_lambda. simpl. subst.
       solve_simple_value.
       { split_all; auto. cbn. intros.
+        triple_reorder_pure.
+        triple_pull_pure. subst.
         triple_pull_1_credit.
         eapply triple_app.
         2:apply triple_ref, triple_frame, triple_value.
@@ -981,10 +1034,19 @@ Proof.
                 eapply triple_weaken with
                   (Q := fun v0 => <exists> i1 i2 : Z, <[v0 = Bool (i1 <? i2)%Z]> <*> (<[i1 = Z.of_nat x1]> <*> <[i2 = Z.of_nat n]> <*> <exists> (i : nat) (vl : Value _), _)).
                 { prove_implies_refl. }
-                { apply implies_post_spec. intros. destruct H3 as (?&?&?).
-                  apply star_pure_l in H3. destruct H3.
-                  apply star_assoc in H4. apply star_pure_l in H4. destruct H4.
-                  apply star_pure_l in H5. destruct H5.
+                { apply implies_post_spec. intros.
+                  lazymatch goal with
+                  | [HH : _ ?c ?m |- _ ?c ?m] => destruct HH as (?&?&?);
+                    apply star_pure_l in HH; destruct HH
+                  end.
+                  lazymatch goal with
+                  | [HH : _ ?c ?m |- _ ?c ?m] =>
+                    apply star_assoc in HH; apply star_pure_l in HH; destruct HH
+                  end.
+                  lazymatch goal with
+                  | [HH : _ ?c ?m |- _ ?c ?m] =>
+                    apply star_pure_l in HH; destruct HH
+                  end.
                   eexists. eapply star_implies_mono.
                   { apply implies_spec. intros. apply pure_spec. split.
                     { eassumption. }
@@ -1004,11 +1066,13 @@ Proof.
                     swap_star. solve_star. swap_star. solve_star. swap_star. solve_star. swap_star. solve_star.
                     swap_star. solve_star. swap_star. solve_star. eapply star_implies_mono; eauto.
                     { prove_implies_refl. }
-                    { apply implies_spec. intros. normalize_star. swap_star_ctx. normalize_star. eassumption. } }
+                    { prove_implies. } }
               + repeat triple_pull_exists.
                 triple_reorder_pure.
                 repeat triple_pull_pure.
-                apply Z.ltb_lt in H3. apply Nat2Z.inj_lt in H3 as H'.
+                lazymatch goal with
+                | [H : (_ <? _)%Z = true |- _] => apply Z.ltb_lt in H; apply Nat2Z.inj_lt in H
+                end.
                 assert (n - x1 = S (n - S x1)) as -> by lia. simpl.
                 triple_pull_1_credit.
                 eapply triple_seq.
@@ -1027,11 +1091,15 @@ Proof.
                     triple_pull_pure. subst.
                     triple_pull_credits 2. triple_pull_1_credit. solve_simple_value.
                     2:{ revert_implies. prove_implies_rev. }
-                    normalize_star. subst. split; auto. intros. cbn.
+                    split; auto. intros. cbn.
                     repeat triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure. subst.
                     triple_reorder <(x :== x2)>.
-                    solve_simple_value. rewrite bind_v_shift, bind_v_id. fold (v_cons v x3).
-                    eassert ((<(x:==x2)> <*> (fun vl => sa_credits _ <*> <(x0:==Int (Z.of_nat x1))> <*> is_list (List.repeat v (x1+1)) vl) (v_cons v x3)) c4 m4).
+                    solve_simple_value. rewrite bind_v_shift, bind_v_id.
+                    lazymatch goal with
+                    | [_ : (?P <*> (?P1 <*> (?P2 <*> is_list (List.repeat ?v ?n) _) <*> ?P4)) ?c ?m|- (?P <*> _ (RecV [Int 1; ?v; Lab ?l])) ?c ?m] =>
+                      fold (v_cons v l);
+                      eassert ((P <*> (fun vl => P1 <*> P2 <*> is_list (List.repeat v (n+1)) vl) (v_cons v l)) c m)
+                    end.
                     { eapply star_implies_mono; eauto.
                       { apply implies_refl. }
                       { apply implies_spec. intros. normalize_star. solve_star. eapply star_implies_mono; eauto.
@@ -1040,12 +1108,18 @@ Proof.
                           { apply star_assoc. }
                           { apply star_implies_mono.
                             { apply implies_refl. }
-                            { apply implies_spec. intros. rewrite Nat.add_1_r. simpl. unfold_all_in H8. edestruct_direct.
+                            { apply implies_spec. intros. rewrite Nat.add_1_r. simpl.
+                              lazymatch goal with
+                              | [H : _ ?c ?m |- _ ?c ?m] => unfold_all_in H
+                              end. edestruct_direct.
                               econstructor.
                               { apply valid_map_Lookup. eapply in_or_Interweave; eauto. simpl. auto. }
                               { eapply is_list_Interweave_map; eauto using Interweave_comm.
                                 rewrite Nat.add_0_r. assumption. } } } } } }
-                    eapply star_implies_mono; eauto; [|generalize (v_cons v x3)]; prove_implies_refl.
+                    lazymatch goal with
+                    | [|- (_ <*> _ ?v) _ _] =>
+                      eapply star_implies_mono; eauto; [|generalize v]; prove_implies_refl
+                    end.
                 * triple_pull_exists.
                   triple_pull_1_credit. eapply triple_weaken, triple_assign; [prove_implies_rev| |solve_simple_value|].
                   { apply implies_post_spec. intros. normalize_star. subst. solve_star.
@@ -1055,9 +1129,12 @@ Proof.
                     eapply star_implies_mono.
                     { apply implies_refl. }
                     { apply star_comm. }
-                    eassert ((<[x4 = Int (Z.of_nat _)]> <*> <(x0:==x4)> <*> _) c2 m2).
+                    lazymatch goal with
+                    | [HH : (<(?l :== ?v)> <*> ?Q) ?c ?m |- _ ?c ?m] =>
+                      eassert ((<[v = Int (Z.of_nat _)]> <*> <(l:==v)> <*> _) c m)
+                    end.
                     { apply star_assoc_l, star_comm, star_assoc_l.
-                      match goal with
+                      lazymatch goal with
                       | [|- (?P1 <*> (?P2 <*> <[ ?j = ?i ]>)) ?c ?m] =>
                         change ((P1 <*> (fun t => P2 <*> <[ t = i ]>) j) c m)
                       end.
@@ -1069,7 +1146,10 @@ Proof.
                     ++ triple_pull_1_credit. eapply triple_weaken, triple_deref; [| |solve_simple_value].
                       { prove_implies_rev. }
                       { intros. simpl. apply implies_spec. intros. normalize_star. subst. solve_star.
-                        apply empty_star_l_intro in H5. eapply star_implies_mono in H5.
+                        lazymatch goal with
+                        | [HH : _ ?c ?m |- _ ?c ?m] =>
+                          apply empty_star_l_intro in HH; eapply star_implies_mono in HH
+                        end.
                         2:{ apply implies_spec. intros. rewrite_empty_spec.
                             apply pure_spec with (P := Z.of_nat x1 = Z.of_nat x1). auto. }
                         2:{ apply implies_refl. }
@@ -1085,7 +1165,10 @@ Proof.
                           change (Z.of_nat n1 + Z.of_nat 1 = Z.of_nat n2)%Z
                         end.
                         rewrite Nat2Z.inj_add. reflexivity. }
-                      { unfold_all_in H5. unfold_all. edestruct_direct. invert_Intwv_nil.
+                      { lazymatch goal with
+                        | [HH : _ ?c ?m |- _ ?c ?m] => unfold_all_in HH
+                        end.
+                        unfold_all. edestruct_direct. invert_Intwv_nil.
                         split_all; eauto using Interweave_nil_l, Interweave_nil_r; simpl in *; eauto; lia. }
             - repeat triple_pull_exists.
               triple_reorder_pure. repeat triple_pull_pure.
