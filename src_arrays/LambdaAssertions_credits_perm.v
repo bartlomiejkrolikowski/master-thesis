@@ -67,6 +67,7 @@ Notation "<( l :?= v )>" := (sa_single_any l v).
 Notation "<( l :== v )>" := (sa_single l v).
 Notation "<( l :\= )>" := (sa_single_decl l).
 Notation "<( l :\ n \= )>" := (sa_array_decl l n).
+Notation "$ c " := (sa_credits c) (at level 30).
 Notation "P <*> Q" := (sa_star P Q) (at level 40).
 Notation "P <*>+ Q" := (fun v => sa_star (P v) Q) (at level 40).
 Notation "P </\> Q" := (sa_and P Q) (at level 20).

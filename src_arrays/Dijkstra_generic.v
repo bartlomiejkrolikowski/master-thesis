@@ -34,10 +34,11 @@ Definition free_array : Value string :=
       Free (Var "i")
     [end]%string.
 
-Definition generic_dijkstra (get_size get_neighbours mkheap h_insert h_empty h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string) : Value string :=
+Definition generic_dijkstra (get_size get_max_label get_neighbours mkheap h_insert h_empty h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string) : Value string :=
   [-\] "g", [-\] "src", (*[-\] "dst",*)
     [let "n"] get_size <* Var "g" [in]
-    [let "h"] mkheap <* Var "n" [in]
+    [let "C"] get_max_label <* Var "g" [in]
+    [let "h"] mkheap <* Var "n" <* Var "C" [in]
     [let "dist"] NewArray (Var "n") [in]
     [let "pred"] NewArray (Var "n") [in]
       init_array <* (Var "dist") <* (Var "n") <* (Int (-1));;
@@ -92,6 +93,7 @@ Definition generic_dijkstra (get_size get_neighbours mkheap h_insert h_empty h_e
     [end]
     [end]
     [end]
+    [end]
     [end]%string.
 
 Definition is_elem_list {A} (P : A -> Prop) (L : list A) :=
@@ -121,24 +123,31 @@ Definition nat_pairs2values {V} (L : list (nat * nat)) : list (Value V) :=
   List.map (fun '(x,w) => RecV [Int (Z.of_nat x); Int (Z.of_nat w)]) L.
 
 Inductive is_graph {A} : graph nat -> Value A -> StateAssertion A :=
-| is_graph_intro n g c m :
+| is_graph_intro n g s c m :
   (forall i, V g i ->
     exists v Lv L,
       Lookup (OfNat (n + i)) m v /\
       is_list Lv v c m /\
       is_elem_unique_list (neighbours g i) L /\
       Lv = nats2values L) ->
-  is_graph g (Lab (OfNat n)) c m.
+  is_set_size (V g) s ->
+  is_graph g (RecV [Lab (OfNat n); Int (Z.of_nat s)]) c m.
+
+Definition is_max_label {A} (g : wgraph A) (C : nat) :=
+  max_cost (uncurry (E g)) (uncurry (W g)) C.
 
 Inductive is_weighted_graph {A} : wgraph nat -> Value A -> StateAssertion A :=
-| is_weighted_graph_intro n (g : wgraph nat) c m :
+| is_weighted_graph_intro n (g : wgraph nat) C s c m :
   (forall i, V g i ->
     exists v Lv L,
       Lookup (OfNat (n + i)) m v /\
       is_list Lv v c m /\
       is_elem_weighted_unique_list (neighbours g i) (W g i) L /\
       Lv = nat_pairs2values L) ->
-  is_weighted_graph g (Lab (OfNat n)) c m.
+  is_max_label g C ->
+  is_set_size (V g) s ->
+  is_weighted_graph g
+    (RecV [Lab (OfNat n); Int (Z.of_nat s); Int (Z.of_nat C)]) c m.
 
 Definition is_nat_function {V} (f : nat -> option nat) '(OfNat n0) : StateAssertion V :=
   fun c m =>
@@ -146,42 +155,72 @@ Definition is_nat_function {V} (f : nat -> option nat) '(OfNat n0) : StateAssert
 
 (*Parameter get_size get_neighbours mkheap h_insert h_empty h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string.*)
 
+Parameter get_size_cost : forall (c : nat), Prop.
+
 Definition get_size_spec {A} (get_size : Value A) : Prop :=
-  forall g,
+  forall vg g c,
+    get_size_cost c ->
     triple_fun get_size
-      (is_weighted_graph g)
-      (fun v => <exists> n v',
-        <[v = Int (Z.of_nat n)]> <*> <[is_set_size (V g) n]> <*>
-          is_weighted_graph g v').
+      (fun v => <[v = vg]> <*> is_weighted_graph g vg)
+      (fun v => <exists> n,
+        $ c <*> <[v = Int (Z.of_nat n)]> <*> <[is_set_size (V g) n]> <*>
+          is_weighted_graph g vg).
+
+Parameter get_neighbours_cost : forall (c : nat), Prop.
 
 Definition get_neighbours_spec {A} (get_neighbours : Value A) : Prop :=
-  forall l n (g : wgraph nat),
+  forall vg n (g : wgraph nat) c,
     triple_fun get_neighbours
-      (fun v => <[v = Lab l]>)
+      (fun v => <[v = vg]>)
       (fun v => <[
         triple_fun v
           (fun v => <[v = Int (Z.of_nat n)]> <*> <[V g n]> <*>
-            is_weighted_graph g (Lab l))
+            is_weighted_graph g vg)
           (fun v => <exists> L,
-            <[is_elem_weighted_unique_list (neighbours g n) (W g n) L]> <*>
-            is_list (nat_pairs2values L) v </\> is_weighted_graph g (Lab l))
+            $c <*> <[is_elem_weighted_unique_list (neighbours g n) (W g n) L]> <*>
+            is_list (nat_pairs2values L) v </\> is_weighted_graph g vg)
       ]>).
 
+Parameter get_max_label_cost : forall (c : nat), Prop.
+
+Definition get_max_label_spec {A} (get_max_label : Value A) : Prop :=
+  forall vg g c,
+    get_max_label_cost c ->
+    triple_fun get_max_label
+      (fun v => <[v = vg]> <*> is_weighted_graph g vg)
+      (fun v => <exists> C,
+        $c <*> <[v = Int (Z.of_nat C)]> <*> <[is_max_label g C]> <*>
+          is_weighted_graph g vg).
+
 Parameter is_heap :
-  forall {V} (n : nat) (P : nat -> Prop) (W : nat -> option nat),
+  forall {V} (n C : nat) (P : nat -> Prop) (W : nat -> option nat),
     Value V -> StateAssertion V.
 
+Parameter place_in_heap :
+  forall {V} (h : Value V) (x p : nat), Prop.
+
+
+Parameter mkheap_cost : forall (n C c : nat), Prop.
+
 Definition mkheap_spec {V} (mkheap : Value V) : Prop :=
-  forall n,
+  forall n C c,
+    mkheap_cost n C c ->
     triple_fun mkheap
       (fun v => <[v = Int (Z.of_nat n)]>)
-      (is_heap n empty (fun _ => None)).
+      (fun v => <[
+        triple_fun v
+          (fun v => $c <*> <[v = Int (Z.of_nat C)]>)
+          (is_heap n C empty (fun _ => None))
+      ]>).
 
 Definition set_value_at (W : nat -> option nat) (x y n : nat) : option nat :=
   if n =? x then Some y else W n.
 
+Parameter h_insert_cost : forall (n C c : nat), Prop.
+
 Definition h_insert_spec {V} (h_insert : Value V) : Prop :=
-  forall n (P : nat -> Prop) (W : nat -> option nat) h (s k d : nat),
+  forall n C (P : nat -> Prop) (W : nat -> option nat) h (s k d c : nat),
+    h_insert_cost n C c ->
     is_set_size P s ->
     s < n ->
     ~ P k ->
@@ -192,18 +231,21 @@ Definition h_insert_spec {V} (h_insert : Value V) : Prop :=
           (fun v => <[v = Int (Z.of_nat k)]>)
           (fun v => <[
             triple_fun v
-              (fun v => <[v = Int (Z.of_nat d)]> <*> is_heap n P W h)
-              (fun v => <[v = U_val]> <*>
-                is_heap n (set_sum P (single k)) (set_value_at W k d) h)
+              (fun v => $c <*> <[v = Int (Z.of_nat d)]> <*> is_heap n C P W h)
+              (fun v => (<exists> c', $c') <*> <[v = U_val]> <*>
+                is_heap n C (set_sum P (single k)) (set_value_at W k d) h)
           ]>)
       ]>).
 
+Parameter h_empty_cost : forall (c : nat), Prop.
+
 Definition h_empty_spec {V} (h_empty : Value V) : Prop :=
-  forall n (P : nat -> Prop) (W : nat -> option nat) h s,
+  forall n C (P : nat -> Prop) (W : nat -> option nat) h s c,
+    h_empty_cost c ->
     is_set_size P s ->
     triple_fun h_empty
-      (fun v => <[v = h]> <*> is_heap n P W h)
-      (fun v => <[v = Bool (s =? 0)]> <*> is_heap n P W h).
+      (fun v => <[v = h]> <*> is_heap n C P W h)
+      (fun v => <[v = Bool (s =? 0)]> <*> is_heap n C P W h).
 
 Definition unset_value_at (W : nat -> option nat) (x n : nat) : option nat :=
   if n =? x then None else W n.
@@ -211,17 +253,21 @@ Definition unset_value_at (W : nat -> option nat) (x n : nat) : option nat :=
 Definition set_remove {A} (P : A -> Prop) (x y : A) : Prop :=
   P y /\ y <> x.
 
+Parameter h_extract_min_cost : forall {V} (c : nat) (h : Value V), StateAssertion V.
+
 Definition h_extract_min_spec {V} (h_extract_min : Value V) : Prop :=
-  forall n (P : nat -> Prop) (W : nat -> option nat) h k d,
+  forall n C (P : nat -> Prop) (W : nat -> option nat) h k d c,
     min_cost_elem P W k ->
     W k = Some d ->
     triple_fun h_extract_min
-      (fun v => <[v = h]> <*> is_heap n P W h)
+      (fun v => $c <*> <[v = h]> <*> is_heap n C P W h </\> h_extract_min_cost c h)
       (fun v => <[v = pair2Value nat2value nat2value (k,d)]> <*>
-        is_heap n (set_remove P k) W h).
+        is_heap n C (set_remove P k) W h).
+
+Parameter h_decrease_key_cost : forall {V} (c : nat) (h : Value V), StateAssertion V.
 
 Definition h_decrease_key_spec {V} (h_decrease_key : Value V) : Prop :=
-  forall n (P : nat -> Prop) (W : nat -> option nat) h k d,
+  forall n C (P : nat -> Prop) (W : nat -> option nat) h k d c,
   P k ->
   triple_fun h_decrease_key
     (fun v => <[v = h]>)
@@ -230,16 +276,20 @@ Definition h_decrease_key_spec {V} (h_decrease_key : Value V) : Prop :=
         (fun v => <[v = Int (Z.of_nat k)]>)
         (fun v => <[
           triple_fun v
-            (fun v => <[v = Int (Z.of_nat d)]> <*> is_heap n P W h)
-            (fun v => <[v = U_val]> <*> is_heap n P (set_value_at W k d) h)
+            (fun v => $c <*> <[v = Int (Z.of_nat d)]> <*>
+              is_heap n C P W h </\> h_decrease_key_cost c h)
+            (fun v => <[v = U_val]> <*> is_heap n C P (set_value_at W k d) h)
         ]>)
     ]>).
 
+Parameter h_free_cost : forall (n C c : nat), Prop.
+
 Definition h_free_spec {V} (h_free : Value V) : Prop :=
-  forall n (P : nat -> Prop) (W : nat -> option nat),
+  forall n C (P : nat -> Prop) (W : nat -> option nat) c,
+  h_free_cost n C c ->
   triple_fun h_free
-    (is_heap n P W)
-    (fun v => <[]>).
+    (is_heap n C P W <*>+ $c)
+    (fun v => <exists> c', $c').
 
 Definition is_nil_b {A} (L : list A) : bool :=
   match L with
@@ -265,17 +315,13 @@ Definition l_tail_spec {V} (l_tail : Value V) : Prop :=
       (fun v => <[v = l]> <*> is_list (h::L)%list l)
       (fun v => <[v = t]> <*> is_list (h::L)%list l </\> is_list L t).
 
-Definition uncurry {A B C} (f : A -> B -> C) '(x,y) := f x y.
-
-(*Definition is_max_label {A} (g : wgraph A) (C : nat) :=
-  max_cost (uncurry (E g)) (uncurry (W g)) C.*)
-
 Theorem triple_fun_generic_dijkstra
-  (get_size get_neighbours mkheap h_insert h_empty
+  (get_size get_neighbours get_max_label mkheap h_insert h_empty
     h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string)
   (g : wgraph nat) l src D pred :
   get_size_spec       get_size ->
   get_neighbours_spec get_neighbours ->
+  get_max_label_spec  get_max_label ->
   mkheap_spec         mkheap ->
   h_insert_spec       h_insert ->
   h_empty_spec        h_empty ->
@@ -289,7 +335,7 @@ Theorem triple_fun_generic_dijkstra
   is_set_size (V g) n ->
   triple_fun
     (generic_dijkstra
-      get_size get_neighbours mkheap h_insert h_empty
+      get_size get_neighbours get_max_label mkheap h_insert h_empty
       h_extract_min h_decrease_key h_free l_is_nil l_head l_tail)
     (fun v => <[v = Lab l]>)
     (fun v => <[triple_fun v

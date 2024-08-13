@@ -554,7 +554,7 @@ Global Hint Constructors cost_red : lamref.
 
 (* NOTATIONS *)
 
-Notation "'$' x" := (Some x) (at level 50).
+(*Notation "'$' x" := (Some x) (at level 50).*)
 
 Notation "'-\' e" := (Lam e) (at level 100).
 
@@ -602,7 +602,7 @@ Notation "[while] e1 [do] e2 [end]" :=
 
 Definition StringLam (x : string) (e : Expr string) :
   Value string :=
-  Lam (map_e (fun y => if x =? y then None else $ y)%string e).
+  Lam (map_e (fun y => if x =? y then None else Some y)%string e).
 
 (*
 Class EqBool (A : Set) : Set := {
