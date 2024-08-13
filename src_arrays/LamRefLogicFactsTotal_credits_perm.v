@@ -108,6 +108,12 @@ Proof.
   unfold_all. split; intros H; edestruct_direct; eauto 10.
 Qed.
 
+Theorem star_exists_l' V A P (Q : StateAssertion V) :
+  (<exists> x : A, P x) <*> Q ->> <exists> x : A, P x <*> Q.
+Proof.
+  unfold sa_implies. intros. apply star_exists_l. assumption.
+Qed.
+
 Lemma exists_implies A (V : Set) (P Q : A -> StateAssertion V) :
   (forall x, P x ->> Q x) ->
   (<exists> x, P x) ->> (<exists> x, Q x).

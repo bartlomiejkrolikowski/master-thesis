@@ -6,8 +6,7 @@ Import List.ListNotations.
 Require Import String.
 Require Import ZArith.
 
-Definition inc_set (A : Set) : Set :=
-  option A.
+Definition inc_set : Set -> Set := option.
 
 Definition inc_fun {A B : Set}
   (f : A -> B) (y : B) (x : inc_set A) : B :=
@@ -165,6 +164,12 @@ with map_e {A B : Set} (f : A -> B) (e : Expr A) : Expr B :=
   | If e1 e2 e3 => If (map_e f e1) (map_e f e2) (map_e f e3)
   | While e1 e2 => While (map_e f e1) (map_e f e2)
   end.
+
+Definition is_closed_value {A} (v : Value A) : Prop :=
+  exists (v' : Value Empty_set), v = map_v (fun x : Empty_set => match x with end) v'.
+
+Definition is_closed_expr {A} (e : Expr A) : Prop :=
+  exists (e' : Expr Empty_set), e = map_e (fun x : Empty_set => match x with end) e'.
 
 Definition shift_v {V : Set} : Value V -> Value (inc_set V) :=
   map_v Some.

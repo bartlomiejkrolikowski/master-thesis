@@ -64,6 +64,7 @@ src_arrays/LamRefLogicFactsTotal_credits_perm.v
 src_arrays/RadixHeap_array_simple.v
 src_arrays/RadixHeap_list.v
 src_arrays/Tactics.v
+src_arrays/SA_Tactics.v
 #src_arrays_strings/Aux.v
 #src_arrays_strings/Dijkstra_generic.v
 #src_arrays_strings/Example7_credits_perm.v

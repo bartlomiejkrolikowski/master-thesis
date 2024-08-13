@@ -60,6 +60,52 @@ Proof.
     + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
 Qed.
 
+Lemma map_v_closed_value (V V' : Set) (f : V -> V') v :
+  is_closed_value v ->
+  is_closed_value (map_v f v).
+Proof.
+  unfold is_closed_value. intros [v' ->]. exists v'. rewrite map_v_map_v.
+  apply map_v_ext. intros [].
+Qed.
+
+Lemma map_e_closed_expr (V V' : Set) (f : V -> V') e :
+  is_closed_expr e ->
+  is_closed_expr (map_e f e).
+Proof.
+  unfold is_closed_expr. intros [e' ->]. exists e'. rewrite map_e_map_e.
+  apply map_e_ext. intros [].
+Qed.
+
+Lemma map_v_same_on_closed (V V' : Set) (f g : V -> V') v :
+  is_closed_value v ->
+  map_v f v = map_v g v.
+Proof.
+  unfold is_closed_value. intros [v' ->]. repeat rewrite map_v_map_v.
+  apply map_v_ext. intros [].
+Qed.
+
+Lemma map_e_same_on_closed (V V' : Set) (f g : V -> V') e :
+  is_closed_expr e ->
+  map_e f e = map_e g e.
+Proof.
+  unfold is_closed_value. intros [e' ->]. repeat rewrite map_e_map_e.
+  apply map_e_ext. intros [].
+Qed.
+
+Corollary map_v_shift_closed (V : Set) (f : V -> option V) v :
+  is_closed_value v ->
+  map_v f v = shift_v v.
+Proof.
+  unfold shift_v. apply map_v_same_on_closed.
+Qed.
+
+Corollary map_e_shift_closed (V : Set) (f : V -> option V) e :
+  is_closed_expr e ->
+  map_e f e = shift_e e.
+Proof.
+  unfold shift_e. apply map_e_same_on_closed.
+Qed.
+
 Fixpoint bind_v_ext (V V' : Set) (f g : V -> Value V') v {struct v} :
   (forall x, f x = g x) ->
   bind_v f v = bind_v g v
