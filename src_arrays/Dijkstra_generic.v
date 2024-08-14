@@ -337,6 +337,83 @@ Definition l_tail_spec {V} (l_tail : Value V) : Prop :=
       (fun v => $c <*> <[v = l]> <*> is_list (h::L)%list l)
       (fun v => <[v = t]> <*> is_list (h::L)%list l </\> is_list L t).
 
+Ltac fold_and_apply f x :=
+  try (progress fold (f x); fold_and_apply f (f x)).
+
+Ltac fold_all_inc_set x :=
+  fold_and_apply constr:(inc_set) x.
+
+Ltac fold_all_inc_set_string :=
+  fold_all_inc_set constr:(string).
+
+Ltac reorder_exists P :=
+  lazymatch P with
+  | ?Q <*> ?Q' =>
+    lazymatch ltac:(eval simpl in (ltac:(reorder_exists Q))) with
+    | (<exists> x : ?T, @?Q1 x) =>
+        let t := fresh x in
+      reorder_exists ltac:(eval simpl in (<exists> t : T, Q1 t <*> Q'))
+(*      let t := fresh x in
+      let Q2 := ltac:(eval simpl in (fun t =>ltac:(reorder_exists ltac:(eval simpl in (Q1 t <*> Q'))))) in
+      exact (<exists> x, Q2 x)*)
+    | ?Q1 =>
+      lazymatch ltac:(eval simpl in (ltac:(reorder_exists Q'))) with
+      | (<exists> x : ?T, @?Q1' x) =>
+        let t := fresh x in
+        reorder_exists ltac:(eval simpl in (<exists> t : T, Q1 <*> Q1' t))
+(*        let t := fresh x in
+        let Q2 := ltac:(eval simpl in (fun t =>ltac:(reorder_exists ltac:(eval simpl in (Q1 <*> Q1' t))))) in
+        exact (<exists> x, Q2 x)*)
+      | ?Q1' => exact (Q1 <*> Q1')
+      end
+    end
+  | <exists> t : ?T, @?Q t => (*idtac t T Q;*)
+    let Q' := ltac:(eval simpl in ltac:(reorder_exists Q)) in
+    (*idtac T Q'; idtac ">";*) exact (<exists> t : T, Q' t) (*; idtac "OK") || idtac "!")*)
+  | fun t : ?T => @?Q t => (*idtac t T Q;*)
+    let u := fresh t in(*exact (fun x : T => ltac:(eval simpl in ltac:(clear_empty Q)))*)
+    let Q' := ltac:(eval simpl in (fun u =>ltac:(reorder_exists ltac:(eval simpl in (Q u))))) in
+    (*idtac t T Q'; idtac ">!";*) exact Q' (*; idtac "OK!") || idtac "!!")*)
+  | _ => exact P (*; idtac "<>"*)
+  end.
+
+(*Check ltac:(reorder_exists (<[]> <*> (<[1=1]> <*> (<exists> t, <[t < 1]>) <*> <[2=2]> <*> (<exists> x : nat, <[x=0]> <*> <exists> y, <[x=y]>) <*> (sa_credits 2 <*> <[3=3]> <*> <exists> z, sa_credits z) <*> sa_credits 5 <*> <exists> t, <[t>10]>) : StateAssertion string)).*)
+
+Ltac prove_implies_reorder_exists :=
+  lazymatch goal with
+  | [|- ?Q <*> ?Q' ->> _ ] =>
+    eapply implies_trans;
+    [apply star_implies_mono; [prove_implies_reorder_exists|prove_implies_refl]|];
+    lazymatch goal with
+    | [|- (<exists> x, @?Q1 x) <*> ?Q1' ->> _] =>
+      eapply implies_trans; [apply star_exists_l'|];
+      prove_implies_reorder_exists
+    | [|- ?Q1 <*> ?Q1' ->> _] =>
+      eapply implies_trans;
+      [apply star_implies_mono; [prove_implies_refl|prove_implies_reorder_exists]|];
+      lazymatch goal with
+      | [|- ?Q2 <*> (<exists> x, @?Q2' x) ->> _] =>
+        eapply implies_trans; [apply star_exists_r'|];
+        prove_implies_reorder_exists
+      | [|- ?Q2 <*> ?Q2' ->> _] => apply implies_refl
+      end
+    end
+  | [|- (<exists> x, @?P' x) ->> _] =>
+    let t := fresh x in
+    apply implies_trans with (Q := <exists> t, P' t); [prove_implies_refl|];
+    apply exists_implies with (P := P'); prove_implies_reorder_exists
+  | [|- forall x, ?Q ->> _] =>
+    intros; prove_implies_reorder_exists
+  | [|- ?P ->> _] => apply implies_refl
+  end.
+
+Ltac triple_reorder_exists :=
+  lazymatch goal with
+  | [|- triple ?e ?P' ?Q'] =>
+    apply triple_weaken with (P := ltac:(reorder_exists P')) (Q := Q');
+      [prove_implies_reorder_exists|prove_implies_refl|]
+  end.
+
 Theorem triple_fun_generic_dijkstra
   (get_size get_max_label get_neighbours mkheap h_insert h_empty
     h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string) :
@@ -387,7 +464,10 @@ Proof using.
     Hclosed_h_free Hclosed_l_is_nil Hclosed_l_head Hclosed_l_tail.
   unfold get_size_spec, get_neighbours_spec, get_max_label_spec, mkheap_spec, h_insert_spec, h_empty_spec,
     h_extract_min_spec, h_decrease_key_spec, h_free_spec, l_is_nil_spec, l_head_spec, l_tail_spec.
-  intros. eexists ?[c0], ?[cn], ?[cm]. intros. unfold triple_fun, generic_dijkstra, StringLam. simpl. intros.
+  intros Hspec_get_size Hspec_get_max_label Hspec_get_neighbours Hspec_mkheap
+    Hspec_h_insert Hspec_h_empty Hspec_h_extract_min Hspec_h_decrease_key
+    Hspec_h_free Hspec_l_is_nil Hspec_l_head Hspec_l_tail.
+  eexists ?[c0], ?[cn], ?[cm]. intros. unfold triple_fun, generic_dijkstra, StringLam. simpl. intros.
   repeat (rewrite map_v_shift_closed; [|repeat apply map_v_closed_value; assumption]).
   app_lambda. triple_pull_pure. subst. solve_simple_value; [|rewrite_empty_spec; rewrite pure_spec; auto].
   split_all; auto. intros. cbn. triple_pull_pure. solve_simple_value.
@@ -397,7 +477,8 @@ Proof using.
   split_all; auto. intros. cbn. triple_reorder_pure. repeat triple_pull_pure. subst.
   rewrite bind_v_shift, bind_v_id.
   instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
-  fold (inc_set string).
+  (*Set Printing Implicit.*)
+  fold_all_inc_set_string.
   repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
   triple_pull_1_credit. app_lambda.
   2:{
@@ -405,12 +486,10 @@ Proof using.
     eapply triple_weaken, triple_frame, triple_fun_app.
     { apply implies_spec. intros. swap_star_ctx. normalize_star. swap_star_ctx. eassumption. }
     { prove_implies_refl. }
-    { apply H. admit. }
+    { apply Hspec_get_size. admit. }
     { solve_simple_value. swap_star. solve_star. eassumption. }
   }
   solve_simple_value. split_all; auto. intros. cbn.
-  fold (inc_set (inc_set string)).
-  fold (inc_set string).
   repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
   instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
   triple_pull_1_credit. app_lambda.
@@ -435,14 +514,24 @@ Proof using.
           swap_star. eassumption. }
         { prove_implies_refl. } } }
     { prove_implies_refl. }
-    { apply H0. admit. }
+    { apply Hspec_get_max_label. admit. }
     { solve_simple_value. swap_star. swap_star_ctx. solve_star. eassumption. }
   }
   solve_simple_value. split_all; auto. intros. cbn.
-  fold (inc_set (inc_set (inc_set string))).
-  fold (inc_set (inc_set string)).
-  fold (inc_set string).
   repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
+  triple_reorder_exists. repeat triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure. subst.
+  instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
+  triple_pull_1_credit. app_lambda.
+  2:{
+    instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]). triple_pull_1_credit.
+    eapply triple_app.
+    instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]). triple_pull_1_credit.
+    eapply triple_weaken, triple_frame, triple_fun_app.
+    3:apply Hspec_mkheap; admit.
+    3:solve_simple_value.
+    { apply implies_spec. intros. solve_star. swap_star. swap_star_ctx. solve_star. eassumption. }
+    { apply implies_post_spec. intros. (*TODO*) prove_implies_refl. }
+  }
   (*TODO:
   triple_pull_exists.
   triple_reorder_pure.
