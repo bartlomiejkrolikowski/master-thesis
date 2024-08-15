@@ -414,6 +414,44 @@ Ltac triple_reorder_exists :=
       [prove_implies_reorder_exists|prove_implies_refl|]
   end.
 
+Definition array_content {V}
+  (f : nat -> option (Value V)) (n : nat) '(OfNat n0) : StateAssertion V :=
+  fun c m => c = 0 /\ List.length m = n /\
+    forall i v, f i = Some v <-> (i < n /\ Lookup (OfNat (n0+i)) m v).
+
+Lemma length_n_new_cells {V} l n :
+  List.length (@n_new_cells_from V l n) = n.
+Proof.
+  destruct l as [k]. revert k. induction n; simpl; auto.
+Qed.
+
+Lemma array_decl_empty_content {V} n l c m :
+  Is_Valid_Map m ->
+  <(l :\ n \= )> c m <-> array_content (fun _ => @None (_ V)) n l c m.
+Proof.
+  unfold Is_Valid_Map, labels, sa_array_decl, array_content.
+  destruct l as [nl]. intros Hnodup. split. { intros (->&Heq). split; auto.
+  generalize dependent m. revert nl.
+  induction n; intros ? ? ? ->; simpl.
+  - split; auto. intros. split.
+    + discriminate.
+    + lia.
+  - split.
+    + f_equal. apply length_n_new_cells.
+    + intros. split.
+      * discriminate.
+      * intros (Heq&Hnone). inversion Hnodup. inversion Hnone. destruct i.
+        -- exfalso. rewrite Nat.add_0_r in *.
+          match goal with
+          | [H : Lookup _ _ _ |- _] => apply Lookup_success in H
+          end.
+          unfold not, labels in *. auto.
+        -- edestruct IHn as (?&Hlookup); eauto. apply Hlookup with (i := i). split.
+          ++ lia.
+          ++ rewrite Nat.add_succ_r in *. simpl. assumption. }
+  
+Qed.
+
 Theorem triple_fun_generic_dijkstra
   (get_size get_max_label get_neighbours mkheap h_insert h_empty
     h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string) :
