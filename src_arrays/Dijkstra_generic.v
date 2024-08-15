@@ -523,15 +523,62 @@ Proof using.
   instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
   triple_pull_1_credit. app_lambda.
   2:{
-    instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]). triple_pull_1_credit.
-    eapply triple_app.
-    instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]). triple_pull_1_credit.
-    eapply triple_weaken, triple_frame, triple_fun_app.
-    3:apply Hspec_mkheap; admit.
-    3:solve_simple_value.
-    { apply implies_spec. intros. solve_star. swap_star. swap_star_ctx. solve_star. eassumption. }
-    { apply implies_post_spec. intros. (*TODO*) prove_implies_refl. }
+    instantiate (c0 := S (S ?[cc0])). instantiate (cc0 := ?[c0]).
+    triple_pull_credits 2. triple_reorder_credits.
+    eapply triple_weaken, triple_frame, triple_fun_app2.
+    4:solve_simple_value.
+    1:{ prove_implies_refl. }
+    2:{
+      instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]). triple_pull_1_credit.
+      eapply triple_weaken, triple_frame, triple_fun_app.
+      3:apply Hspec_mkheap; admit.
+      3:solve_simple_value.
+      { apply implies_spec. intros. solve_star. swap_star. solve_star. eassumption. }
+      { apply implies_post_spec. intros. normalize_star. solve_star; [eassumption|].
+        simpl. swap_star. solve_star. eassumption. }
+    }
+    1:{ prove_implies_refl. }
   }
+  solve_simple_value. split_all; auto. intros. cbn.
+  repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
+  instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
+  triple_pull_1_credit. app_lambda.
+  2:{
+    triple_pull_1_credit.
+    apply triple_new_array. solve_simple_value.
+    { lia. }
+    { match goal with
+      | [H : ?Q ?c ?m |- ?F ?v ?c ?m] =>
+        unify F (fun t => <[t = v]> <*> Q)
+      end.
+      simpl. solve_star. }
+  }
+  solve_simple_value. split_all; auto. intros. cbn.
+  repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
+  triple_reorder_exists. repeat triple_pull_exists.
+  triple_reorder_pure. repeat triple_pull_pure. subst.
+  instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
+  triple_pull_1_credit. app_lambda.
+  2:{
+    instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
+    triple_pull_1_credit.
+    apply triple_new_array. solve_simple_value.
+    { lia. }
+    { match goal with
+      | [H : ?Q ?c ?m |- ?F ?v ?c ?m] =>
+        unify F (fun t => <[t = v]> <*> Q)
+      end.
+      simpl. solve_star. }
+  }
+  solve_simple_value. split_all; auto. intros. cbn.
+  repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
+  triple_reorder_exists. repeat triple_pull_exists.
+  triple_reorder_pure. repeat triple_pull_pure. subst.
+  instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
+  triple_pull_1_credit.
+  eapply triple_seq.
+  -- admit.
+  -- admit.
   (*TODO:
   triple_pull_exists.
   triple_reorder_pure.
