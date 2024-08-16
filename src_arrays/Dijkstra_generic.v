@@ -15,22 +15,35 @@ Require Import src_arrays.Interweave.
 
 Require Import graphs.Graphs.
 
+Definition assign_array_at : Value string :=
+  ([-\] "array", [-\] "index", [-\] "value",
+    (Var "array" >> Var "index") <- Var "value")%string.
+
+Definition incr : Value string :=
+  ([-\] "p", Var "p" <- ! Var "p" [+] Int 1)%string.
+
 Definition init_array : Value string :=
   [-\] "array", [-\] "size", [-\] "value",
     [let "i"] Ref (Int 0) [in]
       [while] ! Var "i" [<] Var "size" [do]
-        (Var "array" >> ! Var "i") <- Var "value";;
-        Var "i" <- ! Var "i" [+] Int 1
+        (*(Var "array" >> ! Var "i") <- Var "value";;*)
+        assign_array_at <* Var "array" <* Var "i" <* Var "value";;
+        incr <* Var "i"
       [end];;
       Free (Var "i")
     [end]%string.
+
+Definition free_array_at : Value string :=
+  ([-\] "array", [-\] "i", Free (Var "array" >> ! Var "i"))%string.
 
 Definition free_array : Value string :=
   [-\] "array", [-\] "size",
     [let "i"] Ref (Int 0) [in]
       [while] ! Var "i" [<] Var "size" [do]
-        Free (Var "array" >> ! Var "i");;
-        Var "i" <- ! Var "i" [+] Int 1
+        (*Free (Var "array" >> ! Var "i");;
+        Var "i" <- ! Var "i" [+] Int 1*)
+        free_array_at <* Var "array" <* Var "i";;
+        incr <* Var "i"
       [end];;
       Free (Var "i")
     [end]%string.
@@ -407,6 +420,34 @@ Ltac prove_implies_reorder_exists :=
   | [|- ?P ->> _] => apply implies_refl
   end.
 
+Ltac prove_implies_reorder_exists_bwd :=
+  lazymatch goal with
+  | [|- ?Q <*> ?Q' ->> _ ] =>
+    eapply implies_trans;
+    [|apply star_implies_mono; [prove_implies_reorder_exists_bwd|prove_implies_refl]];
+    lazymatch goal with
+    | [|- (<exists> x, @?Q1 x) <*> ?Q1' ->> _] =>
+      eapply implies_trans; [|apply star_exists_l'];
+      prove_implies_reorder_exists_bwd
+    | [|- ?Q1 <*> ?Q1' ->> _] =>
+      eapply implies_trans;
+      [|apply star_implies_mono; [prove_implies_refl|prove_implies_reorder_exists_bwd]];
+      lazymatch goal with
+      | [|- ?Q2 <*> (<exists> x, @?Q2' x) ->> _] =>
+        eapply implies_trans; [|apply star_exists_r'];
+        prove_implies_reorder_exists_bwd
+      | [|- ?Q2 <*> ?Q2' ->> _] => apply implies_refl
+      end
+    end
+  | [|- (<exists> x, @?P' x) ->> _] =>
+    let t := fresh x in
+    apply implies_trans with (Q := <exists> t, P' t); [|prove_implies_refl];
+    apply exists_implies with (P := P'); prove_implies_reorder_exists_bwd
+  | [|- forall x, ?Q ->> _] =>
+    intros; prove_implies_reorder_exists_bwd
+  | [|- ?P ->> _] => apply implies_refl
+  end.
+
 Ltac triple_reorder_exists :=
   lazymatch goal with
   | [|- triple ?e ?P' ?Q'] =>
@@ -414,43 +455,222 @@ Ltac triple_reorder_exists :=
       [prove_implies_reorder_exists|prove_implies_refl|]
   end.
 
-Definition array_content {V}
-  (f : nat -> option (Value V)) (n : nat) '(OfNat n0) : StateAssertion V :=
-  fun c m => c = 0 /\ List.length m = n /\
-    forall i v, f i = Some v <-> (i < n /\ Lookup (OfNat (n0+i)) m v).
+(*Ltac prove_post_by_constant_eta_expansion :=
+  match goal with
+  | [H : ?P ?c ?m |- _ ?v ?c ?m]
+  end.
+*)
 
-Lemma length_n_new_cells {V} l n :
-  List.length (@n_new_cells_from V l n) = n.
+Ltac rewrite_all_binds :=
+  fold_all_inc_set_string;
+  repeat rewrite bind_v_liftS_shift_swap;
+  repeat rewrite bind_v_shift;
+  repeat rewrite bind_v_id.
+
+Lemma only_lab_is_array V A a c m :
+  @array_content V A a c m ->
+  exists n, a = Lab (OfNat n).
 Proof.
-  destruct l as [k]. revert k. induction n; simpl; auto.
+  intros [].
+  - destruct l. eauto.
+  - eauto.
 Qed.
 
-Lemma array_decl_empty_content {V} n l c m :
-  Is_Valid_Map m ->
-  <(l :\ n \= )> c m <-> array_content (fun _ => @None (_ V)) n l c m.
+Ltac injection_ctx :=
+  match goal with
+  | [H : ?f _ = ?f _ |- _] => injection H; clear H; intros; subst
+  end.
+
+Lemma triple_fun_assign_array_at A A' A1 ov A2 a i x :
+  List.length A1 = i ->
+  A = (A1 ++ ov::A2)%list ->
+  A' = (A1 ++ Some x::A2)%list ->
+  triple_fun assign_array_at
+    (fun v => $1 <*> <[v = a]>)
+    (fun v => <[
+      triple_fun v
+        (fun v => $1 <*> <[v = Int (Z.of_nat i)]>)
+        (fun v => <[
+          triple_fun v
+            (fun v => $3 <*> <[v = x]> <*> array_content A a)
+            (fun v => <[v = U_val]> <*> array_content A' a)
+        ]>)
+    ]>).
 Proof.
-  unfold Is_Valid_Map, labels, sa_array_decl, array_content.
-  destruct l as [nl]. intros Hnodup. split. { intros (->&Heq). split; auto.
-  generalize dependent m. revert nl.
-  induction n; intros ? ? ? ->; simpl.
-  - split; auto. intros. split.
-    + discriminate.
-    + lia.
-  - split.
-    + f_equal. apply length_n_new_cells.
-    + intros. split.
-      * discriminate.
-      * intros (Heq&Hnone). inversion Hnodup. inversion Hnone. destruct i.
-        -- exfalso. rewrite Nat.add_0_r in *.
-          match goal with
-          | [H : Lookup _ _ _ |- _] => apply Lookup_success in H
-          end.
-          unfold not, labels in *. auto.
-        -- edestruct IHn as (?&Hlookup); eauto. apply Hlookup with (i := i). split.
-          ++ lia.
-          ++ rewrite Nat.add_succ_r in *. simpl. assumption. }
-  
+  intros. subst. unfold triple_fun, assign_array_at, StringLam. simpl. intros.
+  app_lambda. solve_simple_value. normalize_star. subst. split_all; auto.
+  intros. cbn. solve_simple_value. normalize_star. subst. split_all; auto.
+  intros. app_lambda. solve_simple_value. normalize_star. split_all; auto.
+  intros. cbn. solve_simple_value. normalize_star. subst. split_all; auto.
+  intros. triple_pull_1_credit. app_lambda. solve_simple_value.
+  swap_star_ctx. normalize_star. subst. split_all; auto. intros. cbn.
+  rewrite_all_binds. unfold sa_star, sa_credits in * |-. edestruct_direct.
+  match goal with
+  | [H : array_content _ _ _ _ |- _] => apply only_lab_is_array in H as (?&->)
+  end.
+  eapply triple_weaken.
+  1-2:intros; repeat (apply star_implies_mono; [prove_implies_refl|]);
+    apply implies_spec; intros ? ? ?%array_content_app; eassumption.
+  eapply triple_weaken.
+  1-2:intros; repeat (apply star_implies_mono; [prove_implies_refl|]);
+    apply implies_spec; intros ? ? ?%array_content_cons; eassumption.
+  triple_reorder_exists. triple_pull_exists.
+  triple_reorder_pure. repeat triple_pull_pure. subst. injection_ctx.
+  triple_pull_1_credit.
+  eapply triple_weaken, triple_frame,
+    triple_assign with (Q2 := fun v' => <[v' = x]> <*> _).
+  { prove_implies_rev. }
+  { intros. simpl. prove_implies_rev. apply implies_spec. intros. normalize_star.
+    swap_star_ctx. normalize_star. subst.
+    match goal with
+    | [H : _ ?c ?m |- _ ?c ?m] => apply empty_star_l_cancel in H
+    end.
+    solve_star. revert_implies. prove_implies. }
+  2:solve_simple_value.
+  triple_reorder_credits.
+  lazymatch goal with
+  | [|- triple (Val (Lab (OfNat ?n)) >> Val (Int ?i)) _ _] =>
+    eapply triple_weaken, triple_shift with
+      (Q1 := fun n' => <[n' = n]> <*> _)
+      (Q2 := fun n' i' => <[n' = n]> <*> <[i' = i]> <*> _)
+  end.
+  { prove_implies. }
+  { intros. simpl. apply implies_spec. intros. normalize_star. swap_star.
+    solve_star. apply empty_star_l_intro. subst. rewrite Nat2Z.id.
+    solve_star; eauto. }
+  - solve_simple_value.
+  - intros. simpl. solve_simple_value; normalize_star; eauto. lia.
 Qed.
+
+Ltac find_witness_is_closed e :=
+  lazymatch e with
+  (* variables *)
+  | @None ?T => exact (@None ltac:(find_witness_is_closed T))
+  | Some ?x => exact (Some ltac:(find_witness_is_closed x))
+  (* Value *)
+  | U_val => exact U_val
+  | Var ?x => exact (Var ltac:(find_witness_is_closed x))
+  | Int ?i => exact (Int i)
+  | Bool ?b => exact (Bool b)
+  | Lab ?l => exact (Lab l)
+  (*| RecV ?vs => exact (RecV (*TODO*)) *)
+  | Lam ?e => exact (Lam ltac:(find_witness_is_closed e))
+  (* Expr *)
+  | Val ?v => exact (Val ltac:(find_witness_is_closed v))
+  | App ?e1 ?e2 =>
+    exact (App ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
+  | UnOp ?k ?e => exact (UnOp k ltac:(find_witness_is_closed e))
+  | BinOp ?k ?e1 ?e2 =>
+    exact (BinOp k
+      ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
+(*  | RecE es => exact (ecE (*TODO*))
+  | Get n e => Get n (map_labels_e f e)
+  | Ref e => Ref (map_labels_e f e)
+  | NewArray e => NewArray (map_labels_e f e)*)
+  | Deref ?e => exact (Deref ltac:(find_witness_is_closed e))
+  | Shift ?e1 ?e2 => exact (Shift ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
+  | Assign ?e1 ?e2 => exact (Assign ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
+(*  | Free e => Free (map_labels_e f e)
+  | Seq e1 e2 => Seq (map_labels_e f e1) (map_labels_e f e2)
+  | If e1 e2 e3 =>
+    If (map_labels_e f e1) (map_labels_e f e2) (map_labels_e f e3)
+  | While e1 e2 => While (map_labels_e f e1) (map_labels_e f e2)*)
+  (* Coq types *)
+  | option ?T => exact (option ltac:(find_witness_is_closed T))
+  | ?T => exact Empty_set
+  end.
+
+(*Check (ltac:(find_witness_is_closed ltac:(eval compute in assign_array_at))).*)
+
+Ltac prove_is_closed :=
+  unfold is_closed_value, StringLam; compute; eexists ?[e];
+  lazymatch goal with
+  | [|- ?e' = _] => instantiate (e := (ltac:(find_witness_is_closed e')))
+  end;
+  simpl; reflexivity.
+
+Lemma is_closed_value_assign_array_at :
+  is_closed_value assign_array_at.
+Proof.
+  prove_is_closed.
+Qed.
+
+Opaque assign_array_at.
+
+Global Hint Resolve is_closed_value_assign_array_at : is_closed_db.
+
+Lemma triple_fun_incr l i :
+  triple_fun incr
+    (fun v => $4 <*> <[v = Lab l]> <*> <(l :== Int i)>)
+    (fun v => <[v = U_val]> <*> <(l :== Int (i+1))>).
+Proof.
+  unfold triple_fun, incr, StringLam. simpl. intros. triple_pull_1_credit.
+  app_lambda. solve_simple_value. split_all; auto. intros. cbn.
+  triple_reorder_pure. triple_pull_pure. subst. triple_pull_1_credit.
+  eapply triple_weaken, triple_assign with (Q2 := fun v' => <[v' = Int (i+1)]>).
+  { prove_implies_rev. }
+  { intros. simpl. prove_implies. apply implies_spec. intros. normalize_star.
+    swap_star_ctx. normalize_star. subst. assumption. }
+  - solve_simple_value.
+  - triple_pull_1_credit.
+    eapply triple_weaken, triple_iadd with
+      (Q1 := fun i1 => <[i1 = i]> <*> _)
+      (Q2 := fun i1 i2 => <[i1 = i]> <*> <[i2 = 1%Z]> <*> _).
+    { prove_implies. }
+    { apply implies_post_spec. intros. normalize_star. subst. swap_star.
+      solve_star. eassumption. }
+    + eapply triple_weaken, triple_deref.
+      { apply empty_star_r_intro. }
+      { apply implies_post_spec. intros. normalize_star. subst. solve_star.
+        eassumption. }
+      solve_simple_value.
+    + intros. triple_pull_pure. subst. solve_simple_value. revert_implies.
+      apply empty_star_r_cancel.
+Qed.
+
+Lemma is_closed_value_incr :
+  is_closed_value incr.
+Proof.
+  prove_is_closed.
+Qed.
+
+Opaque incr.
+
+Global Hint Resolve is_closed_value_incr : is_closed_db.
+
+Lemma triple_fun_init_array A a s x :
+  triple_fun init_array
+    (fun v => $1 <*> <[v = a]>)
+    (fun v => <[
+      triple_fun v
+        (fun v => $1 <*> <[v = Int (Z.of_nat s)]>)
+        (fun v => <[
+          triple_fun v
+            (fun v => <[v = x]> <*> $ (7 + s*12) <*> array_content A a)
+            (fun v => <[v = U_val]> <*> array_content (List.repeat (Some x) s) a)
+        ]>)
+    ]>).
+Proof.
+  unfold triple_fun, init_array, StringLam. simpl. intros.
+  repeat (rewrite map_v_shift_closed;
+    [|repeat apply map_v_closed_value; auto with is_closed_db]).
+  app_lambda. solve_simple_value. normalize_star. subst.
+  split_all; auto. intros. cbn. subst. triple_pull_pure. subst.
+  solve_simple_value. rewrite_empty_spec. rewrite pure_spec. split_all; auto.
+  intros. app_lambda. solve_simple_value. normalize_star. subst.
+  split_all; auto. intros. cbn. triple_pull_pure. subst. solve_simple_value.
+  rewrite_empty_spec. rewrite pure_spec. split_all; auto. intros.
+  triple_pull_1_credit. app_lambda. solve_simple_value. swap_star_ctx.
+  normalize_star. subst. split_all; auto. intros. cbn.
+  triple_reorder_pure. triple_pull_pure. subst. triple_pull_1_credit.
+  app_lambda.
+  2:{ triple_pull_1_credit. apply triple_ref. solve_simple_value. revert_implies.
+      prove_implies_refl. }
+  solve_simple_value. split_all; auto. intros. cbn. repeat triple_pull_exists.
+  triple_reorder_pure. triple_pull_pure. subst. triple_pull_1_credit.
+  eapply triple_seq.
+  - rewrite_all_binds. triple_pull_credits 2.
+Admitted.
 
 Theorem triple_fun_generic_dijkstra
   (get_size get_max_label get_neighbours mkheap h_insert h_empty

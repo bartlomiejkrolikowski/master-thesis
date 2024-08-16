@@ -102,3 +102,12 @@ Global Hint Unfold sa_and : st_assertions.
 Global Hint Unfold sa_exists : st_assertions.
 Global Hint Unfold sa_forall : st_assertions.
 Global Hint Unfold sa_implies : st_assertions.
+
+Inductive array_content {V} : list (option (Value V)) -> Value V -> StateAssertion V :=
+| array_nil l : array_content nil (Lab l) 0 nil
+| array_cons ov A n c m m' :
+  Interweave [(OfNat n, ov)] m m' ->
+  array_content A (Lab (OfNat (S n))) c m ->
+  array_content (ov::A) (Lab (OfNat n)) c m'.
+
+Global Hint Constructors array_content : st_assertions.

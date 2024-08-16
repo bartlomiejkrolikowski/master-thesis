@@ -538,6 +538,228 @@ Proof.
   invert_Intwv_nil. auto.
 Qed.
 
+Fact disjoint_maps_nil_l V m :
+  @disjoint_maps V nil m.
+Proof.
+  unfold disjoint_maps. simpl. auto.
+Qed.
+
+Fact disjoint_maps_nil_r V m :
+  @disjoint_maps V m nil.
+Proof.
+  unfold disjoint_maps. simpl. auto.
+Qed.
+
+Fact equiv_sa_equiv V (P Q : StateAssertion V) :
+  P <<->> Q <-> forall c m, P c m <-> Q c m.
+Proof.
+  unfold sa_implies. split.
+  - intuition.
+  - intros Hequiv. split; intros; apply Hequiv; assumption.
+Qed.
+
+Lemma star_equiv_l V (P P' Q : StateAssertion V) :
+  P <<->> P' ->
+  (P <*> Q) <<->> (P' <*> Q).
+Proof.
+  repeat rewrite -> equiv_sa_equiv. intros Hequiv ? ?.
+  split; now (apply star_implies_mono; unfold sa_implies; intros;
+    [apply Hequiv|apply implies_refl]).
+Qed.
+
+Lemma star_equiv_r V (P Q Q' : StateAssertion V) :
+  Q <<->> Q' ->
+  (P <*> Q) <<->> (P <*> Q').
+Proof.
+  repeat rewrite -> equiv_sa_equiv. intros Hequiv ? ?.
+  split; now (apply star_implies_mono; unfold sa_implies; intros;
+    [apply implies_refl|apply Hequiv]).
+Qed.
+
+Lemma exists_equiv A P P' :
+  (forall x : A, P x <-> P' x) ->
+  (exists x, P x) <-> (exists x, P' x).
+Proof.
+  intros Hequiv. split; intros (?&?%Hequiv); eauto.
+Qed.
+
+Lemma sa_exists_equiv A V (P P' : A -> StateAssertion V) :
+  (forall x, P x <<->> P' x) ->
+  (<exists> x, P x) <<->> (<exists> x, P' x).
+Proof.
+  intros Hequiv. apply equiv_sa_equiv. intros. unfold sa_exists.
+  apply exists_equiv. intros. apply equiv_sa_equiv. auto.
+Qed.
+
+Lemma star_exists_equiv_l A V (P : A -> StateAssertion V) Q :
+  (<exists> x, P x) <*> Q <<->> (<exists> x, P x <*> Q).
+Proof.
+  rewrite equiv_sa_equiv. intros. apply star_exists_l.
+Qed.
+
+Lemma empty_star_l V (P : StateAssertion V) :
+  <[]> <*> P <<->> P.
+Proof.
+  apply equiv_sa_equiv. intros.
+  split; [apply empty_star_l_cancel|apply empty_star_l_intro].
+Qed.
+
+Lemma empty_star_r V (P : StateAssertion V) :
+  P <*> <[]> <<->> P.
+Proof.
+  apply equiv_sa_equiv. intros.
+  split; [apply empty_star_r_cancel|apply empty_star_r_intro].
+Qed.
+
+Fact sa_equiv_symm V (P Q : StateAssertion V) :
+  P <<->> Q ->
+  Q <<->> P.
+Proof.
+  repeat rewrite equiv_sa_equiv. intros. symmetry. eauto.
+Qed.
+
+Fact sa_equiv_trans V (P Q R : StateAssertion V) :
+  P <<->> Q ->
+  Q <<->> R ->
+  P <<->> R.
+Proof.
+  repeat rewrite equiv_sa_equiv. intros. etransitivity; eauto.
+Qed.
+
+Lemma length_n_new_cells V l n :
+  List.length (@n_new_cells_from V l n) = n.
+Proof.
+  destruct l as [k]. revert k. induction n; simpl; auto.
+Qed.
+
+Lemma NoDup_insert A (x : A) (l1 l2 : list A) :
+  ~ List.In x (l1 ++ l2) ->
+  List.NoDup (l1 ++ l2) ->
+  List.NoDup (l1 ++ x::l2).
+Proof.
+  induction l1; simpl; intros Hnin Hnodup.
+  - auto using List.NoDup.
+  - inversion Hnodup. unfold not in *. constructor.
+    + unfold not. intros [-> | Hin]%List.in_elt_inv; auto.
+    + auto.
+Qed.
+
+Lemma array_content_label_le V A n n' c m :
+  @array_content V A (Lab (OfNat n)) c m ->
+  List.In (OfNat n') (labels m) ->
+  n <= n'.
+Proof.
+  unfold labels. intros Harray. remember (Lab (OfNat n)) as l eqn:Hl.
+  generalize dependent n. induction Harray; simpl.
+  - contradiction.
+  - intros ? [=->] **.
+    match goal with
+    | [Hinter : Interweave [_] _ _, Hin : List.In _ _ |- _ ] =>
+      apply Interweave_single_l in Hinter as (?&?&->&->);
+      simpl in *; rewrite List.map_app in Hin; simpl in Hin;
+      apply List.in_elt_inv in Hin as [[=->] | Hin']
+    end.
+    + constructor.
+    + rewrite <- List.map_app in Hin'. apply Le.le_Sn_le_stt.
+      apply IHHarray; auto.
+Qed.
+
+Lemma valid_array_content V A v c m :
+  @array_content V A v c m -> Is_Valid_Map m.
+Proof.
+  unfold Is_Valid_Map, labels. intros Harray. induction Harray; simpl.
+  - constructor.
+  - match goal with
+    | [H : Interweave [_] _ _ |- _ ] =>
+      apply Interweave_single_l in H as (?&?&->&->)
+    end.
+    rewrite List.map_app in *. simpl. apply NoDup_insert; auto. intros Hin.
+    eapply Nat.nle_succ_diag_l. eapply array_content_label_le; [eassumption|].
+    unfold labels. rewrite List.map_app. assumption.
+Qed.
+
+Lemma array_decl_empty_content V n l c m :
+  <(l :\ n \= )> c m -> @array_content V (List.repeat None n) (Lab l) c m.
+Proof.
+  unfold sa_array_decl.
+  destruct l as [nl]. intros (->&->). revert nl.
+  induction n; intros; simpl; econstructor; auto.
+  constructor. apply Interweave_nil_l.
+Qed.
+
+Lemma array_content_nil V v c m :
+  @array_content V nil v c m <-> (<exists> l, <[v = Lab l]>) c m.
+Proof.
+  unfold sa_exists, sa_pure, sa_empty.
+  split.
+  - intros Harray. inversion Harray. eauto.
+  - intros (?&->&->&->). constructor.
+Qed.
+(*
+Corollary array_content_nil_r V v c m :
+  @array_content V nil v c m -> (<exists> l, <[v = Lab l]>) c m.
+Proof.
+  apply array_content_nil.
+Qed.
+*)
+Lemma array_content_cons V x A v c m :
+  @array_content V (x::A) v c m <->
+    (<exists> n, <[v = Lab (OfNat n)]> <*> <(OfNat n :?= x)> <*>
+     array_content A (Lab (OfNat (S n)))) c m.
+Proof.
+  unfold sa_exists, sa_single_any, sa_star, sa_pure, sa_empty.
+  split.
+  - intros Harray. inversion Harray. subst. do 5 eexists.
+    repeat split; eauto 15 using disjoint_maps_nil_l, Interweave_nil_l.
+    unfold disjoint_maps. simpl.
+    eintros ? [<-|[]] ?%array_content_label_le; eauto. lia.
+  - intros
+      (?&?&?&?&?&
+        (?&?&?&?&(->&->&->)&(->&->)&->&?&<-%Interweave_nil_l_inv)&
+        ?&->&?&?).
+    simpl. econstructor; eauto.
+Qed.
+(*
+Lemma array_content_cons_r V x A v c m :
+  @array_content V (x::A) v c m ->
+  (<exists> n, <[v = Lab (OfNat n)]> <*> <(OfNat n :?= x)> <*>
+    array_content A (Lab (OfNat (S n)))) c m.
+Proof.
+  apply array_content_cons.
+Qed.
+*)
+
+Lemma array_content_app V A A' n c m :
+  @array_content V (A ++ A') (Lab (OfNat n)) c m <->
+    (array_content A (Lab (OfNat n)) <*>
+     array_content A' (Lab (OfNat (n + List.length A)))) c m.
+Proof.
+  revert n c m. induction A; intros n; simpl.
+  - rewrite Nat.add_0_r. apply equiv_sa_equiv. eapply sa_equiv_trans.
+    + apply sa_equiv_symm, empty_star_l.
+    + apply star_equiv_l, sa_equiv_symm.
+      eapply sa_equiv_trans; apply equiv_sa_equiv.
+      * apply array_content_nil.
+      * unfold sa_empty. split.
+        -- intros. normalize_star. subst. auto.
+        -- intros (->&->). solve_star. rewrite pure_spec. eauto.
+  - rewrite Nat.add_succ_r. intros. rewrite array_content_cons.
+    apply equiv_sa_equiv. eapply sa_equiv_symm, sa_equiv_trans.
+    + eapply star_equiv_l, equiv_sa_equiv, array_content_cons.
+    + eapply sa_equiv_trans.
+      * apply star_exists_equiv_l.
+      * apply sa_exists_equiv. intros. eapply sa_equiv_trans.
+        -- apply sa_equiv_symm, star_assoc.
+        -- eapply sa_equiv_symm, sa_equiv_trans.
+          ++ apply star_equiv_r, equiv_sa_equiv. intros. apply IHA.
+          ++ simpl. apply equiv_sa_equiv. intros.
+            split; intros; normalize_star;
+            match goal with
+            | [H : ?f _ = ?f _ |- _] => injection H as ->
+            end;
+            solve_star.
+Qed.
+
 Fact single_single_any (V : Set) l (v : Value V) :
   sa_single l v <<->> sa_single_any l (Some v).
 Proof.
