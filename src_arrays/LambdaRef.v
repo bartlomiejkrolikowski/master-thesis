@@ -565,7 +565,7 @@ Notation "'-\' e" := (Lam e) (at level 100).
 
 Notation "e1 '<*' e2" :=
   (App e1 e2)
-  (at level 50, left associativity).
+  (at level 59, left associativity).
 
 Notation "'[~]' e" := (UnOp (BUOp BNeg) e) (at level 50).
 Notation "'[--]' e" := (UnOp (IUOp INeg) e) (at level 50).

@@ -27,7 +27,7 @@ Definition init_array : Value string :=
     [let "i"] Ref (Int 0) [in]
       [while] ! Var "i" [<] Var "size" [do]
         (*(Var "array" >> ! Var "i") <- Var "value";;*)
-        assign_array_at <* Var "array" <* Var "i" <* Var "value";;
+        assign_array_at <* Var "array" <* ! Var "i" <* Var "value";;
         incr <* Var "i"
       [end];;
       Free (Var "i")
@@ -646,7 +646,7 @@ Lemma triple_fun_init_array A a s x :
         (fun v => $1 <*> <[v = Int (Z.of_nat s)]>)
         (fun v => <[
           triple_fun v
-            (fun v => <[v = x]> <*> $ (7 + s*12) <*> array_content A a)
+            (fun v => <[v = x]> <*> $ (9 + s*16) <*> array_content A a)
             (fun v => <[v = U_val]> <*> array_content (List.repeat (Some x) s) a)
         ]>)
     ]>).
@@ -664,12 +664,91 @@ Proof.
   normalize_star. subst. split_all; auto. intros. cbn.
   triple_reorder_pure. triple_pull_pure. subst. triple_pull_1_credit.
   app_lambda.
-  2:{ triple_pull_1_credit. apply triple_ref. solve_simple_value. revert_implies.
-      prove_implies_refl. }
+  2:{ triple_pull_1_credit.
+      eapply triple_ref with (Q := fun v => <[v = Int 0]> <*> _).
+      solve_simple_value. }
   solve_simple_value. split_all; auto. intros. cbn. repeat triple_pull_exists.
   triple_reorder_pure. triple_pull_pure. subst. triple_pull_1_credit.
-  eapply triple_seq.
-  - rewrite_all_binds. triple_pull_credits 2.
+  rewrite_all_binds. eapply triple_seq.
+  - triple_reorder_pure. triple_pull_pure. subst. triple_reorder_credits.
+    triple_pull_credits 2. triple_reorder_credits.
+    eapply triple_weaken with
+      (P := $2 <*> <exists> i,
+        $(3+(s-Z.to_nat i)*16) <*> (array_content A a <*> <(x0 :== Int i)> <*> <[(i >= 0)%Z]>)).
+    { prove_implies. apply implies_spec. intros. exists 0%Z. simpl.
+      rewrite Nat.sub_0_r. apply star_assoc. swap_star. solve_star. lia. }
+    { prove_implies_refl. }
+    apply triple_while with
+      (Q := fun b => <exists> i, $(1+(s - Z.to_nat i)*16) <*>
+        (array_content A a <*> <(x0 :== Int i)>) <*>
+        (<[(i >= 0)%Z]> <*> <[b = (i <? Z.of_nat s)%Z]>)).
+    + triple_pull_exists. triple_pull_1_credit.
+      eapply triple_weaken, triple_clt with
+        (Q1 := fun i1 => $_ <*> (_ <*> <(x0 :== Int i1)>) <*> <[(i1 >= 0)%Z]>)
+        (Q2 := fun i1 i2 =>
+          <[i2 = Z.of_nat s]> <*> ($_ <*> (_ <*> <(x0 :== Int i1)>)) <*> <[(i1 >= 0)%Z]>).
+      { prove_implies_refl. }
+      { apply implies_post_spec. intros. normalize_star. subst. solve_star.
+        do 2 apply star_assoc. swap_star. solve_star. }
+      * triple_pull_1_credit. eapply triple_weaken, triple_deref.
+        { prove_implies_rev. }
+        { apply implies_post_spec. intros. normalize_star. subst. solve_star.
+          swap_star. do 2 apply star_assoc_l. swap_star. apply star_assoc_l.
+          eassumption. }
+        solve_simple_value. revert_implies. prove_implies_rev.
+      * intros. simpl. solve_simple_value.
+    + triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure.
+      match goal with
+      | [H : true = (_ <? _)%Z |- _] => symmetry in H; apply Z.ltb_lt in H
+      end.
+      destruct s; [simpl in *; lia|]. rewrite Nat.sub_succ_l; [|lia]. simpl.
+      triple_pull_1_credit. eapply triple_seq.
+      * triple_pull_credits 5. eapply triple_weaken, triple_frame.
+        { apply implies_spec. intros. swap_star_ctx. apply star_assoc_l.
+          eassumption. }
+        { intros. simpl. apply star_assoc. }
+        eapply triple_weaken.
+        3:{
+          eapply triple_frame, triple_fun_app2.
+          1:eapply triple_frame, triple_fun_app2.
+          1:eapply triple_frame, triple_fun_app.
+          1:eapply triple_fun_assign_array_at.
+          6:solve_simple_value.
+          5:eapply triple_weaken, triple_deref; [| |solve_simple_value].
+          4:solve_simple_value.
+          4:prove_implies_refl.
+          1-3:eauto.
+          f_equal.
+          lazymatch goal with
+          | [|- ?x = ?y] => unify x y
+          end.
+        }
+        2:solve_simple_value.
+        triple_pull_1_credit.
+        eapply triple_weaken, triple_frame, triple_fun_app2 with (P1 := $1 <*> _).
+        4:apply triple_deref; solve_simple_value.
+        3:{
+          eapply triple_weaken, triple_frame, triple_fun_app with (Q1 := fun v => $1 <*> <[v=a]>).
+          4:solve_simple_value.
+          3:eapply triple_fun_assign_array_at; auto.
+          { prove_implies. }
+          { intros. simpl. apply star_implies_mono.
+            2:{ eapply implies_trans.
+              { apply star_implies_mono.
+                { eapply credits_star_r with (c1 := 1). reflexivity. }
+                { apply implies_refl. } }
+              { prove_implies. apply star_comm. } }
+              { apply implies_spec. intros. normalize_star. subst.
+                rewrite pure_spec. split_all; auto. } } }
+        2:solve_simple_value; revert_implies; clear H H0; revert a;
+          lazymatch goal with
+          | [|- forall a, @?P a ->> @?Q a] =>
+            intros;
+            let Q' := ltac:(eval simpl in (Q a)) in
+            unify (P a) Q'
+          end;
+          simpl; prove_implies_refl.
+        eapply triple_fun_assign_array_at.
 Admitted.
 
 Theorem triple_fun_generic_dijkstra

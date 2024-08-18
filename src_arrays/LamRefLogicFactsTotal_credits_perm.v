@@ -2169,3 +2169,121 @@ Theorem triple_fun_frame (V : Set) (v : Value V) P Q H :
 Proof.
   unfold triple_fun. auto using triple_frame.
 Qed.
+
+Lemma triple_value_inv (V : Set) (v : Value V) P Q c m :
+  triple v P Q ->
+  Is_Valid_Map m ->
+  P c m -> Q v c m.
+Proof.
+  unfold triple, hoare_triple. intros Htriple Hvalid HP.
+  specialize Htriple
+    with <[]> c m
+    as (v'&c'&c2&m'
+      &([=->]&->&->)%cost_red_value
+      &HQ%empty_star_r_cancel
+      &Hvalid'
+      &->);
+    auto.
+  apply empty_star_r_intro. assumption.
+Qed.
+
+(*
+Theorem triple_fun_n_ary_app_inv_general (V : Set) n (e : Expr V) es P1 P2 Q1 Q2 :
+  List.length es = n ->
+  triple e P1 (fun v => <[triple_fun_n_ary_inv n v Q1 Q2]> <*> P2) ->
+  triple_list_inv es P2 Q1 ->
+  triple (n_ary_app_inv e es) ($n <*> P1) Q2.
+Proof.
+  unfold triple_fun_n_ary_inv. revert e P1 P2 Q1 Q2 es.
+  induction n; destruct es; try discriminate; simpl in *; intros [= ] Hfun.
+  - intros Himpl. eapply triple_weaken_valid; [| |eassumption].
+    + intros. apply empty_star_l_cancel. assumption.
+    + simpl. intros. normalize_star.
+      match goal with
+      | [H : forall _, _ -> triple _ _ _ |- _] => rename H into Htriple
+      end.
+      specialize (Htriple nil eq_refl). simpl in Htriple.
+      eapply (triple_value_inv _ _ _ _ _ _ Htriple); eauto.
+  - intros (Q'&Htri&Hlist).
+    apply triple_weaken with (P := $1 <*> ($n <*> P1)) (Q := Q2).
+    { eapply implies_trans; [|apply star_assoc]. apply star_implies_mono.
+      - apply credits_star_r. lia.
+      - apply implies_refl. }
+    { intros. apply implies_refl. }
+    eapply triple_app; auto. eapply IHn; eauto.
+    eapply triple_weaken; eauto using implies_refl. intros. simpl.
+    apply implies_spec. intros. normalize_star. solve_star. intros.
+    assert (forall v1 : Value V, triple (n_ary_app_inv v (List.map Val (v1::vs))) (Q1 (v1::vs)) Q2)%list.
+    { intros. apply H. simpl. auto. }
+    simpl in *.
+    specialize (H (U_val::vs)%list). simpl in *.
+Admitted.
+
+(*Lemma triple_Sn_ary_app_inv (V : Set) n (v : Value V) vs P Q :
+  List.length vs = S n ->
+  triple (n_ary_app v (List.map Val vs)) P Q ->
+  exists e, v = -\e (*/\
+    (forall v0 : Value V,
+      triple (subst_e e v0) P
+        (fun v1 : Value V =>
+          <[ forall vs : list (Value V), List.length vs = n ->
+            triple (n_ary_app v1 (List.map Val vs)) (Q1 (?v :: vs)%list) Q2
+          ]> <*> P))*).
+Proof.
+  destruct vs; try discriminate. simpl.
+Qed.*)
+
+Theorem triple_fun_n_ary_app_general (V : Set) n (e : Expr V) es P1 P2 Q1 Q2 :
+  List.length es = n ->
+  triple e P1 (fun v => <[triple_fun_n_ary n v Q1 Q2]> <*> P2) ->
+  triple_list es P2 Q1 ->
+  triple (n_ary_app e es) ($n <*> P1) Q2.
+Proof.
+  unfold triple_fun_n_ary. revert e P1 P2 Q1 es.
+  induction n; destruct es; try discriminate; simpl in *; intros [= ] Hfun.
+  - intros Himpl. eapply triple_weaken_valid; [| |eassumption].
+    + intros. apply empty_star_l_cancel. assumption.
+    + simpl. intros. normalize_star.
+      match goal with
+      | [H : forall _, _ -> triple _ _ _ |- _] => rename H into Htriple
+      end.
+      specialize (Htriple nil eq_refl). simpl in Htriple.
+      eapply (triple_value_inv _ _ _ _ _ _ Htriple); eauto.
+  - intros (Q'&Htri&Hlist).
+    apply triple_weaken with (P := $n <*> ($1 <*> P1)) (Q := Q2).
+    { eapply implies_trans; [|apply star_assoc]. apply star_implies_mono.
+      - apply credits_star_r. lia.
+      - apply implies_refl. }
+    { intros. apply implies_refl. }
+    eapply IHn; auto. eapply triple_app; eauto.
+    eapply triple_weaken; eauto using implies_refl. intros. simpl.
+    apply implies_spec. intros. normalize_star. (*solve_star.*)
+Qed.
+
+Theorem triple_fun_n_ary_app (V : Set) n (v : Value V) es P Q1 Q2 :
+  List.length es = n ->
+  triple_fun_n_ary n v Q1 Q2 ->
+  triple_list es P Q1 ->
+  triple (n_ary_app v es) P Q2.
+Proof.
+  unfold triple_fun_n_ary. revert es. induction n; destruct es; try discriminate; simpl in *.
+  - intros [= ] Hfun Himpl. eapply triple_weaken; eauto. intros.
+    apply implies_refl.
+  - intros [= ] Hfun (Q'&Htri&Hlist). apply IHn.
+    + f_equal.
+Qed.
+*)
+
+Theorem triple_fun_n_ary_app (V : Set) n (v : Value V) es (P : StateAssertion V) Q1 Q2
+  (H : @List.length (Expr V) es = S n) :
+  triple_fun_n_ary n v Q1 Q2 -> Type.
+  intros.
+  eapply (triple_list es P _ ->
+  triple (n_ary_app v es) P (n_ary_fun_app Q2 vs)). (* TODO *)
+Proof.
+  unfold triple_fun_n_ary. revert es. induction n; destruct es; try discriminate; simpl in *.
+  - intros [= ] Hfun Himpl. eapply triple_weaken; eauto. intros.
+    apply implies_refl.
+  - intros [= ] Hfun (Q'&Htri&Hlist). apply IHn.
+    + f_equal.
+Qed.
