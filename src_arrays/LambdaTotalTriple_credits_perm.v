@@ -154,10 +154,10 @@ Fixpoint triple_fun_n_ary n {V : Set}
   (Value V -> Value V -> n_ary_fun_type n (Value V) (StateAssertion V)) ->
     Prop :=
   match n with
-  | 0 => fun P Q => forall x, triple_fun v (fun v => <[v = x]> <*> P x) (Q x)
+  | 0 => fun P Q => forall x, triple_fun v (fun v => $1 <*> <[v = x]> <*> P x) (Q x)
   | S n' => fun P Q => forall x,
     triple_fun v
-    (fun v => <[v = x]>)
+    (fun v => $1 <*> <[v = x]>)
     (fun v => <[
       triple_fun_n_ary n' v (P x) (Q x)
     ]>)

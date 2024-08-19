@@ -1223,6 +1223,15 @@ Proof.
   - apply red_value in HR. destruct HR.
 Qed.
 
+Fact cost_red_0 :
+  forall V m m' (e e' : Expr V) c,
+    c = 0 ->
+    C[e, m ~~> e', m' | c] ->
+    e = e' /\ m = m'.
+Proof.
+  intros. destruct H0; try discriminate. auto.
+Qed.
+
 Fact is_value_or_not :
   forall V (e : Expr V),
     (exists v : Value V, e = v) \/
@@ -2083,3 +2092,23 @@ Proof.
   solve_by_induction.
 Qed.
 *)
+
+Theorem big_red_app_inv (V : Set) m1 m4 c
+  (e1 e2 : Expr V) (v : Value V) :
+  C[e1 <* e2,m1 ~~> v,m4|c] ->
+  exists c1 e1' m2 c2 (v2 : Value V) m3 c3,
+  C[e1,m1 ~~> -\ e1',m2|c1] /\
+  C[e2,m2 ~~>     v2,m3|c2] /\
+  C[subst_e e1' v2,m3 ~~> v,m4|c3] /\
+  c = c1 + c2 + 1 + c3.
+Proof.
+  remember (e1 <* e2) as e eqn:He. remember (Val v) as ev eqn:Hev. intros Hred.
+  revert e1 e2 v He Hev. induction Hred; intros ? ? ? ->; try discriminate.
+  intros ->. inversion H; subst.
+  - eauto 11 with lamref.
+  - destruct (IHHred _ _ _ eq_refl eq_refl) as (?&?&?&?&?&?&?&?&?&?&->).
+    eauto 12 with lamref.
+  - destruct (IHHred _ _ _ eq_refl eq_refl)
+      as (?&?&?&?&?&?&?&(<-&->&->)%cost_red_value&?&?&->).
+    eauto 12 with lamref.
+Qed.

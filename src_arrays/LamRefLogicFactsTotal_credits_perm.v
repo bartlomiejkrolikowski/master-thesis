@@ -2170,6 +2170,15 @@ Proof.
   unfold triple_fun. auto using triple_frame.
 Qed.
 
+Theorem triple_fun_weaken (V : Set) (v : Value V) P' P Q Q' :
+  P' -->> P ->
+  Q -->> Q' ->
+  triple_fun v P Q ->
+  triple_fun v P' Q'.
+Proof.
+  unfold triple_fun. eauto using triple_weaken.
+Qed.
+
 Lemma triple_value_inv (V : Set) (v : Value V) P Q c m :
   triple v P Q ->
   Is_Valid_Map m ->
@@ -2187,6 +2196,41 @@ Proof.
   apply empty_star_r_intro. assumption.
 Qed.
 
+(*Lemma triple_app_inv (V : Set) (e e' : Expr V) P Q c m :
+  Is_Valid_Map m ->
+  P c m ->
+  triple (e <* e') P Q ->
+  exists P' Q1,
+    triple e P
+      (fun v => <exists> e1',
+        <[v = (-\e1') /\ forall v, triple (subst_e e1' v) (Q1 v) Q]> <*> P') /\
+    triple e' P' Q1.
+Proof.
+  unfold triple, hoare_triple. intros Hvalid HP Htriple.
+  edestruct Htriple
+    as (?&?&?&?&
+      (?&?&?&?&?&?&?&?&?&?&?)%big_red_app_inv&
+      ?%empty_star_r_cancel&?&?);
+    [|apply empty_star_r_intro|]; try eassumption.
+Admitted.*)
+(*
+Lemma triple_app_values_inv (V : Set) (v : Value V) Q :
+  (forall v' : Value V, triple (v <* v') ($1 <*> <[]>) Q) ->
+  exists e1',
+    v = (-\e1') /\ forall v, triple (subst_e e1' v) <[]> Q.
+Proof.
+  unfold triple, hoare_triple. intros Htriple.
+  destruct (Htriple U_val <[]> 1 [])%list
+    as (?&?&?&?&
+      (?&?&?&?&?&?&?&
+        ([=<-]&->&->)%cost_red_value&
+        ?&?&?)%big_red_app_inv&
+      ?%empty_star_r_cancel&?&?).
+  - unfold Is_Valid_Map, labels. simpl. constructor.
+  - do 2 apply empty_star_r. unfold sa_credits. auto.
+  - eexists. split; eauto. intros. apply empty_star_l_cancel in H7.
+Abort.
+*)
 (*
 Theorem triple_fun_n_ary_app_inv_general (V : Set) n (e : Expr V) es P1 P2 Q1 Q2 :
   List.length es = n ->
@@ -2274,16 +2318,89 @@ Proof.
 Qed.
 *)
 
-Theorem triple_fun_n_ary_app (V : Set) n (v : Value V) es (P : StateAssertion V) Q1 Q2
-  (H : @List.length (Expr V) es = S n) :
-  triple_fun_n_ary n v Q1 Q2 -> Type.
-  intros.
-  eapply (triple_list es P _ ->
-  triple (n_ary_app v es) P (n_ary_fun_app Q2 vs)). (* TODO *)
+Fixpoint triple_list_curry {V : Set} (es : list (Expr V)) (P : StateAssertion V) :
+  n_ary_fun_type (List.length es) (Value V) (StateAssertion V) ->
+  (Value V -> n_ary_fun_type (List.length es) (Value V) (StateAssertion V)) ->
+  ((Value V -> StateAssertion V) -> Prop) ->
+    Prop :=
+  match es with
+  | [] => fun Q Qlast f => P ->> $1 <*> Q -> f Qlast
+  | (e::es') => fun Q Qlast f =>
+    forall Qmid x, triple e P (fun v => <[v = x]> <*> Qmid x) ->
+      triple_list_curry es' (Qmid x) (Q x) (Qlast x) f
+  end%list.
+
+Lemma triple_list_curry_weaken_pre (V : Set) (e : Expr V) es
+  (P1 P1' P2 : StateAssertion V) Q1 Q2 :
+  P1 ->> P1' ->
+  triple_list_curry es P2 Q1 Q2 (triple e P1') ->
+  triple_list_curry es P2 Q1 Q2 (triple e P1).
 Proof.
-  unfold triple_fun_n_ary. revert es. induction n; destruct es; try discriminate; simpl in *.
-  - intros [= ] Hfun Himpl. eapply triple_weaken; eauto. intros.
-    apply implies_refl.
-  - intros [= ] Hfun (Q'&Htri&Hlist). apply IHn.
-    + f_equal.
+  revert P2 Q1 Q2. induction es; simpl; intros P2 Q1 Q2.
+  - intros Himpl1 Htriple Himpl2.
+    eapply triple_weaken; eauto using implies_refl.
+  - intros Himpl1 Htriple_list Qmid x Htriple. eapply IHes; auto.
+Qed.
+
+Theorem triple_fun_n_ary_app_general (V : Set) (e e' : Expr V) es
+  (P1 P2 : StateAssertion V) Q1 Q2 :
+  triple e P1 (fun v => <[triple_fun_n_ary (List.length es) v Q1 Q2]> <*> P2) ->
+  triple_list_curry (e'::es) P2 Q1 Q2
+    (triple (n_ary_app e (e'::es)) ($(List.length es) <*> P1)).
+Proof.
+  revert e e' P1 P2. induction es (*using List.rev_ind*).
+  - simpl. intros. eapply triple_fun_app2; eauto.
+    eapply triple_weaken; [apply empty_star_l_cancel| |];
+      eauto using implies_refl.
+    intros. simpl. apply implies_spec. intros. normalize_star. solve_star.
+    eapply triple_fun_weaken; eauto using implies_refl.
+    intros. simpl.
+    eauto using
+      implies_trans, star_assoc_l, star_implies_mono, implies_refl, star_comm.
+  - intros. hnf. intros. simpl List.length in *.
+    apply triple_list_curry_weaken_pre with
+      (P1' := $(List.length es) <*> ($1 <*> P1)).
+    { eapply implies_trans; [|apply star_assoc].
+      apply star_implies_mono; auto using implies_refl.
+      apply credits_star_r. lia. }
+    apply IHes.
+    eapply triple_weaken, triple_app; [|
+      lazymatch goal with
+      | [|- forall x, ?Q x ->> @?Q' x] => unify Q Q'
+      end
+    | |]; eauto using implies_refl.
+    simpl in H. eapply triple_weaken; eauto using implies_refl.
+    apply implies_post_spec. intros. normalize_star. unfold triple_fun in *.
+    specialize H1 with x x. apply htriple_of_triple in H1. unfold hoare_triple in H1.
+    destruct (H1 1 []%list)
+      as (?&?&?&?&
+        (?&?&?&?&?&?&?&
+          ([=<-]&->&->)%cost_red_value&
+          ([=<-]&->&->)%cost_red_value&
+          Hred&?)%big_red_app_inv&
+        ?&?&?).
+    + unfold Is_Valid_Map, labels. simpl. constructor.
+    + swap_star. solve_star. unfold sa_credits. auto.
+    + assert (x1=1/\x2=0/\x10=0) as (->&->&->) by lia.
+      apply cost_red_0 in Hred as (Hsubst_e&<-); [|reflexivity].
+      normalize_star. solve_star. split; auto. intros. apply triple_frame.
+      apply triple_pure. intros ->. rewrite Hsubst_e.
+      apply triple_value_implies, implies_spec. intros.
+      normalize_star. subst. apply pure_spec. auto.
+Qed.
+
+Theorem triple_fun_n_ary_app (V : Set) (v : Value V) e es
+  (P : StateAssertion V) Q1 Q2 :
+  triple_fun_n_ary (List.length es) v Q1 Q2 ->
+  triple_list_curry (e::es) P Q1 Q2
+    (triple (n_ary_app v (e::es)) ($(List.length es) <*> P)).
+Proof.
+  intros. apply triple_fun_n_ary_app_general.
+  eapply triple_weaken, triple_frame; [|
+    lazymatch goal with
+    | [|- forall x, ?Q x ->> @?Q' x] => unify Q Q'
+    end
+  |]; eauto using empty_star_l_intro, implies_refl.
+  apply triple_value_implies. apply implies_spec. intros. normalize_star. subst.
+  apply pure_spec. auto.
 Qed.
