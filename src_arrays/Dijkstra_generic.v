@@ -542,6 +542,67 @@ Proof.
   - intros. simpl. solve_simple_value; normalize_star; eauto. lia.
 Qed.
 
+Lemma triple_fun_n_ary_assign_array_at A A' A1 ov A2 i x :
+  List.length A1 = i ->
+  A = (A1 ++ ov::A2)%list ->
+  A' = (A1 ++ Some x::A2)%list ->
+  triple_fun_n_ary 2 assign_array_at
+    (fun a v2 v3 =>
+      $2 <*> <[v2 = Int (Z.of_nat i)]> <*> <[v3 = x]> <*> array_content A a)
+    (fun a v2 v3 v => <[v = U_val]> <*> array_content A' a).
+Proof.
+  simpl.
+  intros. subst. unfold triple_fun, assign_array_at, StringLam. simpl. intros.
+  app_lambda. solve_simple_value. normalize_star. subst. split_all; auto.
+  intros. cbn. solve_simple_value. normalize_star. subst. split_all; auto.
+  intros. app_lambda. solve_simple_value. normalize_star. split_all; auto.
+  intros. cbn. solve_simple_value. normalize_star. subst. split_all; auto.
+  intros. triple_reorder_credits. app_lambda. solve_simple_value.
+  swap_star_ctx. normalize_star. subst. split_all; auto. intros. cbn.
+  rewrite_all_binds. unfold sa_star, sa_credits in * |-. edestruct_direct.
+  match goal with
+  | [H : array_content _ _ _ _ |- _] => apply only_lab_is_array in H as (?&->)
+  end.
+  eapply triple_weaken.
+  { intros. apply star_implies_mono; [prove_implies_refl|].
+    apply star_implies_mono; [|prove_implies_refl].
+    repeat (apply star_implies_mono; [prove_implies_refl|]).
+    apply implies_spec. intros ? ? ?%array_content_app. revert_implies.
+    repeat (apply star_implies_mono; [prove_implies_refl|]).
+    apply implies_spec. intros ? ? ?%array_content_cons. eassumption. }
+  { intros. repeat (apply star_implies_mono; [prove_implies_refl|]).
+    apply implies_spec. intros. apply array_content_app. revert_implies.
+    repeat (apply star_implies_mono; [prove_implies_refl|]).
+    apply implies_spec. intros. apply array_content_cons. eassumption. }
+  triple_reorder_exists. triple_pull_exists.
+  triple_reorder_pure. repeat triple_pull_pure. subst. injection_ctx.
+  triple_pull_1_credit.
+  eapply triple_weaken, triple_frame,
+    triple_assign with (Q2 := fun v' => <[v' = x]> <*> _).
+  { prove_implies_rev. }
+  { intros. simpl. prove_implies_rev. apply implies_spec. intros. normalize_star.
+    swap_star_ctx. normalize_star. subst.
+    match goal with
+    | [H : _ ?c ?m |- _ ?c ?m] => apply empty_star_l_cancel in H
+    end.
+    solve_star. revert_implies. prove_implies. }
+  2:solve_simple_value.
+  triple_reorder_credits.
+  lazymatch goal with
+  | [|- triple (Val (Lab (OfNat ?n)) >> Val (Int ?i)) _ _] =>
+    eapply triple_weaken, triple_shift with
+      (Q1 := fun n' => <[n' = n]> <*> _)
+      (Q2 := fun n' i' => <[n' = n]> <*> <[i' = i]> <*> _)
+  end.
+  { prove_implies. }
+  { intros. simpl. apply implies_spec. intros. normalize_star. swap_star.
+    solve_star. apply empty_star_l_intro. subst. rewrite Nat2Z.id.
+    solve_star; eauto. }
+  - apply triple_value_implies. apply implies_spec. intros. eexists.
+    do 2 (apply star_pure_l; split; auto). eassumption.
+  - intros. simpl. solve_simple_value; normalize_star; eauto. lia.
+Qed.
+
 Ltac find_witness_is_closed e :=
   lazymatch e with
   (* variables *)
@@ -607,6 +668,36 @@ Proof.
   unfold triple_fun, incr, StringLam. simpl. intros. triple_pull_1_credit.
   app_lambda. solve_simple_value. split_all; auto. intros. cbn.
   triple_reorder_pure. triple_pull_pure. subst. triple_pull_1_credit.
+  eapply triple_weaken, triple_assign with (Q2 := fun v' => <[v' = Int (i+1)]>).
+  { prove_implies_rev. }
+  { intros. simpl. prove_implies. apply implies_spec. intros. normalize_star.
+    swap_star_ctx. normalize_star. subst. assumption. }
+  - solve_simple_value.
+  - triple_pull_1_credit.
+    eapply triple_weaken, triple_iadd with
+      (Q1 := fun i1 => <[i1 = i]> <*> _)
+      (Q2 := fun i1 i2 => <[i1 = i]> <*> <[i2 = 1%Z]> <*> _).
+    { prove_implies. }
+    { apply implies_post_spec. intros. normalize_star. subst. swap_star.
+      solve_star. eassumption. }
+    + eapply triple_weaken, triple_deref.
+      { apply empty_star_r_intro. }
+      { apply implies_post_spec. intros. normalize_star. subst. solve_star.
+        eassumption. }
+      solve_simple_value.
+    + intros. triple_pull_pure. subst. solve_simple_value. revert_implies.
+      apply empty_star_r_cancel.
+Qed.
+
+Lemma triple_fun_n_ary_incr l i :
+  triple_fun_n_ary 0 incr
+    (fun v => $3 <*> <[v = Lab l]> <*> <(l :== Int i)>)
+    (fun v res => <[res = U_val]> <*> <(l :== Int (i+1))>).
+Proof.
+  simpl.
+  unfold triple_fun, incr, StringLam. simpl. intros. triple_reorder_credits.
+  app_lambda. solve_simple_value. split_all; auto. intros. cbn.
+  triple_reorder_pure. repeat triple_pull_pure. subst. triple_pull_1_credit.
   eapply triple_weaken, triple_assign with (Q2 := fun v' => <[v' = Int (i+1)]>).
   { prove_implies_rev. }
   { intros. simpl. prove_implies. apply implies_spec. intros. normalize_star.
