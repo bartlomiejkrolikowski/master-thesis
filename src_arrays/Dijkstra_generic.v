@@ -794,7 +794,19 @@ Proof.
       end.
       destruct s; [simpl in *; lia|]. rewrite Nat.sub_succ_l; [|lia]. simpl.
       triple_pull_1_credit. eapply triple_seq.
-      * triple_pull_credits 5. eapply triple_weaken, triple_frame.
+      * triple_pull_credits 5. triple_reorder_credits.
+        triple_pull_credits 2. triple_reorder_credits.
+        pose proof triple_fun_n_ary_app as Hn_ary.
+        lazymatch goal with
+        | [|- triple (Val ?f <* ?e1 <* ?e2 <* ?e3) ($2 <*> ?P0) ?Q1] =>
+          specialize Hn_ary with
+            (v := f) (e := e1) (es := [e2;e3]%list)
+            (P := P0) (Q2 := fun _ _ _ => Q1)
+        end.
+        pose proof triple_fun_n_ary_assign_array_at as Hassign_array_at.
+        simpl in Hn_ary, Hassign_array_at. eapply Hn_ary.
+        eapply Hassign_array_at.
+        (* TODO *) eapply triple_weaken, triple_frame.
         { apply implies_spec. intros. swap_star_ctx. apply star_assoc_l.
           eassumption. }
         { intros. simpl. apply star_assoc. }
