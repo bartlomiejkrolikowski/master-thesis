@@ -298,11 +298,19 @@ Ltac triple_reorder X :=
 
 Ltac prove_implies_refl :=
   intros; simpl;
-  try lazymatch goal with
-  | [|- ?P ->> ?Q ?v] =>
-    let T := ltac:(type of v) in
-    unify (fun _ : T => P) Q
-  end;
+  try (match goal with
+    | [x : ?T |- ?P ->> ?Q ?y] =>
+      unify x y;
+      generalize dependent x;
+      intro x; repeat intros _;
+      revert x
+    end;
+    lazymatch goal with
+    | [|- forall x : ?T, @?P' x ->> @?Q' x] =>
+      intro x;
+      let QQ := ltac:(eval simpl in (Q' x)) in
+      unify (P' x) QQ
+    end);
   apply implies_refl.
 
 Ltac rewrite_empty_spec :=

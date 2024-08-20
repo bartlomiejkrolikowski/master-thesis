@@ -2404,3 +2404,62 @@ Proof.
   apply triple_value_implies. apply implies_spec. intros. normalize_star. subst.
   apply pure_spec. auto.
 Qed.
+
+Fixpoint sa_star_n_ary {V} n :
+  n_ary_fun_type n (Value V) (StateAssertion V) ->
+  n_ary_fun_type n (Value V) (StateAssertion V) ->
+  n_ary_fun_type n (Value V) (StateAssertion V) :=
+  match n with
+  | 0 => fun P Q => P <*> Q
+  | S n' => fun P Q => fun x => sa_star_n_ary n' (P x) (Q x)
+  end.
+
+Fixpoint sa_star_n_ary_post {V} n :
+  n_ary_fun_type (S n) (Value V) (StateAssertion V) ->
+  n_ary_fun_type n (Value V) (StateAssertion V) ->
+  n_ary_fun_type (S n) (Value V) (StateAssertion V) :=
+  match n with
+  | 0 => fun P Q => P <*>+ Q
+  | S n' => fun P Q => fun x => sa_star_n_ary_post n' (P x) (Q x)
+  end.
+
+Theorem triple_fun_n_ary_frame (V : Set) (v : Value V) n Q1 Q2 H :
+  triple_fun_n_ary n v Q1 Q2 ->
+  triple_fun_n_ary n v
+    (sa_star_n_ary (S n) Q1 H) (sa_star_n_ary_post (S n) Q2 H).
+Proof.
+  revert v. induction n; simpl.
+  - intros. eapply triple_fun_weaken; intros.
+    { apply star_assoc_l. }
+    { apply implies_refl. }
+    auto using triple_fun_frame.
+  - intros. simpl in IHn. eapply triple_fun_weaken; auto.
+    { intros. apply implies_refl. }
+    { apply implies_post_spec. intros. normalize_star. subst.
+      apply pure_spec. auto. }
+Qed.
+
+Fixpoint sa_implies_n_ary {V} n :
+  n_ary_fun_type n (Value V) (StateAssertion V) ->
+  n_ary_fun_type n (Value V) (StateAssertion V) ->
+    Prop :=
+  match n with
+  | 0 => fun P Q => P ->> Q
+  | S n' => fun P Q => forall x, sa_implies_n_ary n' (P x) (Q x)
+  end.
+
+Theorem triple_fun_n_ary_weaken (V : Set) (v : Value V) n Q1' Q1 Q2 Q2' :
+  sa_implies_n_ary (S n) Q1' Q1 ->
+  sa_implies_n_ary (S (S n)) Q2 Q2' ->
+  triple_fun_n_ary n v Q1 Q2 ->
+  triple_fun_n_ary n v Q1' Q2'.
+Proof.
+  revert v Q1 Q2. induction n; simpl.
+  - intros. eapply triple_fun_weaken; intros; auto. apply star_implies_mono.
+    { apply implies_refl. }
+    { auto. }
+  - intros. simpl in IHn. eapply triple_fun_weaken; auto.
+    { intros. simpl. apply implies_refl. }
+    { apply implies_post_spec. intros. normalize_star. subst.
+      apply pure_spec. eauto. }
+Qed.

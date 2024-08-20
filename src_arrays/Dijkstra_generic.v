@@ -802,18 +802,25 @@ Proof.
       destruct s; [simpl in *; lia|]. rewrite Nat.sub_succ_l; [|lia]. simpl.
       destruct (List.nth_split (n := Z.to_nat x1) A None) as (?&?&->&?).
       { lia. }
-      triple_pull_1_credit. eapply triple_seq with (Q1 := array_content _ a).
-      * triple_pull_credits 5. triple_reorder_credits.
+      pose proof triple_fun_n_ary_app as Hn_ary.
+      pose proof triple_fun_n_ary_frame as Hframe.
+      pose proof triple_fun_n_ary_weaken as Hweaken.
+      triple_pull_1_credit. eapply triple_seq with (Q1 := (array_content _ a <*> _) <*> ($ _)).
+      * triple_pull_credits 6. triple_reorder_credits.
+        triple_pull_credits 5. triple_reorder_credits.
         triple_pull_credits 2. triple_reorder_credits.
-        pose proof triple_fun_n_ary_app as Hn_ary.
         repeat match goal with
         | [H : ?T _ _ |- _] =>
           let TT := ltac:(type of T) in
           unify TT (StateAssertion string);
           (*idtac H T;*) clear H
         end.
-        revert a.
-        lazymatch goal with
+        eapply triple_weaken with
+          (P := ($_ <*> ($_ <*> ($_ <*> (array_content _ _ <*> _)))) <*> ($ _)).
+        { prove_implies. }
+        { intros. apply star_assoc. }
+        apply triple_frame. revert a.
+        match goal with
         | [|-
           forall a,
             triple (Val (@?f a) <* (@?e1 a) <* (@?e2 a) <* (@?e3 a))
@@ -826,56 +833,61 @@ Proof.
             (P := P0 a) (Q2 := fun a _ _ => Q1 a)
         end.
         pose proof triple_fun_n_ary_assign_array_at as Hassign_array_at.
-        simpl in Hn_ary, Hassign_array_at. eapply Hn_ary.
-        {
-          eapply Hassign_array_at; eauto.
-        }
-        (* TODO *) eapply triple_weaken, triple_frame.
-        { apply implies_spec. intros. swap_star_ctx. apply star_assoc_l.
-          eassumption. }
-        { intros. simpl. apply star_assoc. }
-        eapply triple_weaken.
-        3:{
-          eapply triple_frame, triple_fun_app2.
-          1:eapply triple_frame, triple_fun_app2.
-          1:eapply triple_frame, triple_fun_app.
-          1:eapply triple_fun_assign_array_at.
-          6:solve_simple_value.
-          5:eapply triple_weaken, triple_deref; [| |solve_simple_value].
-          4:solve_simple_value.
-          4:prove_implies_refl.
-          1-3:eauto.
-          f_equal.
+        specialize (Hframe _ assign_array_at 2).
+        specialize (Hweaken _ assign_array_at 2).
+        simpl in Hn_ary, Hassign_array_at, Hframe, Hweaken. eapply Hn_ary.
+        { eapply Hweaken.
+          { intros. apply implies_refl. }
+          { intros. apply star_assoc_r. }
+          simpl. eapply Hframe.
+          eapply Hassign_array_at; eauto. }
+        { solve_simple_value. revert_implies. prove_implies_refl. }
+        { triple_pull_1_credit.
+          eapply triple_weaken, triple_deref;
+            [prove_implies_rev| |solve_simple_value].
+          apply implies_post_spec. intros. normalize_star. subst. solve_star.
+          revert_implies.
           lazymatch goal with
-          | [|- ?x = ?y] => unify x y
+          | [|- _ ->> _ ?x] =>
+            let t := ltac:(fresh "x") in remember x as t
           end.
-        }
-        2:solve_simple_value.
-        triple_pull_1_credit.
-        eapply triple_weaken, triple_frame, triple_fun_app2 with (P1 := $1 <*> _).
-        4:apply triple_deref; solve_simple_value.
-        3:{
-          eapply triple_weaken, triple_frame, triple_fun_app with (Q1 := fun v => $1 <*> <[v=a]>).
-          4:solve_simple_value.
-          3:eapply triple_fun_assign_array_at; auto.
-          { prove_implies. }
-          { intros. simpl. apply star_implies_mono.
-            2:{ eapply implies_trans.
-              { apply star_implies_mono.
-                { eapply credits_star_r with (c1 := 1). reflexivity. }
-                { apply implies_refl. } }
-              { prove_implies. apply star_comm. } }
-              { apply implies_spec. intros. normalize_star. subst.
-                rewrite pure_spec. split_all; auto. } } }
-        2:solve_simple_value; revert_implies; clear H H0; revert a;
-          lazymatch goal with
-          | [|- forall a, @?P a ->> @?Q a] =>
-            intros;
-            let Q' := ltac:(eval simpl in (Q a)) in
-            unify (P a) Q'
-          end;
-          simpl; prove_implies_refl.
-        eapply triple_fun_assign_array_at.
+          prove_implies_refl. }
+        { solve_simple_value. revert_implies. prove_implies_refl. }
+        { simpl. apply implies_spec. intros. do 2 (swap_star; solve_star).
+          { f_equal. lia. }
+          revert_implies. prove_implies. }
+      * triple_reorder_credits.
+        triple_pull_credits 5. triple_reorder_credits.
+        triple_pull_credits 4. triple_reorder_credits.
+        triple_pull_credits 1. triple_reorder_credits.
+        eapply triple_weaken with
+          (P := ($_ <*> ($_ <*> ($_ <*> _))) <*> (array_content _ _ <*> $ _)),
+          triple_frame.
+        { prove_implies. }(*
+        2:{
+        apply triple_frame. revert a.
+        match goal with
+        | [|-
+          forall a,
+            triple (Val (@?f a) <* (@?e1 a) <* (@?e2 a) <* (@?e3 a))
+              ($2 <*> (@?P0 a))
+              (@?Q1 a)
+          ] =>
+          intros a;
+          specialize Hn_ary with
+            (v := f a) (e := e1 a) (es := [e2 a;e3 a]%list)
+            (P := P0 a) (Q2 := fun a _ _ => Q1 a)
+        end.
+        pose proof triple_fun_n_ary_incr as Hincr.
+        specialize (Hframe _ assign_array_at 2).
+        specialize (Hweaken _ assign_array_at 2).
+        simpl in Hn_ary, Hassign_array_at, Hframe, Hweaken. eapply Hn_ary.
+        { eapply Hweaken.
+          { intros. apply implies_refl. }
+          { intros. apply star_assoc_r. }
+          simpl. eapply Hframe.
+          eapply Hassign_array_at; eauto. } }
+        { apply implies_post_spec. intros. solve_star. swap_star. prove_implies_rev. intros. apply star_assoc. }*)
 Admitted.
 
 Theorem triple_fun_generic_dijkstra
