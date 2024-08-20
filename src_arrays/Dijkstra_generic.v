@@ -729,7 +729,11 @@ Opaque incr.
 
 Global Hint Resolve is_closed_value_incr : is_closed_db.
 
+Ltac omit_subst H :=
+  revert H; subst; intro.
+
 Lemma triple_fun_init_array A a s x :
+  s = List.length A ->
   triple_fun init_array
     (fun v => $1 <*> <[v = a]>)
     (fun v => <[
@@ -760,32 +764,35 @@ Proof.
       solve_simple_value. }
   solve_simple_value. split_all; auto. intros. cbn. repeat triple_pull_exists.
   triple_reorder_pure. triple_pull_pure. subst. triple_pull_1_credit.
+  remember (List.length A) as s eqn:Hs.
   rewrite_all_binds. eapply triple_seq.
-  - triple_reorder_pure. triple_pull_pure. subst. triple_reorder_credits.
-    triple_pull_credits 2. triple_reorder_credits.
+  - triple_reorder_pure. triple_pull_pure. omit_subst Hs.
+    triple_reorder_credits. triple_pull_credits 2. triple_reorder_credits.
     eapply triple_weaken with
       (P := $2 <*> <exists> i,
-        $(3+(s-Z.to_nat i)*16) <*> (array_content A a <*> <(x0 :== Int i)> <*> <[(i >= 0)%Z]>)).
+        $(3+(s-Z.to_nat i)*16) <*> (array_content A a <*> <(x0 :== Int i)> <*>
+          <[(i >= 0)%Z]>)).
     { prove_implies. apply implies_spec. intros. exists 0%Z. simpl.
-      rewrite Nat.sub_0_r. apply star_assoc. swap_star. solve_star. lia. }
+      rewrite Nat.sub_0_r. revert_implies. prove_implies. apply implies_spec.
+      intros. swap_star. solve_star. lia. }
     { prove_implies_refl. }
     apply triple_while with
       (Q := fun b => <exists> i, $(1+(s - Z.to_nat i)*16) <*>
         (array_content A a <*> <(x0 :== Int i)>) <*>
         (<[(i >= 0)%Z]> <*> <[b = (i <? Z.of_nat s)%Z]>)).
-    + triple_pull_exists. triple_pull_1_credit.
+    + repeat triple_pull_exists. triple_pull_1_credit.
       eapply triple_weaken, triple_clt with
         (Q1 := fun i1 => $_ <*> (_ <*> <(x0 :== Int i1)>) <*> <[(i1 >= 0)%Z]>)
         (Q2 := fun i1 i2 =>
           <[i2 = Z.of_nat s]> <*> ($_ <*> (_ <*> <(x0 :== Int i1)>)) <*> <[(i1 >= 0)%Z]>).
       { prove_implies_refl. }
-      { apply implies_post_spec. intros. normalize_star. subst. solve_star.
-        do 2 apply star_assoc. swap_star. solve_star. }
+      { apply implies_post_spec. intros. normalize_star. omit_subst Hs.
+        solve_star. do 2 apply star_assoc_r. swap_star. solve_star. }
       * triple_pull_1_credit. eapply triple_weaken, triple_deref.
         { prove_implies_rev. }
-        { apply implies_post_spec. intros. normalize_star. subst. solve_star.
-          swap_star. do 2 apply star_assoc_l. swap_star. apply star_assoc_l.
-          eassumption. }
+        { apply implies_post_spec. intros. normalize_star. omit_subst Hs.
+          solve_star. swap_star. do 2 apply star_assoc_l. swap_star.
+          apply star_assoc_l. eassumption. }
         solve_simple_value. revert_implies. prove_implies_rev.
       * intros. simpl. solve_simple_value.
     + triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure.
@@ -793,19 +800,36 @@ Proof.
       | [H : true = (_ <? _)%Z |- _] => symmetry in H; apply Z.ltb_lt in H
       end.
       destruct s; [simpl in *; lia|]. rewrite Nat.sub_succ_l; [|lia]. simpl.
-      triple_pull_1_credit. eapply triple_seq.
+      destruct (List.nth_split (n := Z.to_nat x1) A None) as (?&?&->&?).
+      { lia. }
+      triple_pull_1_credit. eapply triple_seq with (Q1 := array_content _ a).
       * triple_pull_credits 5. triple_reorder_credits.
         triple_pull_credits 2. triple_reorder_credits.
         pose proof triple_fun_n_ary_app as Hn_ary.
+        repeat match goal with
+        | [H : ?T _ _ |- _] =>
+          let TT := ltac:(type of T) in
+          unify TT (StateAssertion string);
+          (*idtac H T;*) clear H
+        end.
+        revert a.
         lazymatch goal with
-        | [|- triple (Val ?f <* ?e1 <* ?e2 <* ?e3) ($2 <*> ?P0) ?Q1] =>
+        | [|-
+          forall a,
+            triple (Val (@?f a) <* (@?e1 a) <* (@?e2 a) <* (@?e3 a))
+              ($2 <*> (@?P0 a))
+              (@?Q1 a)
+          ] =>
+          intros a;
           specialize Hn_ary with
-            (v := f) (e := e1) (es := [e2;e3]%list)
-            (P := P0) (Q2 := fun _ _ _ => Q1)
+            (v := f a) (e := e1 a) (es := [e2 a;e3 a]%list)
+            (P := P0 a) (Q2 := fun a _ _ => Q1 a)
         end.
         pose proof triple_fun_n_ary_assign_array_at as Hassign_array_at.
         simpl in Hn_ary, Hassign_array_at. eapply Hn_ary.
-        eapply Hassign_array_at.
+        {
+          eapply Hassign_array_at; eauto.
+        }
         (* TODO *) eapply triple_weaken, triple_frame.
         { apply implies_spec. intros. swap_star_ctx. apply star_assoc_l.
           eassumption. }
