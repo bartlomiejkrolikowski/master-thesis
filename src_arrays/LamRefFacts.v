@@ -110,8 +110,11 @@ Proof.
   unfold shift_e. apply map_e_same_on_closed.
 Qed.
 
+Definition in_range [A B] (f : A -> B) (y : B) :=
+  exists x, y = f x.
+
 Ltac prove_is_limited :=
-  unfold is_limited_value, is_limited_expr; repeat intros (?&->);
+  unfold is_limited_value, is_limited_expr, in_range; repeat intros (?&->);
   unshelve eexists; [econstructor|simpl; reflexivity]; eassumption.
 
 Fact is_limited_U_val V A f :
@@ -153,6 +156,14 @@ Proof.
     eexists (RecV (v'::_)). simpl. reflexivity.
 Qed.
 Global Hint Resolve is_limited_RecV : is_closed_db.
+
+Fact is_limited_Lam V A f (e1 : Expr (inc_set V)) :
+  is_limited_expr (inc_set A) (option_map f) e1 ->
+  is_limited_value A f (Lam e1).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Lam : is_closed_db.
 
 Fact is_limited_Val V (v : Value V) A f :
   is_limited_value A f v ->
@@ -286,15 +297,51 @@ Proof.
 Qed.
 Global Hint Resolve is_limited_While : is_closed_db.
 
-Theorem is_limited_Lam V A f (e1 : Expr (inc_set V)) :
-  is_limited_expr (inc_set A) (fun x => option_map f x) e1 ->
-  is_limited_value A f (Lam e1).
+Fact is_limited_Var V A f x :
+  in_range f x ->
+  is_limited_value A f (@Var V x).
 Proof.
   prove_is_limited.
 Qed.
-Global Hint Resolve is_limited_Lam : is_closed_db.
+Global Hint Resolve is_limited_Var : is_closed_db.
 
-(**)
+Ltac prove_in_range := prove_is_limited.
+
+Fact in_range_None A B f :
+  @in_range (inc_set A) (inc_set B) (option_map f) None.
+Proof.
+  prove_in_range.
+Qed.
+Global Hint Resolve in_range_None : is_closed_db.
+
+Fact in_range_Some A B f x :
+  in_range f x ->
+  @in_range (inc_set A) (inc_set B) (option_map f) (Some x).
+Proof.
+  prove_in_range.
+Qed.
+Global Hint Resolve in_range_Some : is_closed_db.
+
+Fact is_limited_shift_v A B f v :
+  is_limited_value A f v ->
+  @is_limited_value (inc_set A) (inc_set B) (option_map f) (shift_v v).
+Proof.
+  unfold is_limited_value. intros (x&->). exists (shift_v x).
+  unfold shift_v, option_map. repeat rewrite -> map_v_map_v.
+  reflexivity.
+Qed.
+Global Hint Resolve is_limited_shift_v : is_closed_db.
+
+Fact is_limited_shift_e A B f e :
+  is_limited_expr A f e ->
+  @is_limited_expr (inc_set A) (inc_set B) (option_map f) (shift_e e).
+Proof.
+  unfold is_limited_expr. intros (x&->). exists (shift_e x).
+  unfold shift_e, option_map. repeat rewrite -> map_e_map_e.
+  reflexivity.
+Qed.
+Global Hint Resolve is_limited_shift_e : is_closed_db.
+
 Fixpoint bind_v_ext (V V' : Set) (f g : V -> Value V') v {struct v} :
   (forall x, f x = g x) ->
   bind_v f v = bind_v g v

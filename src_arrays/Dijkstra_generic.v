@@ -57,7 +57,7 @@ Definition generic_dijkstra (get_size get_max_label get_neighbours mkheap h_inse
     [let "pred"] NewArray (Var "n") [in]
       init_array <* (Var "dist") <* (Var "n") <* (Int (-1));;
       init_array <* (Var "pred") <* (Var "n") <* (Int (-1));;
-      (Var "dist" >> ! Var "i") <- Int 0;;
+      (Var "dist" >> ! Var "src") <- Int 0;;
       h_insert <* Var "h" <* Var "src" <* Int 0;;
       [while] [~] (h_empty <* Var "h") [do]
         [let "rec_current"] h_extract_min <* (Var "h") [in]
@@ -602,7 +602,7 @@ Proof.
     do 2 (apply star_pure_l; split; auto). eassumption.
   - intros. simpl. solve_simple_value; normalize_star; eauto. lia.
 Qed.
-
+(*
 Ltac find_witness_is_closed e :=
   lazymatch e with
   (* variables *)
@@ -650,17 +650,27 @@ Ltac prove_is_closed :=
   | [|- ?e' = _] => instantiate (e := (ltac:(find_witness_is_closed e')))
   end;
   simpl; reflexivity.
+*)
+Hint Unfold inc_set : is_closed_db.
 
 Lemma is_closed_value_assign_array_at :
   is_closed_value assign_array_at.
 Proof.
-(*  unfold assign_array_at, StringLam. simpl. debug auto 20 with is_closed_db.*)
-  prove_is_closed.
+  unfold assign_array_at, StringLam. simpl.
+  fold_all_inc_set_string.
+  auto 20 with is_closed_db.
 Qed.
 
 Opaque assign_array_at.
 
+Corollary is_limited_value_assign_array_at :
+  is_limited_value Empty_set (fun x => match x with end) assign_array_at.
+Proof.
+  apply is_closed_value_assign_array_at.
+Qed.
+
 Global Hint Resolve is_closed_value_assign_array_at : is_closed_db.
+Global Hint Resolve is_limited_value_assign_array_at : is_closed_db.
 
 Lemma triple_fun_incr l i :
   triple_fun incr
@@ -724,12 +734,21 @@ Qed.
 Lemma is_closed_value_incr :
   is_closed_value incr.
 Proof.
-  prove_is_closed.
+  unfold incr, StringLam. simpl.
+  fold_all_inc_set_string.
+  auto 20 with is_closed_db.
 Qed.
 
 Opaque incr.
 
+Corollary is_limited_value_incr :
+  is_limited_value Empty_set (fun x => match x with end) incr.
+Proof.
+  apply is_closed_value_incr.
+Qed.
+
 Global Hint Resolve is_closed_value_incr : is_closed_db.
+Global Hint Resolve is_limited_value_incr : is_closed_db.
 
 Ltac omit_subst H :=
   revert H; subst; intro.
@@ -1139,26 +1158,30 @@ Proof.
     { intros. prove_implies. }
     solve_simple_value.
 Qed.
+
+Ltac rewrite_all_map_v_closed :=
+  repeat (rewrite map_v_shift_closed;
+    [|repeat apply map_v_closed_value; auto with is_closed_db]).
+
 Lemma is_closed_value_init_array :
   is_closed_value init_array.
 Proof.
-(*
-  unfold init_array, is_closed_value, StringLam. cbn.
-  repeat (rewrite map_v_shift_closed;
-    [|repeat apply map_v_closed_value; auto with is_closed_db]).
-   Search is_closed_value.
-   ; compute; eexists ?[e].
-  lazymatch goal with
-  | [|- ?e' = _] => let t := (ltac:(find_witness_is_closed e')) in
-    idtac e' t
-  end.
-  prove_is_closed.
-*)
-Admitted.
+  unfold init_array, StringLam. simpl.
+  rewrite_all_map_v_closed.
+  fold_all_inc_set_string.
+  auto 40 with is_closed_db.
+Qed.
 
 Opaque init_array.
 
+Corollary is_limited_value_init_array :
+  is_limited_value Empty_set (fun x => match x with end) init_array.
+Proof.
+  apply is_closed_value_init_array.
+Qed.
+
 Global Hint Resolve is_closed_value_init_array : is_closed_db.
+Global Hint Resolve is_limited_value_init_array : is_closed_db.
 (*
 Lemma triple_fun_n_ary_free_array A s :
   s = List.length A ->
@@ -1413,7 +1436,7 @@ Proof using.
     Hspec_h_insert Hspec_h_empty Hspec_h_extract_min Hspec_h_decrease_key
     Hspec_h_free Hspec_l_is_nil Hspec_l_head Hspec_l_tail.
   eexists ?[c0], ?[cn], ?[cm]. intros. unfold triple_fun, generic_dijkstra, StringLam. simpl. intros.
-  repeat (rewrite map_v_shift_closed; [|repeat apply map_v_closed_value; assumption]).
+  rewrite_all_map_v_closed.
   app_lambda. triple_pull_pure. subst. solve_simple_value; [|rewrite_empty_spec; rewrite pure_spec; auto].
   split_all; auto. intros. cbn. triple_pull_pure. solve_simple_value.
   rewrite_empty_spec. rewrite pure_spec. split_all; auto. intros.
@@ -1535,8 +1558,20 @@ Proof using.
   instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
   triple_pull_1_credit.
   eapply triple_seq.
-  -- admit.
-  -- admit.
+  - pose proof triple_fun_n_ary_app as Hn_ary.
+    pose proof triple_fun_n_ary_init_array as Hinit_array.
+    instantiate (c0 := S (S ?[cc0])). instantiate (cc0 := ?[c0]).
+    triple_pull_credits 2. triple_reorder_credits.
+    lazymatch goal with
+    | [|- triple (Val init_array <* ?e1 <* ?e2 <* ?e3) ($2 <*> ?P0) (fun t => @?Q0 t)] =>
+      specialize Hn_ary with
+        (v := init_array) (e := e1) (es := [e2;e3]%list) (P := P0) (Q2 := (fun _ _ _ => Q0))
+    end.
+    simpl in Hn_ary, Hinit_array.
+    eapply Hn_ary.
+    { (* TODO *) eapply Hinit_array. }
+    admit.
+  - admit.
   (*TODO:
   triple_pull_exists.
   triple_reorder_pure.
