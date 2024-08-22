@@ -64,7 +64,8 @@ Lemma map_v_closed_value (V V' : Set) (f : V -> V') v :
   is_closed_value v ->
   is_closed_value (map_v f v).
 Proof.
-  unfold is_closed_value. intros [v' ->]. exists v'. rewrite map_v_map_v.
+  unfold is_closed_value, is_limited_value.
+  intros [v' ->]. exists v'. rewrite map_v_map_v.
   apply map_v_ext. intros [].
 Qed.
 
@@ -72,7 +73,8 @@ Lemma map_e_closed_expr (V V' : Set) (f : V -> V') e :
   is_closed_expr e ->
   is_closed_expr (map_e f e).
 Proof.
-  unfold is_closed_expr. intros [e' ->]. exists e'. rewrite map_e_map_e.
+  unfold is_closed_expr, is_limited_expr.
+  intros [e' ->]. exists e'. rewrite map_e_map_e.
   apply map_e_ext. intros [].
 Qed.
 
@@ -80,7 +82,8 @@ Lemma map_v_same_on_closed (V V' : Set) (f g : V -> V') v :
   is_closed_value v ->
   map_v f v = map_v g v.
 Proof.
-  unfold is_closed_value. intros [v' ->]. repeat rewrite map_v_map_v.
+  unfold is_closed_value, is_limited_expr.
+  intros [v' ->]. repeat rewrite map_v_map_v.
   apply map_v_ext. intros [].
 Qed.
 
@@ -88,7 +91,8 @@ Lemma map_e_same_on_closed (V V' : Set) (f g : V -> V') e :
   is_closed_expr e ->
   map_e f e = map_e g e.
 Proof.
-  unfold is_closed_value. intros [e' ->]. repeat rewrite map_e_map_e.
+  unfold is_closed_value, is_limited_expr.
+  intros [e' ->]. repeat rewrite map_e_map_e.
   apply map_e_ext. intros [].
 Qed.
 
@@ -105,193 +109,192 @@ Corollary map_e_shift_closed (V : Set) (f : V -> option V) e :
 Proof.
   unfold shift_e. apply map_e_same_on_closed.
 Qed.
-(*
-Ltac prove_is_closed' :=
-  unfold is_closed_value, is_closed_expr; repeat intros (?&->);
+
+Ltac prove_is_limited :=
+  unfold is_limited_value, is_limited_expr; repeat intros (?&->);
   unshelve eexists; [econstructor|simpl; reflexivity]; eassumption.
 
-Fact is_closed_U_val V :
-  is_closed_value (@U_val V).
+Fact is_limited_U_val V A f :
+  is_limited_value A f (@U_val V).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_U_val : is_closed_db.
+Global Hint Resolve is_limited_U_val : is_closed_db.
 
-Fact is_closed_Int V i :
-  is_closed_value (@Int V i).
+Fact is_limited_Int V i A f :
+  is_limited_value A f (@Int V i).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Int : is_closed_db.
+Global Hint Resolve is_limited_Int : is_closed_db.
 
-Fact is_closed_Bool V b :
-  is_closed_value (@Bool V b).
+Fact is_limited_Bool V b A f :
+  is_limited_value A f (@Bool V b).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Bool : is_closed_db.
+Global Hint Resolve is_limited_Bool : is_closed_db.
 
-Fact is_closed_Lab V l :
-  is_closed_value (@Lab V l).
+Fact is_limited_Lab V l A f :
+  is_limited_value A f (@Lab V l).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Lab : is_closed_db.
+Global Hint Resolve is_limited_Lab : is_closed_db.
 
-Fact is_closed_RecV V (vs : list (Value V)) :
-  List.Forall is_closed_value vs ->
-  is_closed_value (RecV vs).
+Fact is_limited_RecV V (vs : list (Value V)) A f :
+  List.Forall (is_limited_value A f) vs ->
+  is_limited_value A f (RecV vs).
 Proof.
-  unfold is_closed_value. intros Hclosed. induction Hclosed.
+  unfold is_limited_value. intros Hlimited. induction Hlimited.
   - now exists (RecV []).
-  - destruct H as (v'&->). destruct IHHclosed as (vs'&Hvs').
+  - destruct H as (v'&->). destruct IHHlimited as (vs'&Hvs').
     destruct vs'; try discriminate. simpl in Hvs'. injection Hvs' as ->.
     eexists (RecV (v'::_)). simpl. reflexivity.
 Qed.
-Global Hint Resolve is_closed_RecV : is_closed_db.
+Global Hint Resolve is_limited_RecV : is_closed_db.
 
-Fact is_closed_Val V (v : Value V) :
-  is_closed_value v ->
-  is_closed_expr (Val v).
+Fact is_limited_Val V (v : Value V) A f :
+  is_limited_value A f v ->
+  is_limited_expr A f (Val v).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Val : is_closed_db.
+Global Hint Resolve is_limited_Val : is_closed_db.
 
-Fact is_closed_App V (e1 e2 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr e2 ->
-  is_closed_expr (e1 <* e2).
+Fact is_limited_App V (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (e1 <* e2).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_App : is_closed_db.
+Global Hint Resolve is_limited_App : is_closed_db.
 
-Fact is_closed_UnOp V k (e1 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr (UnOp k e1).
+Fact is_limited_UnOp V k (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (UnOp k e1).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_UnOp : is_closed_db.
+Global Hint Resolve is_limited_UnOp : is_closed_db.
 
-Fact is_closed_BinOp V k (e1 e2 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr e2 ->
-  is_closed_expr (BinOp k e1 e2).
+Fact is_limited_BinOp V k (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (BinOp k e1 e2).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_BinOp : is_closed_db.
+Global Hint Resolve is_limited_BinOp : is_closed_db.
 
-Fact is_closed_RecE V (es : list (Expr V)) :
-  List.Forall is_closed_expr es ->
-  is_closed_expr (RecE es).
+Fact is_limited_RecE V (es : list (Expr V)) A f :
+  List.Forall (is_limited_expr A f) es ->
+  is_limited_expr A f (RecE es).
 Proof.
-  unfold is_closed_expr. intros Hclosed. induction Hclosed.
+  unfold is_limited_expr. intros Hlimited. induction Hlimited.
   - now exists (RecE []).
-  - destruct H as (e'&->). destruct IHHclosed as (es'&Hes').
+  - destruct H as (e'&->). destruct IHHlimited as (es'&Hes').
     destruct es'; try discriminate. simpl in Hes'. injection Hes' as ->.
     eexists (RecE (e'::_)). simpl. reflexivity.
 Qed.
-Global Hint Resolve is_closed_RecE : is_closed_db.
+Global Hint Resolve is_limited_RecE : is_closed_db.
 
-Fact is_closed_Get V n (e1 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr (Get n e1).
+Fact is_limited_Get V n (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (Get n e1).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Get : is_closed_db.
+Global Hint Resolve is_limited_Get : is_closed_db.
 
-Fact is_closed_Ref V (e1 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr (Ref e1).
+Fact is_limited_Ref V (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (Ref e1).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Ref : is_closed_db.
+Global Hint Resolve is_limited_Ref : is_closed_db.
 
-Fact is_closed_NewArray V (e1 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr (NewArray e1).
+Fact is_limited_NewArray V (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (NewArray e1).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_NewArray : is_closed_db.
+Global Hint Resolve is_limited_NewArray : is_closed_db.
 
-Fact is_closed_Deref V (e1 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr (Deref e1).
+Fact is_limited_Deref V (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (Deref e1).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Deref : is_closed_db.
+Global Hint Resolve is_limited_Deref : is_closed_db.
 
-Fact is_closed_Shift V (e1 e2 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr e2 ->
-  is_closed_expr (Shift e1 e2).
+Fact is_limited_Shift V (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (Shift e1 e2).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Shift : is_closed_db.
+Global Hint Resolve is_limited_Shift : is_closed_db.
 
-Fact is_closed_Assign V (e1 e2 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr e2 ->
-  is_closed_expr (Assign e1 e2).
+Fact is_limited_Assign V (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (Assign e1 e2).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Assign : is_closed_db.
+Global Hint Resolve is_limited_Assign : is_closed_db.
 
-Fact is_closed_Free V (e1 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr (Free e1).
+Fact is_limited_Free V (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (Free e1).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Free : is_closed_db.
+Global Hint Resolve is_limited_Free : is_closed_db.
 
-Fact is_closed_Seq V (e1 e2 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr e2 ->
-  is_closed_expr (Seq e1 e2).
+Fact is_limited_Seq V (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (Seq e1 e2).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_Seq : is_closed_db.
+Global Hint Resolve is_limited_Seq : is_closed_db.
 
-Fact is_closed_If V (e1 e2 e3 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr e2 ->
-  is_closed_expr e3 ->
-  is_closed_expr (If e1 e2 e3).
+Fact is_limited_If V (e1 e2 e3 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f e3 ->
+  is_limited_expr A f (If e1 e2 e3).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_If : is_closed_db.
+Global Hint Resolve is_limited_If : is_closed_db.
 
-Fact is_closed_While V (e1 e2 : Expr V) :
-  is_closed_expr e1 ->
-  is_closed_expr e2 ->
-  is_closed_expr (While e1 e2).
+Fact is_limited_While V (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (While e1 e2).
 Proof.
-  prove_is_closed'.
+  prove_is_limited.
 Qed.
-Global Hint Resolve is_closed_While : is_closed_db.
+Global Hint Resolve is_limited_While : is_closed_db.
 
-Fixpoint is_closed_Lam V (e1 : Expr (inc_set V)) :
-  (forall v, is_closed_value v -> is_closed_expr (subst_e e1 v)) ->
-  is_closed_value (Lam e1).
+Theorem is_limited_Lam V A f (e1 : Expr (inc_set V)) :
+  is_limited_expr (inc_set A) (fun x => option_map f x) e1 ->
+  is_limited_value A f (Lam e1).
 Proof.
-  unfold is_closed_value, is_closed_expr in *.
-  intros Hclosed. destruct e1; cbn in *.
-  - apply is_closed_Val.
-  unfold is_closed_value, is_closed_expr. intros
+  prove_is_limited.
 Qed.
-*)
+Global Hint Resolve is_limited_Lam : is_closed_db.
+
+(**)
 Fixpoint bind_v_ext (V V' : Set) (f g : V -> Value V') v {struct v} :
   (forall x, f x = g x) ->
   bind_v f v = bind_v g v

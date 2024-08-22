@@ -165,11 +165,23 @@ with map_e {A B : Set} (f : A -> B) (e : Expr A) : Expr B :=
   | While e1 e2 => While (map_e f e1) (map_e f e2)
   end.
 
-Definition is_closed_value {A} (v : Value A) : Prop :=
-  exists (v' : Value Empty_set), v = map_v (fun x : Empty_set => match x with end) v'.
+(* is value with limited range of variables *)
+Definition is_limited_value (A : Set) [B : Set] (f : A -> B) (v : Value B) :
+  Prop :=
+  exists (v' : Value A), v = map_v f v'.
 
-Definition is_closed_expr {A} (e : Expr A) : Prop :=
-  exists (e' : Expr Empty_set), e = map_e (fun x : Empty_set => match x with end) e'.
+(* is expression with limited range of variables *)
+Definition is_limited_expr (A : Set) [B : Set] (f : A -> B) (e : Expr B) :
+  Prop :=
+  exists (e' : Expr A), e = map_e f e'.
+
+Definition is_closed_value {A} : Value A -> Prop :=
+  is_limited_value Empty_set (fun x => match x with end).
+Global Hint Unfold is_closed_value : is_closed_db.
+
+Definition is_closed_expr {A} : Expr A -> Prop :=
+  is_limited_expr Empty_set (fun x => match x with end).
+Global Hint Unfold is_closed_expr : is_closed_db.
 
 Definition shift_v {V : Set} : Value V -> Value (inc_set V) :=
   map_v Some.
