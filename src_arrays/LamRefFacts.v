@@ -105,7 +105,193 @@ Corollary map_e_shift_closed (V : Set) (f : V -> option V) e :
 Proof.
   unfold shift_e. apply map_e_same_on_closed.
 Qed.
+(*
+Ltac prove_is_closed' :=
+  unfold is_closed_value, is_closed_expr; repeat intros (?&->);
+  unshelve eexists; [econstructor|simpl; reflexivity]; eassumption.
 
+Fact is_closed_U_val V :
+  is_closed_value (@U_val V).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_U_val : is_closed_db.
+
+Fact is_closed_Int V i :
+  is_closed_value (@Int V i).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Int : is_closed_db.
+
+Fact is_closed_Bool V b :
+  is_closed_value (@Bool V b).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Bool : is_closed_db.
+
+Fact is_closed_Lab V l :
+  is_closed_value (@Lab V l).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Lab : is_closed_db.
+
+Fact is_closed_RecV V (vs : list (Value V)) :
+  List.Forall is_closed_value vs ->
+  is_closed_value (RecV vs).
+Proof.
+  unfold is_closed_value. intros Hclosed. induction Hclosed.
+  - now exists (RecV []).
+  - destruct H as (v'&->). destruct IHHclosed as (vs'&Hvs').
+    destruct vs'; try discriminate. simpl in Hvs'. injection Hvs' as ->.
+    eexists (RecV (v'::_)). simpl. reflexivity.
+Qed.
+Global Hint Resolve is_closed_RecV : is_closed_db.
+
+Fact is_closed_Val V (v : Value V) :
+  is_closed_value v ->
+  is_closed_expr (Val v).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Val : is_closed_db.
+
+Fact is_closed_App V (e1 e2 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr e2 ->
+  is_closed_expr (e1 <* e2).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_App : is_closed_db.
+
+Fact is_closed_UnOp V k (e1 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr (UnOp k e1).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_UnOp : is_closed_db.
+
+Fact is_closed_BinOp V k (e1 e2 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr e2 ->
+  is_closed_expr (BinOp k e1 e2).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_BinOp : is_closed_db.
+
+Fact is_closed_RecE V (es : list (Expr V)) :
+  List.Forall is_closed_expr es ->
+  is_closed_expr (RecE es).
+Proof.
+  unfold is_closed_expr. intros Hclosed. induction Hclosed.
+  - now exists (RecE []).
+  - destruct H as (e'&->). destruct IHHclosed as (es'&Hes').
+    destruct es'; try discriminate. simpl in Hes'. injection Hes' as ->.
+    eexists (RecE (e'::_)). simpl. reflexivity.
+Qed.
+Global Hint Resolve is_closed_RecE : is_closed_db.
+
+Fact is_closed_Get V n (e1 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr (Get n e1).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Get : is_closed_db.
+
+Fact is_closed_Ref V (e1 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr (Ref e1).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Ref : is_closed_db.
+
+Fact is_closed_NewArray V (e1 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr (NewArray e1).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_NewArray : is_closed_db.
+
+Fact is_closed_Deref V (e1 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr (Deref e1).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Deref : is_closed_db.
+
+Fact is_closed_Shift V (e1 e2 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr e2 ->
+  is_closed_expr (Shift e1 e2).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Shift : is_closed_db.
+
+Fact is_closed_Assign V (e1 e2 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr e2 ->
+  is_closed_expr (Assign e1 e2).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Assign : is_closed_db.
+
+Fact is_closed_Free V (e1 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr (Free e1).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Free : is_closed_db.
+
+Fact is_closed_Seq V (e1 e2 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr e2 ->
+  is_closed_expr (Seq e1 e2).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_Seq : is_closed_db.
+
+Fact is_closed_If V (e1 e2 e3 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr e2 ->
+  is_closed_expr e3 ->
+  is_closed_expr (If e1 e2 e3).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_If : is_closed_db.
+
+Fact is_closed_While V (e1 e2 : Expr V) :
+  is_closed_expr e1 ->
+  is_closed_expr e2 ->
+  is_closed_expr (While e1 e2).
+Proof.
+  prove_is_closed'.
+Qed.
+Global Hint Resolve is_closed_While : is_closed_db.
+
+Fixpoint is_closed_Lam V (e1 : Expr (inc_set V)) :
+  (forall v, is_closed_value v -> is_closed_expr (subst_e e1 v)) ->
+  is_closed_value (Lam e1).
+Proof.
+  unfold is_closed_value, is_closed_expr in *.
+  intros Hclosed. destruct e1; cbn in *.
+  - apply is_closed_Val.
+  unfold is_closed_value, is_closed_expr. intros
+Qed.
+*)
 Fixpoint bind_v_ext (V V' : Set) (f g : V -> Value V') v {struct v} :
   (forall x, f x = g x) ->
   bind_v f v = bind_v g v

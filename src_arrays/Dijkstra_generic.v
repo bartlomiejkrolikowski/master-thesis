@@ -624,18 +624,19 @@ Ltac find_witness_is_closed e :=
   | BinOp ?k ?e1 ?e2 =>
     exact (BinOp k
       ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
-(*  | RecE es => exact (ecE (*TODO*))
-  | Get n e => Get n (map_labels_e f e)
-  | Ref e => Ref (map_labels_e f e)
-  | NewArray e => NewArray (map_labels_e f e)*)
+(*  | RecE es => exact (ecE (*TODO*))*)
+  | Get ?n ?e => exact (Get n ltac:(find_witness_is_closed e))
+  | Ref ?e => exact (Ref ltac:(find_witness_is_closed e))
+  | NewArray ?e => exact (NewArray ltac:(find_witness_is_closed e))
   | Deref ?e => exact (Deref ltac:(find_witness_is_closed e))
   | Shift ?e1 ?e2 => exact (Shift ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
   | Assign ?e1 ?e2 => exact (Assign ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
-(*  | Free e => Free (map_labels_e f e)
-  | Seq e1 e2 => Seq (map_labels_e f e1) (map_labels_e f e2)
-  | If e1 e2 e3 =>
-    If (map_labels_e f e1) (map_labels_e f e2) (map_labels_e f e3)
-  | While e1 e2 => While (map_labels_e f e1) (map_labels_e f e2)*)
+  | Free ?e => exact (Free ltac:(find_witness_is_closed e))
+  | Seq ?e1 ?e2 => exact (Seq ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
+  | If ?e1 ?e2 ?e3 => exact
+    (If ltac:(find_witness_is_closed e1)
+      ltac:(find_witness_is_closed e2) ltac:(find_witness_is_closed e3))
+  | While ?e1 ?e2 => exact (While ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
   (* Coq types *)
   | option ?T => exact (option ltac:(find_witness_is_closed T))
   | ?T => exact Empty_set
@@ -653,6 +654,7 @@ Ltac prove_is_closed :=
 Lemma is_closed_value_assign_array_at :
   is_closed_value assign_array_at.
 Proof.
+(*  unfold assign_array_at, StringLam. simpl. debug auto 20 with is_closed_db.*)
   prove_is_closed.
 Qed.
 
@@ -939,6 +941,424 @@ Proof.
     solve_simple_value.
 Qed.
 
+Lemma triple_fun_n_ary_init_array A s :
+  s = List.length A ->
+  triple_fun_n_ary 2 init_array
+    (fun a v2 x => <[v2 = Int (Z.of_nat s)]> <*> $ (8 + s*16) <*> array_content A a)
+    (fun a _ x v => <[v = U_val]> <*> array_content (List.repeat (Some x) s) a).
+Proof.
+  unfold triple_fun_n_ary, triple_fun, init_array, StringLam. simpl. intros Hs a ?.
+  repeat (rewrite map_v_shift_closed;
+    [|repeat apply map_v_closed_value; auto with is_closed_db]).
+  app_lambda. solve_simple_value. normalize_star. subst.
+  split_all; auto. intros. cbn. subst. triple_pull_pure. subst.
+  solve_simple_value. rewrite_empty_spec. rewrite pure_spec. split_all; auto.
+  intros v2 ?. app_lambda. solve_simple_value. normalize_star. subst.
+  split_all; auto. intros. cbn. triple_pull_pure. subst. solve_simple_value.
+  rewrite_empty_spec. rewrite pure_spec. split_all; auto. intros x ?.
+  triple_reorder_credits. app_lambda. solve_simple_value. swap_star_ctx.
+  normalize_star. subst. split_all; auto. intros. cbn.
+  triple_reorder_pure. triple_pull_pure. subst. triple_pull_1_credit.
+  app_lambda.
+  2:{ triple_pull_1_credit.
+      eapply triple_ref with (Q := fun v => <[v = Int 0]> <*> _).
+      solve_simple_value. }
+  solve_simple_value. split_all; auto. intros. cbn. repeat triple_pull_exists.
+  triple_reorder_pure. repeat triple_pull_pure. subst. triple_pull_1_credit.
+  remember (List.length A) as s eqn:Hs.
+  rewrite_all_binds. eapply triple_seq.
+  - triple_reorder_credits. triple_pull_credits 2. triple_reorder_credits.
+    eapply triple_weaken with
+      (P := $2 <*> <exists> i A',
+        $(3+(s-Z.to_nat i)*_) <*>
+        (array_content (List.repeat (Some x) (Z.to_nat i) ++ A') a <*>
+        <(x0 :== Int i)> <*> <[(i >= 0)%Z]> <*> <[(i <= Z.of_nat s)%Z]> <*>
+        <[List.length A' = s - Z.to_nat i]>)%list).
+    { prove_implies. apply implies_spec. intros. exists 0%Z, A. simpl.
+      rewrite Nat.sub_0_r. revert_implies. prove_implies. apply implies_spec.
+      intros. swap_star_ctx. normalize_star. subst.
+      swap_star. solve_star. swap_star. solve_star; lia. }
+    { prove_implies_refl. }
+    apply triple_while with
+      (Q := fun b => <exists> i A', $(1+(s - Z.to_nat i)*16) <*>
+        (array_content (List.repeat (Some x) (Z.to_nat i) ++ A') a <*>
+        <(x0 :== Int i)>) <*> (<[(i >= 0)%Z]> <*> <[(i <= Z.of_nat s)%Z]> <*>
+        <[List.length A' = s - Z.to_nat i]> <*> <[b = (i <? Z.of_nat s)%Z]>)).
+    + repeat triple_pull_exists. triple_pull_1_credit.
+      eapply triple_weaken, triple_clt with
+        (Q1 := fun i1 => <exists> A',
+          $_ <*> (_ <*> <(x0 :== Int i1)>) <*>
+          (<[(i1 >= 0)%Z]> <*> <[(i1 <= Z.of_nat s)%Z]> <*>
+          <[List.length A' = _]>))
+        (Q2 := fun i1 i2 => <[i2 = Z.of_nat s]> <*> <exists> A',
+          ($_ <*> (_ <*> <(x0 :== Int i1)>)) <*>
+          (<[(i1 >= 0)%Z]> <*> <[(i1 <= Z.of_nat s)%Z]> <*>
+          <[List.length A' = _]>)).
+      { prove_implies_refl. }
+      { apply implies_post_spec. intros. normalize_star. omit_subst Hs.
+        solve_star. do 2 apply star_assoc_r. swap_star. solve_star. }
+      * triple_pull_1_credit. eapply triple_weaken, triple_deref.
+        { prove_implies_rev. }
+        { apply implies_post_spec. intros. normalize_star. omit_subst Hs.
+          solve_star. swap_star. do 2 apply star_assoc_l. swap_star.
+          apply star_assoc_l. eassumption. }
+        solve_simple_value. revert_implies. prove_implies_rev.
+      * intros. simpl. solve_simple_value.
+    + repeat triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure.
+      match goal with
+      | [H : true = (_ <? _)%Z |- _] => symmetry in H; apply Z.ltb_lt in H
+      end.
+      destruct s; [simpl in *; lia|]. rewrite Nat.sub_succ_l in *; try lia.
+      lazymatch goal with
+      | [H : List.length ?L = S (_ - _) |- _] =>
+        destruct L; [discriminate|injection H as H]
+      end.
+      simpl "*".
+      pose proof triple_fun_n_ary_app as Hn_ary.
+      pose proof triple_fun_n_ary_frame as Hframe.
+      pose proof triple_fun_n_ary_weaken as Hweaken.
+      triple_pull_1_credit.
+      eapply triple_seq with (Q1 := (array_content _ a <*> _) <*> ($ _)).
+      * triple_pull_credits 6. triple_reorder_credits.
+        triple_pull_credits 5. triple_reorder_credits.
+        triple_pull_credits 2. triple_reorder_credits.
+        repeat match goal with
+        | [H : ?T _ _ |- _] =>
+          let TT := ltac:(type of T) in
+          unify TT (StateAssertion string);
+          (*idtac H T;*) clear H
+        end.
+        eapply triple_weaken with
+          (P := ($_ <*> ($_ <*> ($_ <*> (array_content _ _ <*> _)))) <*> ($ _)).
+        { prove_implies. }
+        { intros. apply star_assoc. }
+        apply triple_frame. revert a.
+        match goal with
+        | [|-
+          forall a,
+            triple (Val (@?f a) <* (@?e1 a) <* (@?e2 a) <* (@?e3 a))
+              ($2 <*> (@?P0 a))
+              (@?Q1 a)
+          ] =>
+          intros a;
+          specialize Hn_ary with
+            (v := f a) (e := e1 a) (es := [e2 a;e3 a]%list)
+            (P := P0 a) (Q2 := fun a _ _ => Q1 a)
+        end.
+        pose proof triple_fun_n_ary_assign_array_at as Hassign_array_at.
+        specialize (Hframe _ assign_array_at 2).
+        specialize (Hweaken _ assign_array_at 2).
+        simpl in Hn_ary, Hassign_array_at, Hframe, Hweaken. eapply Hn_ary.
+        { eapply Hweaken.
+          { intros. apply implies_refl. }
+          { intros. apply star_assoc_r. }
+          simpl. eapply Hframe.
+          eapply Hassign_array_at with
+            (A1 := List.repeat (Some x) (Z.to_nat _));
+          eauto. }
+        { solve_simple_value. revert_implies. prove_implies_refl. }
+        { triple_pull_1_credit.
+          eapply triple_weaken, triple_deref;
+            [prove_implies_rev| |solve_simple_value].
+          apply implies_post_spec. intros. normalize_star. subst. solve_star.
+          revert_implies.
+          lazymatch goal with
+          | [|- _ ->> _ ?x] =>
+            let t := ltac:(fresh "x") in remember x as t
+          end.
+          prove_implies_refl. }
+        { solve_simple_value. revert_implies. prove_implies_refl. }
+        { simpl. apply implies_spec. intros. do 2 (swap_star; solve_star).
+          { f_equal. rewrite List.repeat_length. symmetry. apply Z2Nat.id. lia. }
+          revert_implies. prove_implies. }
+      * triple_reorder_credits.
+        triple_pull_credits 7. triple_reorder_credits.
+        triple_pull_credits 4. triple_reorder_credits.
+        triple_pull_credits 3. triple_reorder_credits.
+        triple_pull_credits 0. triple_reorder_credits.
+        repeat match goal with
+        | [H : ?T _ _ |- _] =>
+          let TT := ltac:(type of T) in
+          unify TT (StateAssertion string);
+          (*idtac H T;*) clear H
+        end.
+        eapply triple_weaken with
+          (P := ($_ <*> ($_ <*> ($_ <*> ($_ <*> <(_ :== _)>)))) <*>
+            (array_content _ _ <*> $ _))
+          (Q := fun v => $3 <*> (<[_ = _]> <*> <(_ :== _)>) <*>
+            (array_content _ _ <*> $ _)).
+        { prove_implies. }
+        { apply implies_post_spec. intros. normalize_star. swap_star_ctx.
+          normalize_star. solve_star; eauto. swap_star. apply star_exists_l.
+          eexists (Z.succ _). solve_star. swap_star. solve_star. swap_star.
+          solve_star. swap_star. solve_star.
+          { rewrite Z.ge_le_iff in *. eauto using Z.le_le_succ_r. }
+          { lia. }
+          { rewrite Z2Nat.inj_succ; try lia. simpl. eassumption. }
+          rewrite Z2Nat.inj_succ; try lia. simpl List.repeat.
+          rewrite List.repeat_cons, <- List.app_assoc. simpl.
+          swap_star. revert_implies. prove_implies. }
+        apply triple_frame.
+        lazymatch goal with
+        | [|- triple (_ <* Val ?v) _ _] =>
+          let x := ltac:(fresh "v") in
+          remember v as x; generalize dependent x
+        end.
+        match goal with
+        | [|-
+          forall a, _ ->
+            triple (Val (@?f a) <* (@?e1 a))
+              ($0 <*> (@?P0 a))
+              (@?Q1 a)
+          ] =>
+          let x := ltac:(fresh a) in
+          intros x ?;
+          specialize Hn_ary with
+            (v := f x) (e := e1 x) (es := []%list)
+            (P := P0 x) (Q2 := fun x => Q1 x)
+        end.
+        pose proof triple_fun_n_ary_incr as Hincr.
+        specialize (Hframe _ incr 0).
+        specialize (Hweaken _ incr 0).
+        simpl in Hn_ary, Hincr, Hframe, Hweaken. eapply Hn_ary.
+        { rewrite <- Z.add_1_r. eapply Hweaken, Hframe, Hincr.
+          { intros. apply implies_refl. }
+          { intros. simpl. prove_implies. } }
+        { solve_simple_value. revert_implies. prove_implies_refl. }
+        { simpl. apply implies_spec. intros. do 2 (swap_star; solve_star).
+          revert_implies. prove_implies. }
+  - repeat triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure.
+    lazymatch goal with
+    | [H : List.length ?L = s - ?n |- _] =>
+      assert (n = s /\ List.length L = 0) as (->&?) by lia;
+      destruct L; [|discriminate]
+    end.
+    rewrite Nat.sub_diag, List.app_nil_r. simpl.
+    eapply triple_weaken, triple_free.
+    { prove_implies_rev. }
+    { intros. prove_implies. }
+    solve_simple_value.
+Qed.
+Lemma is_closed_value_init_array :
+  is_closed_value init_array.
+Proof.
+(*
+  unfold init_array, is_closed_value, StringLam. cbn.
+  repeat (rewrite map_v_shift_closed;
+    [|repeat apply map_v_closed_value; auto with is_closed_db]).
+   Search is_closed_value.
+   ; compute; eexists ?[e].
+  lazymatch goal with
+  | [|- ?e' = _] => let t := (ltac:(find_witness_is_closed e')) in
+    idtac e' t
+  end.
+  prove_is_closed.
+*)
+Admitted.
+
+Opaque init_array.
+
+Global Hint Resolve is_closed_value_init_array : is_closed_db.
+(*
+Lemma triple_fun_n_ary_free_array A s :
+  s = List.length A ->
+  triple_fun_n_ary 2 free_array (* TODO *)
+    (fun a v2 x => <[v2 = Int (Z.of_nat s)]> <*> $ (8 + s*16) <*> array_content A a)
+    (fun a _ x v => <[v = U_val]> <*> array_content (List.repeat (Some x) s) a).
+Proof.
+  unfold triple_fun_n_ary, triple_fun, init_array, StringLam. simpl. intros Hs a ?.
+  repeat (rewrite map_v_shift_closed;
+    [|repeat apply map_v_closed_value; auto with is_closed_db]).
+  app_lambda. solve_simple_value. normalize_star. subst.
+  split_all; auto. intros. cbn. subst. triple_pull_pure. subst.
+  solve_simple_value. rewrite_empty_spec. rewrite pure_spec. split_all; auto.
+  intros v2 ?. app_lambda. solve_simple_value. normalize_star. subst.
+  split_all; auto. intros. cbn. triple_pull_pure. subst. solve_simple_value.
+  rewrite_empty_spec. rewrite pure_spec. split_all; auto. intros x ?.
+  triple_reorder_credits. app_lambda. solve_simple_value. swap_star_ctx.
+  normalize_star. subst. split_all; auto. intros. cbn.
+  triple_reorder_pure. triple_pull_pure. subst. triple_pull_1_credit.
+  app_lambda.
+  2:{ triple_pull_1_credit.
+      eapply triple_ref with (Q := fun v => <[v = Int 0]> <*> _).
+      solve_simple_value. }
+  solve_simple_value. split_all; auto. intros. cbn. repeat triple_pull_exists.
+  triple_reorder_pure. repeat triple_pull_pure. subst. triple_pull_1_credit.
+  remember (List.length A) as s eqn:Hs.
+  rewrite_all_binds. eapply triple_seq.
+  - triple_reorder_credits. triple_pull_credits 2. triple_reorder_credits.
+    eapply triple_weaken with
+      (P := $2 <*> <exists> i A',
+        $(3+(s-Z.to_nat i)*_) <*>
+        (array_content (List.repeat (Some x) (Z.to_nat i) ++ A') a <*>
+        <(x0 :== Int i)> <*> <[(i >= 0)%Z]> <*> <[(i <= Z.of_nat s)%Z]> <*>
+        <[List.length A' = s - Z.to_nat i]>)%list).
+    { prove_implies. apply implies_spec. intros. exists 0%Z, A. simpl.
+      rewrite Nat.sub_0_r. revert_implies. prove_implies. apply implies_spec.
+      intros. swap_star_ctx. normalize_star. subst.
+      swap_star. solve_star. swap_star. solve_star; lia. }
+    { prove_implies_refl. }
+    apply triple_while with
+      (Q := fun b => <exists> i A', $(1+(s - Z.to_nat i)*16) <*>
+        (array_content (List.repeat (Some x) (Z.to_nat i) ++ A') a <*>
+        <(x0 :== Int i)>) <*> (<[(i >= 0)%Z]> <*> <[(i <= Z.of_nat s)%Z]> <*>
+        <[List.length A' = s - Z.to_nat i]> <*> <[b = (i <? Z.of_nat s)%Z]>)).
+    + repeat triple_pull_exists. triple_pull_1_credit.
+      eapply triple_weaken, triple_clt with
+        (Q1 := fun i1 => <exists> A',
+          $_ <*> (_ <*> <(x0 :== Int i1)>) <*>
+          (<[(i1 >= 0)%Z]> <*> <[(i1 <= Z.of_nat s)%Z]> <*>
+          <[List.length A' = _]>))
+        (Q2 := fun i1 i2 => <[i2 = Z.of_nat s]> <*> <exists> A',
+          ($_ <*> (_ <*> <(x0 :== Int i1)>)) <*>
+          (<[(i1 >= 0)%Z]> <*> <[(i1 <= Z.of_nat s)%Z]> <*>
+          <[List.length A' = _]>)).
+      { prove_implies_refl. }
+      { apply implies_post_spec. intros. normalize_star. omit_subst Hs.
+        solve_star. do 2 apply star_assoc_r. swap_star. solve_star. }
+      * triple_pull_1_credit. eapply triple_weaken, triple_deref.
+        { prove_implies_rev. }
+        { apply implies_post_spec. intros. normalize_star. omit_subst Hs.
+          solve_star. swap_star. do 2 apply star_assoc_l. swap_star.
+          apply star_assoc_l. eassumption. }
+        solve_simple_value. revert_implies. prove_implies_rev.
+      * intros. simpl. solve_simple_value.
+    + repeat triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure.
+      match goal with
+      | [H : true = (_ <? _)%Z |- _] => symmetry in H; apply Z.ltb_lt in H
+      end.
+      destruct s; [simpl in *; lia|]. rewrite Nat.sub_succ_l in *; try lia.
+      lazymatch goal with
+      | [H : List.length ?L = S (_ - _) |- _] =>
+        destruct L; [discriminate|injection H as H]
+      end.
+      simpl "*".
+      pose proof triple_fun_n_ary_app as Hn_ary.
+      pose proof triple_fun_n_ary_frame as Hframe.
+      pose proof triple_fun_n_ary_weaken as Hweaken.
+      triple_pull_1_credit.
+      eapply triple_seq with (Q1 := (array_content _ a <*> _) <*> ($ _)).
+      * triple_pull_credits 6. triple_reorder_credits.
+        triple_pull_credits 5. triple_reorder_credits.
+        triple_pull_credits 2. triple_reorder_credits.
+        repeat match goal with
+        | [H : ?T _ _ |- _] =>
+          let TT := ltac:(type of T) in
+          unify TT (StateAssertion string);
+          (*idtac H T;*) clear H
+        end.
+        eapply triple_weaken with
+          (P := ($_ <*> ($_ <*> ($_ <*> (array_content _ _ <*> _)))) <*> ($ _)).
+        { prove_implies. }
+        { intros. apply star_assoc. }
+        apply triple_frame. revert a.
+        match goal with
+        | [|-
+          forall a,
+            triple (Val (@?f a) <* (@?e1 a) <* (@?e2 a) <* (@?e3 a))
+              ($2 <*> (@?P0 a))
+              (@?Q1 a)
+          ] =>
+          intros a;
+          specialize Hn_ary with
+            (v := f a) (e := e1 a) (es := [e2 a;e3 a]%list)
+            (P := P0 a) (Q2 := fun a _ _ => Q1 a)
+        end.
+        pose proof triple_fun_n_ary_assign_array_at as Hassign_array_at.
+        specialize (Hframe _ assign_array_at 2).
+        specialize (Hweaken _ assign_array_at 2).
+        simpl in Hn_ary, Hassign_array_at, Hframe, Hweaken. eapply Hn_ary.
+        { eapply Hweaken.
+          { intros. apply implies_refl. }
+          { intros. apply star_assoc_r. }
+          simpl. eapply Hframe.
+          eapply Hassign_array_at with
+            (A1 := List.repeat (Some x) (Z.to_nat _));
+          eauto. }
+        { solve_simple_value. revert_implies. prove_implies_refl. }
+        { triple_pull_1_credit.
+          eapply triple_weaken, triple_deref;
+            [prove_implies_rev| |solve_simple_value].
+          apply implies_post_spec. intros. normalize_star. subst. solve_star.
+          revert_implies.
+          lazymatch goal with
+          | [|- _ ->> _ ?x] =>
+            let t := ltac:(fresh "x") in remember x as t
+          end.
+          prove_implies_refl. }
+        { solve_simple_value. revert_implies. prove_implies_refl. }
+        { simpl. apply implies_spec. intros. do 2 (swap_star; solve_star).
+          { f_equal. rewrite List.repeat_length. symmetry. apply Z2Nat.id. lia. }
+          revert_implies. prove_implies. }
+      * triple_reorder_credits.
+        triple_pull_credits 7. triple_reorder_credits.
+        triple_pull_credits 4. triple_reorder_credits.
+        triple_pull_credits 3. triple_reorder_credits.
+        triple_pull_credits 0. triple_reorder_credits.
+        repeat match goal with
+        | [H : ?T _ _ |- _] =>
+          let TT := ltac:(type of T) in
+          unify TT (StateAssertion string);
+          (*idtac H T;*) clear H
+        end.
+        eapply triple_weaken with
+          (P := ($_ <*> ($_ <*> ($_ <*> ($_ <*> <(_ :== _)>)))) <*>
+            (array_content _ _ <*> $ _))
+          (Q := fun v => $3 <*> (<[_ = _]> <*> <(_ :== _)>) <*>
+            (array_content _ _ <*> $ _)).
+        { prove_implies. }
+        { apply implies_post_spec. intros. normalize_star. swap_star_ctx.
+          normalize_star. solve_star; eauto. swap_star. apply star_exists_l.
+          eexists (Z.succ _). solve_star. swap_star. solve_star. swap_star.
+          solve_star. swap_star. solve_star.
+          { rewrite Z.ge_le_iff in *. eauto using Z.le_le_succ_r. }
+          { lia. }
+          { rewrite Z2Nat.inj_succ; try lia. simpl. eassumption. }
+          rewrite Z2Nat.inj_succ; try lia. simpl List.repeat.
+          rewrite List.repeat_cons, <- List.app_assoc. simpl.
+          swap_star. revert_implies. prove_implies. }
+        apply triple_frame.
+        lazymatch goal with
+        | [|- triple (_ <* Val ?v) _ _] =>
+          let x := ltac:(fresh "v") in
+          remember v as x; generalize dependent x
+        end.
+        match goal with
+        | [|-
+          forall a, _ ->
+            triple (Val (@?f a) <* (@?e1 a))
+              ($0 <*> (@?P0 a))
+              (@?Q1 a)
+          ] =>
+          let x := ltac:(fresh a) in
+          intros x ?;
+          specialize Hn_ary with
+            (v := f x) (e := e1 x) (es := []%list)
+            (P := P0 x) (Q2 := fun x => Q1 x)
+        end.
+        pose proof triple_fun_n_ary_incr as Hincr.
+        specialize (Hframe _ incr 0).
+        specialize (Hweaken _ incr 0).
+        simpl in Hn_ary, Hincr, Hframe, Hweaken. eapply Hn_ary.
+        { rewrite <- Z.add_1_r. eapply Hweaken, Hframe, Hincr.
+          { intros. apply implies_refl. }
+          { intros. simpl. prove_implies. } }
+        { solve_simple_value. revert_implies. prove_implies_refl. }
+        { simpl. apply implies_spec. intros. do 2 (swap_star; solve_star).
+          revert_implies. prove_implies. }
+  - repeat triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure.
+    lazymatch goal with
+    | [H : List.length ?L = s - ?n |- _] =>
+      assert (n = s /\ List.length L = 0) as (->&?) by lia;
+      destruct L; [|discriminate]
+    end.
+    rewrite Nat.sub_diag, List.app_nil_r. simpl.
+    eapply triple_weaken, triple_free.
+    { prove_implies_rev. }
+    { intros. prove_implies. }
+    solve_simple_value.
+Qed.
+*)
 Theorem triple_fun_generic_dijkstra
   (get_size get_max_label get_neighbours mkheap h_insert h_empty
     h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string) :
@@ -1011,7 +1431,11 @@ Proof using.
     eapply triple_weaken, triple_frame, triple_fun_app.
     { apply implies_spec. intros. swap_star_ctx. normalize_star. swap_star_ctx. eassumption. }
     { prove_implies_refl. }
-    { apply Hspec_get_size. admit. }
+    {
+  repeat (rewrite map_v_shift_closed; [|repeat apply map_v_closed_value; assumption]).
+  fold_all_inc_set_string.
+  repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
+       apply Hspec_get_size. admit. }
     { solve_simple_value. swap_star. solve_star. eassumption. }
   }
   solve_simple_value. split_all; auto. intros. cbn.
@@ -1039,7 +1463,11 @@ Proof using.
           swap_star. eassumption. }
         { prove_implies_refl. } } }
     { prove_implies_refl. }
-    { apply Hspec_get_max_label. admit. }
+    {
+  repeat (rewrite map_v_shift_closed; [|repeat apply map_v_closed_value; assumption]).
+  fold_all_inc_set_string.
+  repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
+       apply Hspec_get_max_label. admit. }
     { solve_simple_value. swap_star. swap_star_ctx. solve_star. eassumption. }
   }
   solve_simple_value. split_all; auto. intros. cbn.
@@ -1056,7 +1484,12 @@ Proof using.
     2:{
       instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]). triple_pull_1_credit.
       eapply triple_weaken, triple_frame, triple_fun_app.
-      3:apply Hspec_mkheap; admit.
+      3:{
+  repeat (rewrite map_v_shift_closed; [|repeat apply map_v_closed_value; assumption]).
+  fold_all_inc_set_string.
+  repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
+        apply Hspec_mkheap; admit.
+      }
       3:solve_simple_value.
       { apply implies_spec. intros. solve_star. swap_star. solve_star. eassumption. }
       { apply implies_post_spec. intros. normalize_star. solve_star; [eassumption|].
