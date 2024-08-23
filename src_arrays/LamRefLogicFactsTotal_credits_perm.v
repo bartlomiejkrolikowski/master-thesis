@@ -1704,6 +1704,22 @@ Proof.
   - assumption.
 Qed.
 
+Theorem htriple_new_array_content (V : Set) (e : Expr V) P Q :
+  hoare_triple e
+    P
+    (fun v => <exists> i, <[v = Int i]> <*> <[(i >= 0)%Z]> <*> Q i) ->
+  hoare_triple (NewArray e)
+    (sa_credits 1 <*> P)
+    (fun v =>
+      <exists> i, array_content (List.repeat None (Z.to_nat i)) v <*> Q i).
+Proof.
+  intros. eapply htriple_weaken, htriple_new_array; eauto using implies_refl.
+  apply implies_post_spec. intros. normalize_star. subst. solve_star.
+  eapply star_implies_mono; try eassumption.
+  { apply implies_spec, array_decl_empty_content. }
+  { apply implies_refl. }
+Qed.
+
 Theorem triple_new_array (V : Set) (e : Expr V) P Q :
   triple e
     P
@@ -1721,6 +1737,22 @@ Proof.
     split_all; eauto using Interweave_app, disjoint_maps_n_new_cells_from.
   - eapply valid_map_alloc_array in H10; unfold alloc_array; eauto.
   - lia.
+Qed.
+
+Theorem triple_new_array_content (V : Set) (e : Expr V) P Q :
+  triple e
+    P
+    (fun v => <exists> i, <[v = Int i]> <*> <[(i >= 0)%Z]> <*> Q i) ->
+  triple (NewArray e)
+    (sa_credits 1 <*> P)
+    (fun v =>
+      <exists> i, array_content (List.repeat None (Z.to_nat i)) v <*> Q i).
+Proof.
+  intros. eapply triple_weaken, triple_new_array; eauto using implies_refl.
+  apply implies_post_spec. intros. normalize_star. subst. solve_star.
+  eapply star_implies_mono; try eassumption.
+  { apply implies_spec, array_decl_empty_content. }
+  { apply implies_refl. }
 Qed.
 
 Lemma valid_map_Lookup (V : Set) l v (m : Map V) :
