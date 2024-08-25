@@ -221,13 +221,17 @@ Fixpoint walk_cost {A} (W : A -> A -> nat) (p : list A) : nat :=
   end.
 
 Class Ordered A := {
-  le : A -> A -> Prop
+  le : A -> A -> Prop;
+  (*le_refl : forall x, le x x;*)
+  le_antisym : forall x y, le x y -> le y x -> x = y
 }.
 
 Instance Ordered_nat : Ordered nat := {|
-  le := Peano.le
+  le := Peano.le;
+  le_antisym := PeanoNat.Nat.le_antisymm
 |}.
 
+#[refine]
 Instance Ordered_option A `(Ordered A) : Ordered (option A) := {|
   le x y := match x, y with
   | Some x, Some y => le x y
@@ -236,6 +240,10 @@ Instance Ordered_option A `(Ordered A) : Ordered (option A) := {|
   | None, None => True
   end
 |}.
+Proof.
+  intros [x|] [y|]; try contradiction; try reflexivity.
+  intros. f_equal. apply le_antisym; assumption.
+Qed.
 
 Definition min_cost_elem {A B} `{Ordered B} (P : A -> Prop) (cost : A -> B) (x : A) :=
   P x /\ forall (y : A), P y -> le (cost x) (cost y).
@@ -442,6 +450,14 @@ Fact vx_edge_empty A (g : graph A) x :
   vx_edge g empty x <-> empty x.
 Proof.
   unfold vx_edge, empty. intuition.
+Qed.
+
+Fact max_cost_unique A B `(Ordered B) (P : A -> Prop) (cost : A -> B) y1 y2 :
+  max_cost P cost y1 ->
+  max_cost P cost y2 ->
+  y1 = y2.
+Proof.
+  unfold max_cost. intros (?&?&->&?) (?&?&->&?). auto using le_antisym.
 Qed.
 
 Lemma induced_subgraph_empty A (g : graph A) :

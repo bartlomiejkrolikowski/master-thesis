@@ -125,6 +125,13 @@ Definition is_elem_weighted_unique_list {A B} (P : A -> Prop) (W : A -> B) (L : 
 Definition is_set_size {A} (P : A -> Prop) (n : nat) : Prop :=
   exists l, is_elem_unique_list P l /\ List.length l = n.
 
+Fact empty_set_size A :
+  @is_set_size A empty 0.
+Proof.
+  unfold is_set_size, is_elem_unique_list, is_elem_list, empty.
+  exists nil. simpl. intuition constructor.
+Qed.
+
 Lemma is_elem_unique_list_unique_length A (P : A -> Prop) L1 L2 :
   is_elem_unique_list P L1 ->
   is_elem_unique_list P L2 ->
@@ -1542,6 +1549,14 @@ Proof.
   unfold Decidable.decidable, init_range. lia.
 Qed.
 
+Fact max_label_unique A g C C' :
+  @is_max_label A g C ->
+  is_max_label g C' ->
+  C = C'.
+Proof.
+  unfold is_max_label. apply max_cost_unique.
+Qed.
+
 Ltac clear_state_assertions :=
   repeat match goal with
   | [H : ?P ?c ?m |- _] =>
@@ -1929,7 +1944,7 @@ Proof using.
           lazymatch goal with
           | [|- triple (Val h_insert <* Val ?v <* _ <* _) _ _] =>
             eapply triple_weaken with
-              (P := ($2 <*> ($1 <*> ($ (S x) <*> (is_heap n _ _ _ _ v)))) <*> ($ _ <*> _) <*> $ (n'*S x)),
+              (P := ($2 <*> ($1 <*> ($ (S x) <*> (is_heap n _ _ _ _ v)))) <*> ($ _ <*> $ _ <*> _)),
               triple_frame;
               [| |revert v]
           end.
@@ -1947,52 +1962,46 @@ Proof using.
               (v := f a) (e := e1 a) (es := [e2 a;e3 a]%list)
               (P := P0 a)
           end.
-        lazymatch goal with
-        | [H : forall A A' A1 ov A2 i x, _ -> _ -> _ ->
-            triple_fun_n_ary ?n' assign_array_at (@?P A i x) (@?Q A')
-          |- triple (Val assign_array_at <* Val ?a <* Val (Int (Z.of_nat ?i)) <* Val ?y)
-            ($_ <*> ($_ <*> ($_ <*> array_content (List.repeat ?x ?s) ?v))) _
-          ] =>
-          let A := constr:(List.repeat x s) in
-          let A' := constr:((List.repeat x i ++ Some y::List.repeat x (s-S i))%list) in
-          specialize Hn_ary with
-            (Q1 := P A i y) (Q2 := Q A')
-        end.
-        specialize (Hweaken _ assign_array_at 2).
-        simpl in Hn_ary, Hassign_array_at, Hweaken. eapply Hn_ary.
-        { assert (src < n) by eauto using init_range_lt_size.
-          assert (n = src + (1 + (n-(S src)))) as -> by lia.
-          eapply Hassign_array_at; eauto using List.repeat_length.
-          rewrite List.repeat_app. simpl. repeat f_equal. lia. }
-        { solve_simple_value. revert_implies. prove_implies_refl. }
-        { solve_simple_value. revert_implies. remember (Int (Z.of_nat src)).
-          prove_implies_refl. }
-        { solve_simple_value. revert_implies. remember (Int 0).
-          prove_implies_refl. }
-        { simpl. apply implies_spec. intros. swap_star. solve_star. swap_star.
-          solve_star. revert_implies. prove_implies. }
-
-unfold mkheap_spec in Hspec_mkheap.
-    instantiate (c0 := S (S ?[cc0])). instantiate (cc0 := ?[c0]).
-    triple_pull_credits 2. triple_reorder_credits.
-    eapply triple_weaken, triple_frame, triple_fun_app2.
-    4:solve_simple_value.
-    1:{ prove_implies_refl. }
-    2:{
-      instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]). triple_pull_1_credit.
-      eapply triple_weaken, triple_frame, triple_fun_app.
-      3:{
-  repeat (rewrite map_v_shift_closed; [|repeat apply map_v_closed_value; assumption]).
-  fold_all_inc_set_string.
-  repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
-        apply Hspec_mkheap; admit.
-      }
-      3:solve_simple_value.
-      { apply implies_spec. intros. solve_star. swap_star. solve_star. eassumption. }
-      { apply implies_post_spec. intros. normalize_star. solve_star; [eassumption|].
-        simpl. swap_star. solve_star. eassumption. }
-    }
-    1:{ prove_implies_refl. }
-  clear mkheap Hspec_mkheap.
-        -- admit.
+          lazymatch goal with
+          | [H : forall n C P W p s k d c t, _ -> _ -> _ -> _ -> _ ->
+              triple_fun_n_ary _ h_insert
+                (@?Pre n C P W p k d c) (@?Post n C P W p k d t)
+            |- triple
+              (Val h_insert <* Val ?h <* Val (Int (Z.of_nat ?s')) <* Val (Int ?x))
+              ($_ <*> ($_ <*> ($ ?t' <*> is_heap ?n' ?C' ?P' ?W' ?p' ?h))) _
+            ] =>
+            let d' := constr:(Z.to_nat x) in
+            let c' := constr:(t') in
+            specialize Hn_ary with
+              (Q1 := Pre n' C' P' W' p' s' d' c')
+              (Q2 := Post n' C' P' W' p' s' d' t');
+            specialize Hspec_h_insert with
+              (n := n') (C := C') (P := P') (W := W') (p := p') (k := s')
+              (d := d') (c := t') (t := t')
+          end.
+          specialize (Hweaken _ assign_array_at 2).
+          simpl in Hn_ary, Hspec_h_insert, Hweaken. eapply triple_weaken, Hn_ary.
+          { prove_implies_refl. }
+          { apply implies_post_spec. intros ? ? ? HQ.
+            apply star_assoc, star_comm, star_assoc, star_pure_l in HQ as (->&?).
+            solve_star. eassumption. }
+          { eapply Hspec_h_insert; unfold empty, not; auto.
+            { lazymatch goal with
+              | [H1 : is_max_label g _, H2 : is_max_label g _ |- _] =>
+                specialize (max_label_unique _ _ _ _ H1 H2) as ->
+              end.
+              subst. assumption. }
+            { apply empty_set_size. }
+            { lia. } }
+          { solve_simple_value. revert_implies. prove_implies_refl. }
+          { solve_simple_value. revert_implies. remember (Int (Z.of_nat src)).
+            prove_implies_refl. }
+          { solve_simple_value. revert_implies. remember (Int 0).
+            prove_implies_refl. }
+          { simpl. apply implies_spec. intros. swap_star. solve_star. swap_star.
+            solve_star. revert_implies. prove_implies. }
+        -- triple_reorder_exists. repeat triple_pull_exists.
+          triple_reorder_pure. triple_pull_pure. instantiate (c0 := 2). simpl.
+          eapply triple_weaken, triple_frame.
+        admit.
 Admitted.
