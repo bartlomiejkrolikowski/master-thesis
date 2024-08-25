@@ -209,6 +209,8 @@ Definition is_nat_function {V} (f : nat -> option nat) '(OfNat n0) : StateAssert
 
 Parameter get_size_cost : forall (c : nat), Prop.
 
+Axiom get_size_cost_exists : exists c, get_size_cost c.
+
 Definition get_size_spec {A} (get_size : Value A) : Prop :=
   forall vg g c,
     get_size_cost c ->
@@ -219,6 +221,8 @@ Definition get_size_spec {A} (get_size : Value A) : Prop :=
         is_weighted_graph g vg).
 
 Parameter get_neighbours_cost : forall (c : nat), Prop.
+
+Axiom get_neighbours_cost_exists : exists c, get_neighbours_cost c.
 
 Definition get_neighbours_spec {A} (get_neighbours : Value A) : Prop :=
   forall vg n (g : wgraph nat) c,
@@ -235,6 +239,8 @@ Definition get_neighbours_spec {A} (get_neighbours : Value A) : Prop :=
       ]>).
 
 Parameter get_max_label_cost : forall (c : nat), Prop.
+
+Axiom get_max_label_cost_exists : exists c, get_max_label_cost c.
 
 Definition get_max_label_spec {A} (get_max_label : Value A) : Prop :=
   forall vg g c,
@@ -1557,6 +1563,13 @@ Proof.
   unfold is_max_label. apply max_cost_unique.
 Qed.
 
+Definition fun_of_list {A} (L : list (option A)) : nat -> option A :=
+  fun i => List.nth i L None.
+
+Definition is_nat_fun_of_val_list {V}
+  (L : list (option (Value V))) (f : nat -> option nat) : Prop :=
+  forall i n, fun_of_list L i = Some (Int (Z.of_nat n)) <-> f i = Some n.
+
 Ltac clear_state_assertions :=
   repeat match goal with
   | [H : ?P ?c ?m |- _] =>
@@ -1592,25 +1605,25 @@ Theorem triple_fun_generic_dijkstra
   l_is_nil_spec       l_is_nil ->
   l_head_spec         l_head ->
   l_tail_spec         l_tail ->
-  exists c0 cn cm, forall (g : wgraph nat) vg src D pred n m C t,
+  exists c0 cn cm, forall (g : wgraph nat) vg src n m C t,
   n >= 1 ->
   is_init_range (V g) ->
   is_set_size (V g) n ->
   is_set_size (uncurry (E g)) m ->
   is_max_label g C ->
   heap_time_bound n C t ->
-  triple_fun
+  triple_fun_n_ary 1
     (generic_dijkstra
       get_size get_max_label get_neighbours mkheap h_insert h_empty
       h_extract_min h_decrease_key h_free l_is_nil l_head l_tail)
-    (fun v => $1 <*> <[v = vg]>)
-    (fun v => <[triple_fun v
-      (fun v => $ (c0 + cm*m + cn*n*t) <*> <[v = Int (Z.of_nat src)]> <*>
-        is_weighted_graph g vg <*> <[V g src]> <*> <[Dijkstra_initial D pred src]>)
-      (fun v => (<exists> c, $c) <*> <exists> lD lpred, <[v = RecV [Lab lD; Lab lpred]]> <*>
-        is_weighted_graph g vg <*> is_nat_function D lD <*>
-        is_nat_function pred lpred <*> <[Dijkstra_final D pred src g]>)]>).
-Proof using.
+    (fun v1 v2 => $ (c0 + cm*m + cn*n*t) <*>
+      <[v1 = vg]> <*> <[v2 = Int (Z.of_nat src)]> <*>
+      is_weighted_graph g vg <*> <[V g src]> <*> <[~ E g src src]>)
+    (fun v1 v2 res => (<exists> c, $c) <*> <exists> lD lpred D pred,
+      <[res = RecV [Lab lD; Lab lpred]]> <*>
+      is_weighted_graph g vg <*> is_nat_function D lD <*>
+      is_nat_function pred lpred <*> <[Dijkstra_final D pred src g]>).
+Proof.
 (*unfold is_closed_value.*)
   intros Hclosed_get_size Hclosed_get_max_label Hclosed_get_neighbours Hclosed_mkheap
     Hclosed_h_insert Hclosed_h_empty Hclosed_h_extract_min Hclosed_h_decrease_key
@@ -1618,7 +1631,10 @@ Proof using.
   intros Hspec_get_size Hspec_get_max_label Hspec_get_neighbours Hspec_mkheap
     Hspec_h_insert Hspec_h_empty Hspec_h_extract_min Hspec_h_decrease_key
     Hspec_h_free Hspec_l_is_nil Hspec_l_head Hspec_l_tail.
-  eexists ?[c0], ?[cn], ?[cm]. intros. unfold triple_fun, generic_dijkstra, StringLam. simpl. intros.
+  specialize get_size_cost_exists as (c_size&?).
+  specialize get_neighbours_cost_exists as (c_neighbours&?).
+  specialize get_max_label_cost_exists as (c_max_label&?).
+  eexists ?[c0], ?[cn], ?[cm]. intros. simpl. unfold triple_fun, generic_dijkstra, StringLam. simpl. intros.
   lazymatch goal with
   | [H : heap_time_bound _ _ ?t |- _] =>
     apply heap_time_bound_ge_1 in H as ?;
@@ -1630,8 +1646,7 @@ Proof using.
   app_lambda. triple_pull_pure. subst. solve_simple_value; [|rewrite_empty_spec; rewrite pure_spec; auto].
   split_all; auto. intros. cbn. triple_pull_pure. solve_simple_value.
   rewrite_empty_spec. rewrite pure_spec. split_all; auto. intros.
-  instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
-  triple_pull_1_credit. app_lambda. simpl. subst. solve_simple_value.
+  triple_reorder_credits. app_lambda. simpl. subst. solve_simple_value.
   split_all; auto. intros. cbn. triple_reorder_pure. repeat triple_pull_pure. subst.
   rewrite bind_v_shift, bind_v_id.
   instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
@@ -1641,50 +1656,37 @@ Proof using.
   triple_pull_1_credit. app_lambda.
   2:{
     unfold get_size_spec in Hspec_get_size.
-    instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]). triple_pull_1_credit.
+    instantiate (c0 := c_size + ?[cc0]). instantiate (cc0 := ?[c0]).
+    do 2 rewrite <- Nat.add_assoc.
+    triple_reorder_credits. triple_pull_credits c_size.
     eapply triple_weaken, triple_frame, triple_fun_app.
-    { apply implies_spec. intros. swap_star_ctx. normalize_star. swap_star_ctx. eassumption. }
+    { apply implies_spec. intros. swap_star_ctx. conormalize_star. eassumption. }
     { prove_implies_refl. }
-    {
-  repeat (rewrite map_v_shift_closed; [|repeat apply map_v_closed_value; assumption]).
-  fold_all_inc_set_string.
-  repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
-       apply Hspec_get_size. admit. }
+    { eauto. }
     { solve_simple_value. swap_star. solve_star. eassumption. }
   }
   clear get_size Hspec_get_size.
   solve_simple_value. split_all; auto. intros. cbn.
   repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
+  triple_reorder_exists. triple_pull_exists. triple_reorder_pure. repeat triple_pull_pure.
   instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]).
   triple_pull_1_credit. app_lambda.
   2:{
     unfold get_max_label_spec in Hspec_get_max_label.
-    instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]). triple_pull_1_credit.
+    instantiate (c0 := c_max_label + ?[cc0]). instantiate (cc0 := ?[c0]).
+    rewrite <- Nat.add_assoc.
+    triple_reorder_credits. triple_pull_credits c_max_label.
     eapply triple_weaken, triple_frame, triple_fun_app.
-    { apply implies_spec. intros.
+    { apply implies_spec. intros. swap_star_ctx. conormalize_star.
       match goal with
       | [H : _ ?c ?m |- _ ?c ?m] => eapply star_implies_mono in H
       end.
-      { apply star_assoc_l. eassumption. }
+      { eassumption. }
       { prove_implies_refl. }
-      { apply implies_spec. intros. swap_star_ctx. apply star_assoc_r.
-        match goal with
-        | [H : _ ?c ?m |- _ ?c ?m] => eapply star_implies_mono in H
-        end.
-        { eassumption. }
-        { apply implies_spec. intros.
-          match goal with
-          | [H : _ ?c ?m |- _ ?c ?m] => apply star_exists_l in H
-          end.
-          swap_star. eassumption. }
-        { prove_implies_refl. } } }
+      { prove_implies_refl. } }
     { prove_implies_refl. }
-    {
-  repeat (rewrite map_v_shift_closed; [|repeat apply map_v_closed_value; assumption]).
-  fold_all_inc_set_string.
-  repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
-       apply Hspec_get_max_label. admit. }
-    { solve_simple_value. swap_star. swap_star_ctx. solve_star. eassumption. }
+    { eauto. }
+    { solve_simple_value. swap_star. normalize_star. solve_star. eassumption. }
   }
   clear get_max_label Hspec_get_max_label.
   solve_simple_value. split_all; auto. intros. cbn.
@@ -1699,24 +1701,19 @@ Proof using.
   triple_pull_1_credit. app_lambda.
   2:{
     unfold mkheap_spec in Hspec_mkheap.
-    instantiate (c0 := S (S ?[cc0])). instantiate (cc0 := ?[c0]).
+    instantiate (c0 := S (S ?[cc0])). instantiate (cc0 := ?[c0]). simpl.
     triple_pull_credits 2. triple_reorder_credits.
     eapply triple_weaken, triple_frame, triple_fun_app2.
     4:solve_simple_value.
-    1:{ prove_implies_refl. }
+    1:{ apply star_assoc. }
     2:{
       instantiate (c0 := S ?[cc0]). instantiate (cc0 := ?[c0]). triple_pull_1_credit.
       eapply triple_weaken, triple_frame, triple_fun_app.
-      3:{
-  repeat (rewrite map_v_shift_closed; [|repeat apply map_v_closed_value; assumption]).
-  fold_all_inc_set_string.
-  repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id. simpl.
-        apply Hspec_mkheap; admit.
-      }
+      3:{ apply Hspec_mkheap. admit. }
       3:solve_simple_value.
-      { apply implies_spec. intros. solve_star. swap_star. solve_star. eassumption. }
-      { apply implies_post_spec. intros. normalize_star. solve_star; [eassumption|].
-        simpl. swap_star. solve_star. eassumption. }
+      { apply implies_spec. intros. solve_star. swap_star. solve_star. swap_star. eassumption. }
+      { apply implies_post_spec. intros. normalize_star. solve_star; [apply triple_fun_frame; eassumption|].
+        simpl. solve_star. swap_star. solve_star. swap_star. eassumption. }
     }
     1:{ prove_implies_refl. }
   }
@@ -1768,10 +1765,12 @@ Proof using.
       (Nat.mul_comm 16 n), Nat.mul_succ_r, (Nat.add_comm _ (n*16)).
     simpl.
     erewrite <- (Nat.add_assoc (n*16)), (Nat.add_assoc _ (n*16)),
-      (Nat.add_comm _ (n*16)), <- (Nat.add_assoc (n*16)).
+      (Nat.add_comm _ (n*16)), <- (Nat.add_assoc (n*16)),
+      (Nat.add_assoc _ (n*16)), (Nat.add_comm _ (n*16)),
+      <- (Nat.add_assoc (n*16)).
     triple_pull_credits (11 + n*16). triple_reorder_credits.
     eapply triple_weaken with (P := ($_ <*> array_content _ _) <*> ($ (_ + _) <*> is_weighted_graph _ _<*> is_heap _ _ _ _ _ _ <*> array_content _ _)), triple_frame.
-    { prove_implies. }
+    { prove_implies_rev. }
     { intros. apply star_assoc_r. }
     triple_reorder_credits. triple_pull_credits 3. triple_reorder_credits. triple_pull_credits 2. triple_reorder_credits.
     clear v1.
@@ -1825,10 +1824,11 @@ Proof using.
       erewrite <- (Nat.add_assoc (n*16)), (Nat.add_assoc _ (n*16)),
         (Nat.add_comm _ (n*16)), <- (Nat.add_assoc (n*16)),
         (Nat.add_assoc _ (n*16)), (Nat.add_comm _ (n*16)),
-        <- (Nat.add_assoc (n*16)).
+        <- (Nat.add_assoc (n*16)), (Nat.add_assoc _ (n*16)),
+        (Nat.add_comm _ (n*16)), <- (Nat.add_assoc (n*16)).
       triple_pull_credits (11 + n*16). triple_reorder_credits.
       eapply triple_weaken with (P := ($_ <*> array_content _ _) <*> ($ (_ + _) <*> is_weighted_graph _ _<*> is_heap _ _ _ _ _ _ <*> array_content _ _)), triple_frame.
-      { prove_implies. }
+      { prove_implies_rev. }
       { intros. apply star_assoc_r. }
       triple_reorder_credits. triple_pull_credits 3. triple_reorder_credits. triple_pull_credits 2. triple_reorder_credits.
       lazymatch goal with
@@ -1873,7 +1873,7 @@ Proof using.
       * pose proof triple_fun_n_ary_app as Hn_ary.
         pose proof triple_fun_n_ary_weaken as Hweaken.
         pose proof triple_fun_n_ary_assign_array_at as Hassign_array_at.
-        instantiate (c0 := 5+ ?[cc0]). instantiate (cc0 := ?[c0]).
+        instantiate (c0 := 5+ ?[cc0]). instantiate (cc0 := ?[c0]). simpl.
         triple_pull_credits 5. triple_reorder_credits.
         triple_pull_credits 4. triple_reorder_credits.
         triple_pull_credits 2. triple_reorder_credits.
@@ -1925,7 +1925,7 @@ Proof using.
           solve_star. revert_implies. prove_implies. }
       * clear_state_assertions. triple_reorder_credits.
         destruct n as [|n'] eqn:Hn; [lia|]. rewrite <- Hn.
-        instantiate (c0 := 4+?[cc0]). instantiate (cc0 := ?[c0]).
+        instantiate (c0 := 4+?[cc0]). instantiate (cc0 := ?[c0]). simpl.
         triple_pull_1_credit. eapply triple_seq.
         -- pose proof triple_fun_n_ary_app as Hn_ary.
           pose proof triple_fun_n_ary_weaken as Hweaken.
@@ -1933,18 +1933,21 @@ Proof using.
           instantiate (cn := S ?[ccn]). instantiate (ccn := ?[cn]).
           simpl.
           erewrite (Nat.mul_add_distr_r n).
-          do 3 erewrite (Nat.add_assoc _ (n*S _)), (Nat.add_comm _ (n*S _)),
+          do 4 erewrite (Nat.add_assoc _ (n*S _)), (Nat.add_comm _ (n*S _)),
             <- (Nat.add_assoc (n*S _)).
-          triple_pull_credits (3+n*S x). triple_reorder_credits.
+          lazymatch goal with
+          | [|- triple _ ($ S (S (S (n*S ?k + _))) <*> _) _] =>
+            rename k into t_credits
+          end.
+          triple_pull_credits (3+n*S t_credits). triple_reorder_credits.
           rewrite Hn. simpl (S _). rewrite <- Hn.
-          triple_pull_credits (3+S x). triple_reorder_credits.
+          triple_pull_credits (3+S t_credits). triple_reorder_credits.
           triple_pull_credits 3. triple_reorder_credits.
           triple_pull_credits 2. triple_reorder_credits.
-          (* TODO *)
           lazymatch goal with
           | [|- triple (Val h_insert <* Val ?v <* _ <* _) _ _] =>
             eapply triple_weaken with
-              (P := ($2 <*> ($1 <*> ($ (S x) <*> (is_heap n _ _ _ _ v)))) <*> ($ _ <*> $ _ <*> _)),
+              (P := ($2 <*> ($1 <*> ($ (S t_credits) <*> (is_heap n _ _ _ _ v)))) <*> ($ _ <*> $ _ <*> _)),
               triple_frame;
               [| |revert v]
           end.
@@ -2002,6 +2005,45 @@ Proof using.
             solve_star. revert_implies. prove_implies. }
         -- triple_reorder_exists. repeat triple_pull_exists.
           triple_reorder_pure. triple_pull_pure. instantiate (c0 := 2). simpl.
-          eapply triple_weaken, triple_frame.
+          lazymatch goal with
+          | [|- triple _
+              (_ <*> (_ <*> ((_ <*> array_content ?pred _) <*> array_content ?D _)))
+              _
+            ] =>
+            remember pred as pred_list eqn:Hpred_list;
+            remember D as D_list eqn:HD_list
+          end.
+          assert (is_nat_fun_of_val_list D_list (fun i => if i =? src then Some 0 else None)).
+          { subst. unfold is_nat_fun_of_val_list, fun_of_list. intros.
+            destruct Nat.eqb_spec with i src.
+            { subst. rewrite List.app_nth2; rewrite List.repeat_length; [|lia].
+              rewrite Nat.sub_diag. simpl. split; intros [= ?]; repeat f_equal; lia. }
+            { assert (i < src \/ i > src) as [] by lia.
+              { rewrite List.app_nth1; [|rewrite List.repeat_length; lia].
+                erewrite List.nth_error_nth; [|apply List.nth_error_repeat; lia].
+                split; [|discriminate]. intros [= ?]. lia. }
+              { rewrite List.app_nth2; rewrite List.repeat_length; [|lia].
+                destruct i as [|i]; [lia|]. rewrite Nat.sub_succ_l; [|lia].
+                simpl.
+                assert (i < n' \/ i >= n') as [] by lia.
+                { erewrite List.nth_error_nth; [|apply List.nth_error_repeat; lia].
+                  split; [|discriminate]. intros [= ?]. lia. }
+                { rewrite List.nth_overflow; [|rewrite List.repeat_length; lia].
+                  split; discriminate. } } } }
+          assert (is_nat_fun_of_val_list pred_list (fun i => None)).
+          { subst. unfold is_nat_fun_of_val_list, fun_of_list. intros.
+            assert (i < S n' \/ i >= S n') as [] by lia.
+            { erewrite List.nth_error_nth; [|apply List.nth_error_repeat; lia].
+              split; [|discriminate]. intros [= ?]. lia. }
+            { rewrite List.nth_overflow; [|rewrite List.repeat_length; lia].
+              split; discriminate. } }
+          remember (fun i => if i =? src then Some 0 else None) as D eqn:HD.
+          remember (fun i => None) as pred eqn:Hpred.
+          assert (Dijkstra_initial D pred src) as Hinitial.
+          { subst. unfold Dijkstra_initial. rewrite Nat.eqb_refl.
+            split_all; auto. intros ? ->%Nat.eqb_neq. reflexivity. }
+          apply valid_initial with (g := g) in Hinitial; auto.
+          triple_reorder_credits.
+          (* TODO *)
         admit.
 Admitted.
