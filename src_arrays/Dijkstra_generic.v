@@ -82,6 +82,7 @@ Definition generic_dijkstra (get_size get_max_label get_neighbours mkheap h_inse
               [else]
                 U_val (* Nothing happens. *)
               [end]
+              [end]
             [end]
             [end]
             [end]
@@ -103,7 +104,6 @@ Definition generic_dijkstra (get_size get_max_label get_neighbours mkheap h_inse
         Var "x"
       [end]
       *)
-    [end]
     [end]
     [end]
     [end]
@@ -130,6 +130,32 @@ Fact empty_set_size A :
 Proof.
   unfold is_set_size, is_elem_unique_list, is_elem_list, empty.
   exists nil. simpl. intuition constructor.
+Qed.
+
+Fact equiv_elem_list A P Q L :
+  @set_equiv A P Q ->
+  is_elem_list P L ->
+  is_elem_list Q L.
+Proof.
+  unfold set_equiv, is_elem_list.
+  intros Hequiv Hlist x. rewrite <- Hequiv, Hlist. reflexivity.
+Qed.
+
+Fact equiv_elem_unique_list A P Q L :
+  @set_equiv A P Q ->
+  is_elem_unique_list P L ->
+  is_elem_unique_list Q L.
+Proof.
+  unfold is_elem_unique_list. intros Hequiv (Hlist&Hnodup).
+  split; eauto using equiv_elem_list.
+Qed.
+
+Fact equiv_set_size A P Q n :
+  @set_equiv A P Q ->
+  is_set_size P n ->
+  is_set_size Q n.
+Proof.
+  unfold is_set_size. intros ? (?&?&?). eauto using equiv_elem_unique_list.
 Qed.
 
 Lemma is_elem_unique_list_unique_length A (P : A -> Prop) L1 L2 :
@@ -2004,46 +2030,130 @@ Proof.
           { simpl. apply implies_spec. intros. swap_star. solve_star. swap_star.
             solve_star. revert_implies. prove_implies. }
         -- triple_reorder_exists. repeat triple_pull_exists.
-          triple_reorder_pure. triple_pull_pure. instantiate (c0 := 2). simpl.
-          lazymatch goal with
-          | [|- triple _
-              (_ <*> (_ <*> ((_ <*> array_content ?pred _) <*> array_content ?D _)))
-              _
-            ] =>
-            remember pred as pred_list eqn:Hpred_list;
-            remember D as D_list eqn:HD_list
-          end.
-          assert (is_nat_fun_of_val_list D_list (fun i => if i =? src then Some 0 else None)).
-          { subst. unfold is_nat_fun_of_val_list, fun_of_list. intros.
-            destruct Nat.eqb_spec with i src.
-            { subst. rewrite List.app_nth2; rewrite List.repeat_length; [|lia].
-              rewrite Nat.sub_diag. simpl. split; intros [= ?]; repeat f_equal; lia. }
-            { assert (i < src \/ i > src) as [] by lia.
-              { rewrite List.app_nth1; [|rewrite List.repeat_length; lia].
-                erewrite List.nth_error_nth; [|apply List.nth_error_repeat; lia].
-                split; [|discriminate]. intros [= ?]. lia. }
-              { rewrite List.app_nth2; rewrite List.repeat_length; [|lia].
-                destruct i as [|i]; [lia|]. rewrite Nat.sub_succ_l; [|lia].
-                simpl.
-                assert (i < n' \/ i >= n') as [] by lia.
-                { erewrite List.nth_error_nth; [|apply List.nth_error_repeat; lia].
-                  split; [|discriminate]. intros [= ?]. lia. }
-                { rewrite List.nth_overflow; [|rewrite List.repeat_length; lia].
-                  split; discriminate. } } } }
-          assert (is_nat_fun_of_val_list pred_list (fun i => None)).
-          { subst. unfold is_nat_fun_of_val_list, fun_of_list. intros.
-            assert (i < S n' \/ i >= S n') as [] by lia.
-            { erewrite List.nth_error_nth; [|apply List.nth_error_repeat; lia].
-              split; [|discriminate]. intros [= ?]. lia. }
-            { rewrite List.nth_overflow; [|rewrite List.repeat_length; lia].
-              split; discriminate. } }
-          remember (fun i => if i =? src then Some 0 else None) as D eqn:HD.
-          remember (fun i => None) as pred eqn:Hpred.
-          assert (Dijkstra_initial D pred src) as Hinitial.
-          { subst. unfold Dijkstra_initial. rewrite Nat.eqb_refl.
-            split_all; auto. intros ? ->%Nat.eqb_neq. reflexivity. }
-          apply valid_initial with (g := g) in Hinitial; auto.
+          triple_reorder_pure. triple_pull_pure. instantiate (c0 := 3).
           triple_reorder_credits.
-          (* TODO *)
-        admit.
+          lazymatch goal with
+          | [|- triple _ ($ _ <*> ($ _ <*> ($ ?c <*> _))) _] =>
+            triple_reorder (@sa_credits string c)
+          end.
+          triple_pull_1_credit.
+          eapply triple_seq.
+          ++ lazymatch goal with
+            | [|- triple _
+                (_ <*> (_ <*> (_ <*> (_ <*>
+                  array_content ?pred _ <*> array_content ?D _ <*> _))))
+                _
+              ] =>
+              remember pred as pred_list eqn:Hpred_list;
+              remember D as D_list eqn:HD_list
+            end.
+            assert (is_nat_fun_of_val_list D_list (fun i => if i =? src then Some 0 else None)).
+            { subst. unfold is_nat_fun_of_val_list, fun_of_list. intros.
+              destruct Nat.eqb_spec with i src.
+              { subst. rewrite List.app_nth2; rewrite List.repeat_length; [|lia].
+                rewrite Nat.sub_diag. simpl. split; intros [= ?]; repeat f_equal; lia. }
+              { assert (i < src \/ i > src) as [] by lia.
+                { rewrite List.app_nth1; [|rewrite List.repeat_length; lia].
+                  erewrite List.nth_error_nth; [|apply List.nth_error_repeat; lia].
+                  split; [|discriminate]. intros [= ?]. lia. }
+                { rewrite List.app_nth2; rewrite List.repeat_length; [|lia].
+                  destruct i as [|i]; [lia|]. rewrite Nat.sub_succ_l; [|lia].
+                  simpl.
+                  assert (i < n' \/ i >= n') as [] by lia.
+                  { erewrite List.nth_error_nth; [|apply List.nth_error_repeat; lia].
+                    split; [|discriminate]. intros [= ?]. lia. }
+                  { rewrite List.nth_overflow; [|rewrite List.repeat_length; lia].
+                    split; discriminate. } } } }
+            assert (is_nat_fun_of_val_list pred_list (fun i => None)).
+            { subst. unfold is_nat_fun_of_val_list, fun_of_list. intros.
+              assert (i < S n' \/ i >= S n') as [] by lia.
+              { erewrite List.nth_error_nth; [|apply List.nth_error_repeat; lia].
+                split; [|discriminate]. intros [= ?]. lia. }
+              { rewrite List.nth_overflow; [|rewrite List.repeat_length; lia].
+                split; discriminate. } }
+            unfold set_value_at.
+            remember (fun i => if i =? src then Some 0 else None) as D eqn:HD.
+            remember (fun i => None) as pred eqn:Hpred.
+            assert (Dijkstra_initial D pred src) as Hinitial.
+            { subst. unfold Dijkstra_initial. rewrite Nat.eqb_refl.
+              split_all; auto. intros ? ->%Nat.eqb_neq. reflexivity. }
+            apply valid_initial with (g := g) in Hinitial; auto.
+            triple_reorder_credits.
+            lazymatch goal with
+            | [|- triple _ ($ S (S ?cr) <*> ($ ?n1 <*> ($ ?n2 <*> _))) _] =>
+              eapply triple_weaken with
+                (P := ($ S (S cr) <*> _) <*> ($ n1 <*> $ n2))
+                (Q := (fun res => <[res = U_val]> <*> ((<exists> c, $c) <*> _)) <*>+
+                  ($ n1 <*> $ n2)),
+                triple_frame
+            end.
+            { prove_implies. }
+            { apply implies_post_spec. intros. apply star_assoc_r. eassumption. }
+            remember (fun (D : nat -> option nat) v => D v <> None)
+              as nonzeroD eqn:HnonzeroD.
+            triple_pull_credits 2. triple_reorder_credits.
+            lazymatch goal with
+            | [|- triple _
+                ($2 <*> ($(?cm * m + (_ + (_ + ?cn * n * ?t))) <*>
+                  (is_weighted_graph ?g ?vg <*>
+                    array_content _ ?a_pred <*> array_content _ ?a_D <*>
+                    is_heap ?n' ?C ?P0 _ ?pot ?h)))
+                (fun res => <[@?Q' res]> <*> _)
+              ] =>
+              let pre :=
+                constr:($2 <*> ((<exists> D_list pred_list P P' D pred sv se,
+                <[(P = empty /\ P' = P0) \/ P' = neighbourhood g P]> <*>
+                <[is_set_size P sv]> <*>
+                <[is_set_size (uncurry (E (induced_subgraph P g))) se]> <*>
+                <[is_nat_fun_of_val_list D_list D]> <*>
+                <[is_nat_fun_of_val_list pred_list pred]> <*>
+                <[Dijkstra_invariant D pred P src g]> <*>
+                $ (cm * (m - se) + cn * (n - sv) * t) <*>
+                is_weighted_graph g vg <*> array_content pred_list a_pred <*>
+                array_content D_list a_D <*> is_heap n' C P' D pot h) <*>
+                (<exists> c, $c)))
+              in
+              let post :=
+                constr:(fun b => (<exists> D_list pred_list P P' D pred sv sv' se,
+                <[(sv' =? 0) = b]> <*>
+                <[(P = empty /\ P' = P0) \/ P' = neighbourhood g P]> <*>
+                <[is_set_size P sv]> <*>
+                <[is_set_size P' sv']> <*>
+                <[is_set_size (uncurry (E (induced_subgraph P g))) se]> <*>
+                <[is_nat_fun_of_val_list D_list D]> <*>
+                <[is_nat_fun_of_val_list pred_list pred]> <*>
+                <[Dijkstra_invariant D pred P src g]> <*>
+                $ (cm * (m - se) + cn * (n - sv) * t) <*>
+                is_weighted_graph g vg <*> array_content pred_list a_pred <*>
+                array_content D_list a_D <*> is_heap n' C P' D pot h) <*>
+                (<exists> c, $c))
+              in
+              eapply triple_weaken with
+                (P := pre) (Q := fun res => <[Q' res]> <*> post false),
+                triple_while with (Q := post)
+            end.
+            { prove_implies. apply implies_spec. intros ? ? Hpre.
+              eapply star_implies_mono in Hpre; [|
+                lazymatch goal with
+                | [|- $ (?n1 + (?k1 + (?k2 + ?n2))) ->> _] =>
+                  apply credits_star_r with (c1 := k1 + k2) (c2 := n1 + n2); lia
+                end|prove_implies_refl].
+              normalize_star. swap_star_ctx. eapply star_implies_mono; eauto.
+              { clear_state_assertions. apply implies_spec. intros.
+                eexists D_list, pred_list, empty, (set_sum _ _), D, pred, 0, 0.
+                solve_star.
+                { apply empty_set_size. }
+                { apply equiv_set_size with empty.
+                  { unfold set_equiv. intros []. simpl. unfold empty. tauto. }
+                  { apply empty_set_size. } }
+                { do 2 rewrite Nat.sub_0_r. revert_implies. prove_implies. } }
+              { apply implies_spec. intros. solve_star. eassumption. } }
+            { intros. prove_implies. apply star_comm. }
+            ** unfold h_empty_spec in Hspec_h_empty.
+              triple_reorder_exists. repeat triple_pull_exists.
+              triple_reorder_pure. repeat triple_pull_pure.
+              instantiate (cn:= S ?[ccn]). instantiate (ccn := ?[cn]). simpl.
+            (* TODO *)
+          admit.
+          ++ admit.
 Admitted.
