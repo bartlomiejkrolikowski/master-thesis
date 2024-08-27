@@ -132,6 +132,13 @@ Proof.
   exists nil. simpl. intuition constructor.
 Qed.
 
+Fact single_set_size A x :
+  @is_set_size A (single x) 1.
+Proof.
+  unfold is_set_size, is_elem_unique_list, is_elem_list, single.
+  exists [x]%list. simpl. intuition (repeat econstructor); tauto.
+Qed.
+
 Fact equiv_elem_list A P Q L :
   @set_equiv A P Q ->
   is_elem_list P L ->
@@ -296,6 +303,8 @@ Parameter place_in_heap :
 
 Parameter mkheap_cost : forall (n C c : nat), Prop.
 
+Axiom mkheap_cost_exists : forall n C, exists c, mkheap_cost n C c.
+
 Definition mkheap_spec {V} (mkheap : Value V) : Prop :=
   forall n C c,
     mkheap_cost n C c ->
@@ -327,6 +336,8 @@ Definition h_insert_spec {V} (h_insert : Value V) : Prop :=
           is_heap n C (set_sum P (single k)) (set_value_at W k d) p' h).
 
 Parameter h_empty_cost : forall (c : nat), Prop.
+
+Axiom h_empty_cost_exists : exists c, h_empty_cost c.
 
 Definition h_empty_spec {V} (h_empty : Value V) : Prop :=
   forall n C (P : nat -> Prop) (W : nat -> option nat) h s c p,
@@ -1596,6 +1607,83 @@ Definition is_nat_fun_of_val_list {V}
   (L : list (option (Value V))) (f : nat -> option nat) : Prop :=
   forall i n, fun_of_list L i = Some (Int (Z.of_nat n)) <-> f i = Some n.
 
+Lemma decidable_in A L x :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  Decidable.decidable (@List.In A x L).
+Proof.
+  unfold Decidable.decidable. induction L; firstorder.
+Qed.
+
+Lemma decidable_if_elem_list A (P : A -> Prop) L x :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  is_elem_list P L ->
+  Decidable.decidable (P x).
+Proof.
+  unfold Decidable.decidable, is_elem_list. intros Hdec_eq <-.
+  apply decidable_in. unfold Decidable.decidable. assumption.
+Qed.
+
+Lemma decidable_if_finite A (P : A -> Prop) n x :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  is_set_size P n ->
+  Decidable.decidable (P x).
+Proof.
+  unfold is_set_size, is_elem_unique_list. intros Hdec_eq (?&(?&?)&?).
+  eapply decidable_if_elem_list; eassumption.
+Qed.
+
+Lemma decidable_exists_in A L :
+  Decidable.decidable (exists x, @List.In A x L).
+Proof.
+  unfold Decidable.decidable. destruct L as [|x L]; simpl.
+  - firstorder.
+  - eauto.
+Qed.
+
+Lemma decidable_exists_if_elem_list A (P : A -> Prop) L :
+  is_elem_list P L ->
+  Decidable.decidable (exists x, P x).
+Proof.
+  unfold Decidable.decidable, is_elem_list. intros Hlist.
+  destruct decidable_exists_in with A L as [(?&?) | ?].
+  - rewrite Hlist in *. eauto.
+  - right. intros (?&?). rewrite <- Hlist in *. eauto.
+Qed.
+
+Lemma decidable_neighbourhood A (g : graph A) P L v :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  (forall v, Decidable.decidable (V g v)) ->
+  (forall u v, Decidable.decidable (E g u v)) ->
+  is_elem_list P L ->
+  Decidable.decidable (neighbourhood g P v).
+Proof.
+  intros Heq_dec HVdec HEdec HPlist.
+  assert (forall x, Decidable.decidable (P x)) as HPdec by
+    eauto using decidable_if_elem_list.
+  unfold Decidable.decidable, neighbourhood in *.
+  destruct HPdec with v as [HP | HnP].
+  - tauto.
+  - destruct exists_filtered with A (fun x => P x /\ E g x v) L as (?&Hlist).
+    { unfold Decidable.decidable. firstorder. }
+    eapply subset_elem_list in Hlist.
+    + apply decidable_exists_if_elem_list in Hlist as [? | ?]; tauto.
+    + eassumption.
+    + unfold is_subset. tauto.
+Qed.
+
+Fact decidable_uncurry A B p q :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  (forall x y, Decidable.decidable (x = y :> B)) ->
+  Decidable.decidable (p = q :> A * B).
+Proof.
+  unfold Decidable.decidable. destruct p as (p1&p2), q as (q1&q2).
+  intros HA HB. destruct HA with p1 q1, HB with p2 q2.
+  - left. f_equal; assumption.
+  - right. intros [= ]. tauto.
+  - right. intros [= ]. tauto.
+  - right. intros [= ]. tauto.
+Qed.
+
 Ltac clear_state_assertions :=
   repeat match goal with
   | [H : ?P ?c ?m |- _] =>
@@ -1660,7 +1748,9 @@ Proof.
   specialize get_size_cost_exists as (c_size&?).
   specialize get_neighbours_cost_exists as (c_neighbours&?).
   specialize get_max_label_cost_exists as (c_max_label&?).
+  specialize h_empty_cost_exists as (c_h_empty&?).
   eexists ?[c0], ?[cn], ?[cm]. intros. simpl. unfold triple_fun, generic_dijkstra, StringLam. simpl. intros.
+  specialize mkheap_cost_exists with n C as (c_mkheap&?).
   lazymatch goal with
   | [H : heap_time_bound _ _ ?t |- _] =>
     apply heap_time_bound_ge_1 in H as ?;
@@ -2030,7 +2120,7 @@ Proof.
           { simpl. apply implies_spec. intros. swap_star. solve_star. swap_star.
             solve_star. revert_implies. prove_implies. }
         -- triple_reorder_exists. repeat triple_pull_exists.
-          triple_reorder_pure. triple_pull_pure. instantiate (c0 := 3).
+          triple_reorder_pure. triple_pull_pure. instantiate (c0 := 5 + c_h_empty).
           triple_reorder_credits.
           lazymatch goal with
           | [|- triple _ ($ _ <*> ($ _ <*> ($ ?c <*> _))) _] =>
@@ -2094,7 +2184,7 @@ Proof.
             triple_pull_credits 2. triple_reorder_credits.
             lazymatch goal with
             | [|- triple _
-                ($2 <*> ($(?cm * m + (_ + (_ + ?cn * n * ?t))) <*>
+                ($2 <*> ($ S (S (c_h_empty + (?cm * m + (_ + (_ + ?cn * n * ?t))))) <*>
                   (is_weighted_graph ?g ?vg <*>
                     array_content _ ?a_pred <*> array_content _ ?a_D <*>
                     is_heap ?n' ?C ?P0 _ ?pot ?h)))
@@ -2108,14 +2198,14 @@ Proof.
                 <[is_nat_fun_of_val_list D_list D]> <*>
                 <[is_nat_fun_of_val_list pred_list pred]> <*>
                 <[Dijkstra_invariant D pred P src g]> <*>
-                $ (cm * (m - se) + cn * (n - sv) * t) <*>
+                $ S (S (c_h_empty + (cm * (m - se) + cn * (n - sv) * t))) <*>
                 is_weighted_graph g vg <*> array_content pred_list a_pred <*>
                 array_content D_list a_D <*> is_heap n' C P' D pot h) <*>
                 (<exists> c, $c)))
               in
               let post :=
                 constr:(fun b => (<exists> D_list pred_list P P' D pred sv sv' se,
-                <[(sv' =? 0) = b]> <*>
+                <[negb (sv' =? 0) = b]> <*>
                 <[(P = empty /\ P' = P0) \/ P' = neighbourhood g P]> <*>
                 <[is_set_size P sv]> <*>
                 <[is_set_size P' sv']> <*>
@@ -2123,7 +2213,7 @@ Proof.
                 <[is_nat_fun_of_val_list D_list D]> <*>
                 <[is_nat_fun_of_val_list pred_list pred]> <*>
                 <[Dijkstra_invariant D pred P src g]> <*>
-                $ (cm * (m - se) + cn * (n - sv) * t) <*>
+                $ (c_h_empty + (cm * (m - se) + cn * (n - sv) * t)) <*>
                 is_weighted_graph g vg <*> array_content pred_list a_pred <*>
                 array_content D_list a_D <*> is_heap n' C P' D pot h) <*>
                 (<exists> c, $c))
@@ -2135,8 +2225,10 @@ Proof.
             { prove_implies. apply implies_spec. intros ? ? Hpre.
               eapply star_implies_mono in Hpre; [|
                 lazymatch goal with
-                | [|- $ (?n1 + (?k1 + (?k2 + ?n2))) ->> _] =>
-                  apply credits_star_r with (c1 := k1 + k2) (c2 := n1 + n2); lia
+                | [|- $ S (S (c_h_empty + (?n1 + (?k1 + (?k2 + ?n2))))) ->> _] =>
+                  apply credits_star_r with
+                    (c1 := k1 + k2) (c2 := S (S (c_h_empty + (n1 + n2))));
+                    lia
                 end|prove_implies_refl].
               normalize_star. swap_star_ctx. eapply star_implies_mono; eauto.
               { clear_state_assertions. apply implies_spec. intros.
@@ -2152,7 +2244,94 @@ Proof.
             ** unfold h_empty_spec in Hspec_h_empty.
               triple_reorder_exists. repeat triple_pull_exists.
               triple_reorder_pure. repeat triple_pull_pure.
-              instantiate (cn:= S ?[ccn]). instantiate (ccn := ?[cn]). simpl.
+              triple_pull_1_credit.
+              eapply triple_weaken, triple_bneg.
+              { prove_implies_refl. }
+              { apply implies_post_spec. intros. normalize_star.
+                eexists. apply star_pure_l. split; eauto. revert_implies.
+                prove_implies_refl. }
+              unfold triple_fun in Hspec_h_empty.
+              triple_pull_1_credit.
+              lazymatch goal with
+              | [Hsize : is_set_size (V (G g)) _,
+                  H : (_ = empty /\ ?X = set_sum empty _) \/
+                    ?X = ?P |- _] =>
+                apply subset_size with (P' := P) in Hsize as (?&?&?)
+              end.
+              { lazymatch goal with
+                | [H : (_ = empty /\ ?P' = set_sum empty _) \/
+                        ?P' = neighbourhood _ _ |- _] =>
+                  assert (exists s, is_set_size P' s) as (?&?);
+                    [destruct H as [(?&->)| ->]; eexists|]
+                end.
+                { apply equiv_set_size with (single src).
+                  { subst. unfold set_equiv. intros. symmetry.
+                    apply set_sum_empty_l. }
+                  { apply single_set_size. } }
+                { eassumption. }
+                eapply triple_weaken, triple_frame, Hspec_h_empty.
+                { apply implies_spec. intros. solve_star. swap_star. solve_star.
+                  revert_implies. prove_implies_rev. apply star_comm. }
+                { apply implies_post_spec. intros. normalize_star.
+                  lazymatch goal with
+                  | [H : (_ = empty /\ _ = set_sum empty _) \/
+                          _ = neighbourhood _ _ |- _] =>
+                    destruct H as [(?&?) | ?]
+                  end.
+                  { eexists. apply star_pure_l. split; eauto.
+                    do 9 (apply star_exists_l; eexists).
+                    repeat apply star_assoc_l. apply star_pure_l. split; eauto.
+                    apply star_pure_l. split.
+                    { left. eauto. }
+                    solve_star;
+                      try lazymatch goal with
+                      [|- Dijkstra_invariant _ _ _ _ _] => eassumption
+                      end;
+                      eauto.
+                    revert_implies. prove_implies_rev. apply implies_spec.
+                    intros. solve_star. eassumption. }
+                  { solve_star;
+                      try lazymatch goal with
+                      [|- Dijkstra_invariant _ _ _ _ _] => eassumption
+                      end;
+                      subst; eauto.
+                    revert_implies. prove_implies_rev. apply implies_spec.
+                    intros. solve_star. eassumption. } }
+                { eassumption. }
+                { eassumption. }
+              }
+              { intros.
+                lazymatch goal with
+                | [H : is_set_size ?P _
+                  |- Decidable.decidable (neighbourhood _ ?P _)] =>
+                  unfold is_set_size, is_elem_unique_list in H;
+                  destruct H as (?&(?&?)&?)
+                end.
+                eapply decidable_neighbourhood; eauto.
+                { unfold Decidable.decidable. lia. }
+                { intros.
+                  lazymatch goal with
+                  | [H : is_set_size ?P _
+                    |- Decidable.decidable (?P _)] =>
+                    unfold is_set_size, is_elem_unique_list in H;
+                    destruct H as (?&(?&?)&?)
+                  end.
+                  eapply decidable_if_elem_list; eauto.
+                  unfold Decidable.decidable. lia. }
+                { intros.
+                  lazymatch goal with
+                  | [H : is_set_size (uncurry ?P) _
+                    |- Decidable.decidable (?P _ _)] =>
+                    unfold is_set_size, is_elem_unique_list in H;
+                    destruct H as (?&(?&?)&?)
+                  end.
+                  change (?f ?x ?y) with (uncurry f (x,y)).
+                  eapply decidable_if_elem_list; eauto. intros.
+                  eapply decidable_uncurry; unfold Decidable.decidable; lia. } }
+              { unfold is_subset. unfold neighbourhood.
+                intros ? (?&?&?&?%E_closed2). assumption. }
+            ** triple_reorder_exists. repeat triple_pull_exists.
+              triple_reorder_pure. repeat triple_pull_pure.
             (* TODO *)
           admit.
           ++ admit.
