@@ -2120,7 +2120,8 @@ Proof.
           { simpl. apply implies_spec. intros. swap_star. solve_star. swap_star.
             solve_star. revert_implies. prove_implies. }
         -- triple_reorder_exists. repeat triple_pull_exists.
-          triple_reorder_pure. triple_pull_pure. instantiate (c0 := 5 + c_h_empty).
+          triple_reorder_pure. triple_pull_pure.
+          instantiate (c0 := 5 + (c_h_empty + ?[cc0])). instantiate (cc0 := ?[c0]).
           triple_reorder_credits.
           lazymatch goal with
           | [|- triple _ ($ _ <*> ($ _ <*> ($ ?c <*> _))) _] =>
@@ -2184,7 +2185,7 @@ Proof.
             triple_pull_credits 2. triple_reorder_credits.
             lazymatch goal with
             | [|- triple _
-                ($2 <*> ($ S (S (c_h_empty + (?cm * m + (_ + (_ + ?cn * n * ?t))))) <*>
+                ($2 <*> ($ S (S (?c0 + (?cm * m + (_ + (_ + ?cn * n * ?t))))) <*>
                   (is_weighted_graph ?g ?vg <*>
                     array_content _ ?a_pred <*> array_content _ ?a_D <*>
                     is_heap ?n' ?C ?P0 _ ?pot ?h)))
@@ -2195,10 +2196,11 @@ Proof.
                 <[(P = empty /\ P' = P0) \/ P' = neighbourhood g P]> <*>
                 <[is_set_size P sv]> <*>
                 <[is_set_size (uncurry (E (induced_subgraph P g))) se]> <*>
+                <[sv < n]> <*>
                 <[is_nat_fun_of_val_list D_list D]> <*>
                 <[is_nat_fun_of_val_list pred_list pred]> <*>
                 <[Dijkstra_invariant D pred P src g]> <*>
-                $ S (S (c_h_empty + (cm * (m - se) + cn * (n - sv) * t))) <*>
+                $ S (S (c0 + (cm * (m - se) + cn * (n - sv) * t))) <*>
                 is_weighted_graph g vg <*> array_content pred_list a_pred <*>
                 array_content D_list a_D <*> is_heap n' C P' D pot h) <*>
                 (<exists> c, $c)))
@@ -2210,6 +2212,7 @@ Proof.
                 <[is_set_size P sv]> <*>
                 <[is_set_size P' sv']> <*>
                 <[is_set_size (uncurry (E (induced_subgraph P g))) se]> <*>
+                <[sv < n]> <*>
                 <[is_nat_fun_of_val_list D_list D]> <*>
                 <[is_nat_fun_of_val_list pred_list pred]> <*>
                 <[Dijkstra_invariant D pred P src g]> <*>
@@ -2225,9 +2228,9 @@ Proof.
             { prove_implies. apply implies_spec. intros ? ? Hpre.
               eapply star_implies_mono in Hpre; [|
                 lazymatch goal with
-                | [|- $ S (S (c_h_empty + (?n1 + (?k1 + (?k2 + ?n2))))) ->> _] =>
+                | [|- $ S (S (?c0 + (?n1 + (?k1 + (?k2 + ?n2))))) ->> _] =>
                   apply credits_star_r with
-                    (c1 := k1 + k2) (c2 := S (S (c_h_empty + (n1 + n2))));
+                    (c1 := k1 + k2) (c2 := S (S (c0 + (n1 + n2))));
                     lia
                 end|prove_implies_refl].
               normalize_star. swap_star_ctx. eapply star_implies_mono; eauto.
@@ -2238,6 +2241,7 @@ Proof.
                 { apply equiv_set_size with empty.
                   { unfold set_equiv. intros []. simpl. unfold empty. tauto. }
                   { apply empty_set_size. } }
+                { lia. }
                 { do 2 rewrite Nat.sub_0_r. revert_implies. prove_implies. } }
               { apply implies_spec. intros. solve_star. eassumption. } }
             { intros. prove_implies. apply star_comm. }
