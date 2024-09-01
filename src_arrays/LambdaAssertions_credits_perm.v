@@ -87,6 +87,11 @@ Notation "P -->> Q" := (forall v, sa_implies (P v) (Q v)) (at level 50).
 Notation "P <<->> Q" := (P ->> Q /\ Q ->> P) (at level 50).
 Notation "P <<-->> Q" := (P -->> Q /\ Q -->> P) (at level 50).
 
+Definition sa_wand {V} (P Q : StateAssertion V) : StateAssertion V :=
+  <exists> H, <[P <*> H ->> Q]> <*> H.
+
+Notation "P <-*> Q" := (sa_wand P Q) (at level 50).
+
 Global Hint Unfold subst_map : st_assertions.
 Global Hint Unfold subst_sa : st_assertions.
 Global Hint Unfold sa_empty : st_assertions.
@@ -102,6 +107,7 @@ Global Hint Unfold sa_and : st_assertions.
 Global Hint Unfold sa_exists : st_assertions.
 Global Hint Unfold sa_forall : st_assertions.
 Global Hint Unfold sa_implies : st_assertions.
+Global Hint Unfold sa_wand : st_assertions.
 
 Inductive array_content {V} : list (option (Value V)) -> Value V -> StateAssertion V :=
 | array_nil l : array_content nil (Lab l) 0 nil

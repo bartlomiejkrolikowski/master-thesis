@@ -261,11 +261,13 @@ Definition get_neighbours_spec {A} (get_neighbours : Value A) : Prop :=
   forall vg n (g : wgraph nat) c,
     get_neighbours_cost c ->
     triple_fun_n_ary 1 get_neighbours
-      (fun v1 v2 => $c <*> <[v1 = vg]> <*> <[v2 = Int (Z.of_nat n)]> <*> <[V g n]> <*>
+      (fun v1 v2 => $c <*>
+        <[v1 = vg]> <*> <[v2 = Int (Z.of_nat n)]> <*> <[V g n]> <*>
         is_weighted_graph g vg)
       (fun v1 v2 res => <exists> L,
         <[is_elem_weighted_unique_list (neighbours g n) (W g n) L]> <*>
-        is_list (nat_pairs2values L) res </\> is_weighted_graph g vg).
+        is_list (nat_pairs2values L) res <*>
+        (is_list (nat_pairs2values L) res <-*> is_weighted_graph g vg)).
 
 Parameter get_max_label_cost : forall (c : nat), Prop.
 
@@ -425,7 +427,7 @@ Definition l_tail_spec {V} (l_tail : Value V) : Prop :=
     l_tail_cost c ->
     triple_fun l_tail
       (fun v => $c <*> <[v = l]> <*> is_list (h::L)%list l)
-      (fun v => <[v = t]> <*> is_list (h::L)%list l </\> is_list L t).
+      (fun v => <[v = t]> <*> is_list (h::L)%list l <*> (is_list (h::L)%list l <-*> is_list L t)).
 
 Ltac fold_and_apply f x :=
   try (progress fold (f x); fold_and_apply f (f x)).
@@ -1767,7 +1769,7 @@ Proof.
           { apply Hle. }
           { apply Hmin. auto. }
 Qed.
-
+(*
 Fact sa_and_if_implies V (P Q : StateAssertion V) c m :
   P ->> Q ->
   P c m ->
@@ -1782,7 +1784,7 @@ Fact sa_implies_and_if_implies V (P Q : StateAssertion V) :
 Proof.
   unfold sa_implies, sa_and. auto.
 Qed.
-
+*)
 Lemma nonempty_has_min_cost_elem_nat A P s (W : A -> nat) :
   is_set_size P s ->
   s > 0 ->
