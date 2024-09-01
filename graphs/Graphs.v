@@ -243,7 +243,7 @@ Instance Ordered_option A `(Ordered A) : Ordered (option A) := {|
 Proof.
   intros [x|] [y|]; try contradiction; try reflexivity.
   intros. f_equal. apply le_antisym; assumption.
-Qed.
+Defined.
 
 Definition min_cost_elem {A B} `{Ordered B} (P : A -> Prop) (cost : A -> B) (x : A) :=
   P x /\ forall (y : A), P y -> le (cost x) (cost y).
@@ -311,6 +311,11 @@ Definition are_maximal_predecessors {A}
   (pred : A -> option A) (s : A) (g : graph A) :=
   forall v p, is_walk g s v p -> exists p', is_walk (pred2graph s pred) s v p'.
 
+Definition Dijkstra_connectedness_invariant {A}
+  (P : A -> Prop) (s : A) (g : graph A) :=
+  forall g', g' = (induced_subgraph_with_edge_and_vx P s g) ->
+  is_root g' s.
+
 Definition Dijkstra_distance_invariant {A}
   (D : A -> option nat) (P : A -> Prop) (s : A) (g : wgraph A) :=
   are_valid_distances D s (wg_lift (induced_subgraph_with_edge_and_vx P s) g).
@@ -322,6 +327,7 @@ Definition Dijkstra_predecessors_invariant {A}
 
 Definition Dijkstra_invariant {A}
   (D : A -> option nat) (pred : A -> option A) (P : A -> Prop) (s : A) (g : wgraph A) :=
+  Dijkstra_connectedness_invariant P s g /\
   Dijkstra_distance_invariant D P s g /\
   Dijkstra_predecessors_invariant pred P s g.
 
@@ -753,6 +759,19 @@ Proof.
       auto using induced_subgraph_with_edge_and_vx_empty.
 Qed.
 
+Lemma valid_initial_conectedness A
+  (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
+  Dijkstra_initial D pred s ->
+  Dijkstra_connectedness_invariant empty s g.
+Proof.
+  unfold Dijkstra_initial, Dijkstra_connectedness_invariant, is_root.
+  intros (?&?&?) ? ->. simpl.
+  unfold set_sum, intersect, neighbourhood, vx_edge, empty, single.
+  intros v [([[]| ->]&?)|[([]&?)|(?&?&[]&?)]].
+  exists [v]. constructor. simpl.
+  unfold set_sum, intersect, neighbourhood, vx_edge, single. auto.
+Qed.
+
 Theorem valid_initial A
   (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
   V g s ->
@@ -761,7 +780,10 @@ Theorem valid_initial A
   Dijkstra_invariant D pred empty s g.
 Proof.
   unfold Dijkstra_invariant. intros.
-  eauto using valid_initial_distance, valid_initial_predecessors.
+  eauto 6 using
+    valid_initial_conectedness,
+    valid_initial_distance,
+    valid_initial_predecessors.
 Qed.
 
 Theorem valid_invariant A
@@ -780,3 +802,103 @@ Theorem valid_final A
   Dijkstra_final D pred s g.
 Proof.
 Admitted.
+
+(* other *)
+Lemma is_subgraph_V A (g g' : graph A) x :
+  is_subgraph g' g -> V g' x -> V g x.
+Proof.
+  unfold is_subgraph, is_subset. intros (?&?). auto.
+Qed.
+
+Lemma subgraph_walk A (g g' : graph A) u v w :
+  is_subgraph g' g ->
+  is_walk g' u v w -> is_walk g u v w.
+Proof.
+  unfold is_subgraph, is_subset, is_subset2. intros (?&?) Hwalk.
+  induction Hwalk; econstructor; eauto.
+Qed.
+
+Lemma induced_subgraph_is_subgraph A (g : graph A) P :
+  is_subgraph (induced_subgraph P g) g.
+Proof.
+  unfold is_subgraph. simpl. unfold is_subset, is_subset2, intersect. tauto.
+Qed.
+
+Lemma induced_subgraph_with_edge_is_subgraph A (g : graph A) P :
+  is_subgraph (induced_subgraph_with_edge P g) g.
+Proof.
+  unfold is_subgraph. simpl.
+  unfold is_subset, set_sum, set_sum2, is_subset2, intersect,
+    vx_edge, neighbourhood.
+  split; [|tauto].
+  intros ? [(?&?)|[(?&?&?&?)|(?&?&?&?)]]; eauto using E_closed1, E_closed2.
+Qed.
+
+Lemma induced_subgraph_edge_is_subgraph A (g : graph A) P :
+  is_subgraph (induced_subgraph_edge P g) g.
+Proof.
+  unfold is_subgraph. simpl.
+  unfold is_subset, set_sum, set_sum2, is_subset2, vx_edge, neighbourhood.
+  split; [|tauto].
+  intros ? [(?&?&?&?)|(?&?&?&?)]; eauto using E_closed1, E_closed2.
+Qed.
+
+Lemma induced_subgraph_with_edge_and_vx_is_subgraph A (g : graph A) P s :
+  is_subgraph (induced_subgraph_with_edge_and_vx P s g) g.
+Proof.
+  unfold is_subgraph. simpl.
+  unfold is_subset, set_sum, set_sum2, is_subset2, intersect,
+    vx_edge, neighbourhood, single.
+  split; [|tauto].
+  intros ? [(?&?)|[(?&?&?&?)|(?&?&?&?)]]; eauto using E_closed1, E_closed2.
+Qed.
+
+Lemma invariant_connected_to_root A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop) (s : A)
+  (g : wgraph A) x :
+  V g x ->
+  P x ->
+  Dijkstra_invariant D pred P s g ->
+  exists p, is_walk g s x p.
+Proof.
+  unfold Dijkstra_invariant, Dijkstra_connectedness_invariant, is_root.
+  eintros ? ? ((?&?)&?&?); auto.
+  { simpl. unfold set_sum, intersect. eauto. }
+  eauto using subgraph_walk, induced_subgraph_with_edge_and_vx_is_subgraph.
+Qed.
+
+Fact is_walk_snoc A g u v v' w :
+  E g v v' ->
+  @is_walk A g u v w ->
+  is_walk g u v' (w ++ [v']).
+Proof.
+  intros ? Hwalk.
+  induction Hwalk; simpl; repeat econstructor; eauto using E_closed2.
+Qed.
+
+Lemma invariant_neighbours_connected_to_root A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop) (s : A)
+  (g : wgraph A) x :
+  (neighbourhood g P) x ->
+  Dijkstra_invariant D pred P s g ->
+  exists p, is_walk g s x p.
+Proof.
+  unfold Dijkstra_invariant, Dijkstra_connectedness_invariant,
+    is_root, neighbourhood.
+  eintros (?&?&?&?) ((?&?)&?&?); auto.
+  { simpl. unfold set_sum, intersect. eauto using E_closed1. }
+  eauto using
+    subgraph_walk, induced_subgraph_with_edge_and_vx_is_subgraph, is_walk_snoc.
+Qed.
+
+Lemma Some_min_cost_elem A B `(Ordered B) P W (x : A) y m :
+  P x ->
+  W x = Some y ->
+  min_cost_elem P W m ->
+  exists y', W m = Some y'.
+Proof.
+  unfold min_cost_elem. simpl. intros HP HW (HPm&Hle). specialize Hle with x.
+  rewrite HW in Hle. destruct (W m).
+  - eauto.
+  - tauto.
+Qed.

@@ -344,7 +344,7 @@ Definition h_empty_spec {V} (h_empty : Value V) : Prop :=
     h_empty_cost c ->
     is_set_size P s ->
     triple_fun h_empty
-      (fun v => $1 <*> <[v = h]> <*> is_heap n C P W p h)
+      (fun v => $c <*> <[v = h]> <*> is_heap n C P W p h)
       (fun v => <[v = Bool (s =? 0)]> <*> is_heap n C P W p h).
 
 Definition unset_value_at (W : nat -> option nat) (x n : nat) : option nat :=
@@ -353,35 +353,40 @@ Definition unset_value_at (W : nat -> option nat) (x n : nat) : option nat :=
 Definition set_remove {A} (P : A -> Prop) (x y : A) : Prop :=
   P y /\ y <> x.
 
+(*
 Parameter h_extract_min_cost : forall {V} (c : nat) (h : Value V), StateAssertion V.
+
+Axiom h_extract_min_cost_exists : forall {V} n C P W p h c (m : Map V),
+  is_heap n C P W p h c m ->
+  is_set_size P s ->
+  s > 0 ->
+  exists k, h_extract_min_cost k h c m.
+*)
 
 Definition h_extract_min_spec {V} (h_extract_min : Value V) : Prop :=
   forall n C (P : nat -> Prop) (W : nat -> option nat) p h k d c,
+    c = p ->
     min_cost_elem P W k ->
     W k = Some d ->
     triple_fun h_extract_min
-      (fun v => $c <*> <[v = h]> <*> is_heap n C P W p h </\> h_extract_min_cost c h)
-      (fun v => (<exists> c', $c') <*> <[v = pair2Value nat2value nat2value (k,d)]> <*>
-        <exists> p', <[p = p' + c]> <*> is_heap n C (set_remove P k) W p' h).
+      (fun v => $c <*> <[v = h]> <*> is_heap n C P W p h)
+      (fun v => <exists> c' p', $c' <*> <[p' <= c']> <*>
+        <[v = pair2Value nat2value nat2value (k,d)]> <*>
+        is_heap n C (set_remove P k) W p' h).
 
+(*
 Parameter h_decrease_key_cost : forall {V} (c : nat) (h : Value V), StateAssertion V.
+*)
 
 Definition h_decrease_key_spec {V} (h_decrease_key : Value V) : Prop :=
   forall n C (P : nat -> Prop) (W : nat -> option nat) p h k d c,
+  c = p ->
   P k ->
-  triple_fun h_decrease_key
-    (fun v => $1 <*> <[v = h]>)
-    (fun v => <[
-      triple_fun v
-        (fun v => $1 <*> <[v = Int (Z.of_nat k)]>)
-        (fun v => <[
-          triple_fun v
-            (fun v => $c <*> <[v = Int (Z.of_nat d)]> <*>
-              is_heap n C P W p h </\> h_decrease_key_cost c h)
-            (fun v => (<exists> c', $c') <*> <[v = U_val]> <*>
-              <exists> p', <[p = p' + c]> <*> is_heap n C P (set_value_at W k d) p' h)
-        ]>)
-    ]>).
+  triple_fun_n_ary 2 h_decrease_key
+    (fun v1 v2 v3 => $c <*> <[v1 = h]> <*> <[v2 = Int (Z.of_nat k)]> <*>
+      <[v3 = Int (Z.of_nat d)]> <*> is_heap n C P W p h)
+    (fun v1 v2 v3 res => <exists> c' p', $c' <*> <[p' <= c']> <*>
+      <[res = U_val]> <*> is_heap n C P (set_value_at W k d) p' h).
 
 Parameter h_free_cost : forall (n C s c : nat), Prop.
 
@@ -1683,6 +1688,395 @@ Proof.
   - right. intros [= ]. tauto.
   - right. intros [= ]. tauto.
 Qed.
+(*
+Definition is_nonempty_set {A} (P : A -> Prop) : Prop :=
+  exists x, P x.
+
+Fact size_lt_0_nonempty A P s :
+  @is_set_size A P s ->
+  (is_nonempty_set P <-> s > 0).
+Proof.
+  unfold is_set_size, is_elem_unique_list, is_elem_list, is_nonempty_set.
+  intros ([|]&(Hlist&?)&<-); simpl in *.
+  - split.
+    + intros (?&[]%Hlist).
+    + lia.
+  - split.
+    + lia.
+    + intros. eexists. apply Hlist. auto.
+Qed.
+
+Lemma nonempty_has_min_cost_elem_option_nat
+  (P : nat -> Prop) (W : nat -> option nat) :
+  is_nonempty_set P ->
+  exists x, min_cost_elem P W x.
+Proof.
+  unfold is_nonempty_set, min_cost_elem. simpl. intros (x&?).
+  remember (W x) as n eqn:Hn. destruct n.
+  2:{ exists x. rewrite <- Hn. simpl. }
+  induction n.
+  -
+  intros (L&(Hlist&Hnodup)&<-) ?. induction L; simpl in *; [lia|].
+  inversion Hnodup. subst.
+   eexists. rewrite
+Qed.
+*)
+Lemma nonempty_has_min_cost_elem_option_nat {A}
+  (P : A -> Prop) s (W : A -> option nat) :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  is_set_size P s ->
+  s > 0 ->
+  exists x, min_cost_elem P W x.
+Proof.
+  unfold is_set_size, is_elem_unique_list, is_elem_list, min_cost_elem.
+  intros Hdec_eq (L&(?&Hnodup)&<-) ?. generalize dependent P.
+  induction L as [|x L IHL]; simpl in *; [lia|].
+  intros P Hlist. destruct L as [|y L]; simpl in *.
+  - exists x. split; [apply Hlist; auto|]. intros ? [->|[]]%Hlist.
+    destruct W; lia.
+  - destruct IHL with (P := fun z => z <> x /\ P z) as (x'&(?&?)&Hmin).
+    + inversion Hnodup. assumption.
+    + lia.
+    + intros. rewrite <- Hlist. inversion Hnodup. simpl in *.
+      intuition; subst; tauto.
+    + assert (le (W x) (W x') \/ (le (W x') (W x) /\ W x <> W x'))
+        as [Hle|[Hle Hneq]].
+      { destruct W as [n|], W as [n'|]; simpl.
+        { assert (n' <= n \/ n < n') as [|] by lia; auto.
+          right. split; [lia|]. intros [=->]. lia. }
+        { right. split; auto. discriminate. }
+        { auto. }
+        { auto. } }
+      * exists x. rewrite <- Hlist. split; auto. simpl in Hle.
+        intros y' [->|[->|]]%Hlist.
+        { destruct (W y') as [k|]; lia. }
+        { specialize Hmin with y'. rewrite <- Hlist in Hmin. inversion Hnodup.
+          simpl in *.
+          destruct (W x) as [k|], (W x') as [k'|], (W y') as [k''|]; try lia.
+          { transitivity k'; try assumption. intuition. }
+          { intuition. }
+          { intuition. } }
+        { specialize Hmin with y'. rewrite <- Hlist in Hmin. inversion Hnodup.
+          simpl in *.
+          destruct (W x) as [k|], (W x') as [k'|], (W y') as [k''|]; try lia.
+          { transitivity k'; try assumption. apply Hmin. intuition. subst.
+            tauto. }
+          { exfalso. apply Hmin. intuition. subst. tauto. }
+          { apply Hmin. intuition. subst. tauto. } }
+      * exists x'. split; auto. intros y' HP.
+        assert (le (W x) (W y') \/ le (W y') (W x)) as [Hle'|Hle'].
+        { destruct (W x) as [n|], (W y') as [n'|]; simpl; lia. }
+        -- destruct (W x), (W x'), (W y'); simpl in *; lia.
+        -- specialize Hmin with y'. destruct Hdec_eq with y' x as [->|].
+          { apply Hle. }
+          { apply Hmin. auto. }
+Qed.
+
+Fact sa_and_if_implies V (P Q : StateAssertion V) c m :
+  P ->> Q ->
+  P c m ->
+  (P </\> Q) c m.
+Proof.
+  unfold sa_implies, sa_and. auto.
+Qed.
+
+Fact sa_implies_and_if_implies V (P Q : StateAssertion V) :
+  P ->> Q ->
+  P ->> (P </\> Q).
+Proof.
+  unfold sa_implies, sa_and. auto.
+Qed.
+
+Lemma nonempty_has_min_cost_elem_nat A P s (W : A -> nat) :
+  is_set_size P s ->
+  s > 0 ->
+  exists x, min_cost_elem P W x.
+Proof.
+  unfold is_set_size, is_elem_unique_list, is_elem_list, min_cost_elem.
+  simpl. intros (L&(Hlist&Hnodup)&<-) Hle. generalize dependent P.
+  induction L as [|x L IHL]; simpl in *; [lia|]; intros. inversion Hnodup.
+  subst. destruct L as [|y L]; simpl in *.
+  - exists x. rewrite <- Hlist. split; auto. intros ? [->|[]]%Hlist. lia.
+  - destruct IHL with (P := fun z => z <> x /\ P z) as (x'&(?&?)&Hmin).
+    + assumption.
+    + lia.
+    + intros. rewrite <- Hlist. intuition; subst; tauto.
+    + assert (W x < W x' \/ W x' <= W x) as [Hlt|Hle'] by lia.
+      * exists x. rewrite <- Hlist. split; auto.
+        intros y' [->|[->|]]%Hlist.
+        { lia. }
+        { specialize Hmin with y'. rewrite <- Hlist in Hmin. inversion Hnodup.
+          simpl in *.
+          transitivity (W x'); try lia; intuition. }
+        { specialize Hmin with y'. rewrite <- Hlist in Hmin. inversion Hnodup.
+          simpl in *.
+          transitivity (W x'); try lia. apply Hmin. intuition. subst. tauto. }
+      * exists x'. split; auto. intros y' [->|[->|]]%Hlist.
+        { auto. }
+        { apply Hmin. rewrite <- Hlist. auto. }
+        { apply Hmin. rewrite <- Hlist. split; auto. intros ->. auto. }
+Qed.
+
+Lemma decidable_list_disjointness A (L1 L2 : list A) :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  Decidable.decidable (exists x, List.In x L1 /\ List.In x L2).
+Proof.
+  unfold Decidable.decidable. intros Hdec_eq.
+  induction L1 as [|x L1 IHL1]; simpl.
+  - firstorder.
+  - destruct IHL1 as [(?&?&?)|?].
+    + eauto.
+    + destruct (decidable_in _ L2 x).
+      { assumption. }
+      * eauto.
+      * right. intros (?&[->|]&?); eauto.
+Qed.
+
+Lemma neighbour_list_in_finite_decidable_graph A (g : graph A) Lv x :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  is_elem_list (V g) Lv ->
+  (forall x y, Decidable.decidable (E g x y)) ->
+  exists Ln, is_elem_list (neighbours g x) Ln.
+Proof.
+  unfold is_elem_list, Decidable.decidable, neighbours. intros Hdec_eq Hlist Hdec.
+  generalize dependent g. induction Lv as [|y Lv IHLv]; simpl; intros.
+  - exists nil. simpl. intros y. split; [intros []|]. intros []%E_closed1%Hlist.
+  - destruct IHLv with (g := induced_subgraph (fun x => List.In x Lv) g)
+      as (Ln&HLn).
+    { intros x'. simpl. unfold intersect. rewrite <- Hlist. tauto. }
+    { intros x' y'. simpl. destruct (decidable_in _ Lv x'); try tauto.
+      destruct (decidable_in _ Lv y'); try tauto.
+      destruct Hdec with x' y'; tauto. }
+    simpl in *. destruct decidable_in with A Lv y as [|Hnin]; auto.
+    + destruct Hdec_eq with x y as [->|].
+      * exists Ln. intros x'. rewrite HLn. split; [tauto|]. intros HE.
+        split_all; try assumption.
+        apply E_closed2 in HE as [->|]%Hlist; assumption.
+      * exists Ln. intros x'. rewrite HLn. destruct Hdec_eq with y x' as [->|].
+        -- split; [tauto|]. intros HE. split_all; try assumption.
+          apply E_closed1 in HE as [->|]%Hlist; assumption.
+        -- split; [tauto|]. intros HE.
+          split_all; try assumption;
+            [apply E_closed1 in HE as [->|]%Hlist|
+             apply E_closed2 in HE as [->|]%Hlist];
+            assumption.
+    + destruct Hdec_eq with x y as [->|].
+      * revert Hdec_eq Hdec Hlist Hnin. clear. revert g.
+        induction Lv as [|x Lv IHLv]; simpl; intros.
+        -- destruct Hdec with y y.
+          ++ exists [y]%list. simpl. intros x. split.
+            ** intros [->|[]]. assumption.
+            ** intros ?%E_closed2. apply Hlist. assumption.
+          ++ exists nil. simpl. intros x. split.
+            ** intros [].
+            ** intros HE. apply E_closed2 in HE as HV.
+              apply Hlist in HV as [->|[]]. auto.
+        -- destruct IHLv
+            with (g := induced_subgraph (fun x => y = x \/ List.In x Lv) g)
+            as (Ln&HLn).
+          { assumption. }
+          { intros x' y'. simpl. destruct Hdec_eq with y x' as [->|].
+            { destruct Hdec_eq with x' y' as [->|].
+              { destruct Hdec with y' y'; tauto. }
+              { destruct (decidable_in _ Lv y'); try tauto.
+                destruct Hdec with x' y'; tauto. } }
+            { destruct Hdec_eq with y y' as [->|].
+              { destruct (decidable_in _ Lv x'); try tauto.
+                destruct Hdec with x' y'; tauto. }
+              { destruct (decidable_in _ Lv x'); try tauto.
+                destruct (decidable_in _ Lv y'); try tauto.
+                destruct Hdec with x' y'; tauto. } } }
+          { simpl. unfold intersect. intros. rewrite <- Hlist. tauto. }
+          { auto. }
+          simpl in *. destruct Hdec with y x.
+          ++ exists (x::Ln)%list. simpl. intros x'. rewrite HLn.
+            destruct Hdec_eq with x x' as [->|]; [tauto|].
+            split; [tauto|]. intros HE. apply E_closed2 in HE as HVx'.
+            apply Hlist in HVx'. tauto.
+          ++ exists Ln. intros x'. rewrite HLn. split; [tauto|]. intros HE.
+            apply E_closed2 in HE as HVx'.
+            apply Hlist in HVx' as [->|[->|]]; tauto.
+      * destruct decidable_in with A Lv x; auto.
+        -- destruct Hdec with x y.
+          ++ exists (y::Ln)%list. simpl. intros x'. rewrite HLn.
+            destruct Hdec_eq with y x' as [->|]; try tauto.
+            split; [tauto|]. intros HE. apply E_closed1 in HE as HVx.
+            apply E_closed2 in HE as HVx'. apply Hlist in HVx, HVx'; tauto.
+          ++ exists Ln. intros x'. rewrite HLn.
+            destruct Hdec_eq with x x' as [->|]; try tauto.
+            destruct Hdec_eq with y x' as [->|]; try tauto.
+            split; [tauto|]. intros HE. apply E_closed1 in HE as HVx.
+            apply E_closed2 in HE as HVx'. apply Hlist in HVx, HVx'; tauto.
+        -- exists nil. simpl. intros. split; [tauto|].
+          intros [->|]%E_closed1%Hlist; tauto.
+Qed.
+
+Definition neighbour_of {A} (g : graph A) (v : A) : A -> Prop :=
+  fun u => E g u v.
+
+Lemma neighbour_of_list_in_finite_decidable_graph A (g : graph A) Lv x :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  is_elem_list (V g) Lv ->
+  (forall x y, Decidable.decidable (E g x y)) ->
+  exists Ln, is_elem_list (neighbour_of g x) Ln.
+Proof.
+  unfold is_elem_list, Decidable.decidable, neighbour_of. intros Hdec_eq Hlist Hdec.
+  generalize dependent g. induction Lv as [|y Lv IHLv]; simpl; intros.
+  - exists nil. simpl. intros y. split; [intros []|]. intros []%E_closed1%Hlist.
+  - destruct IHLv with (g := induced_subgraph (fun x => List.In x Lv) g)
+      as (Ln&HLn).
+    { intros x'. simpl. unfold intersect. rewrite <- Hlist. tauto. }
+    { intros x' y'. simpl. destruct (decidable_in _ Lv x'); try tauto.
+      destruct (decidable_in _ Lv y'); try tauto.
+      destruct Hdec with x' y'; tauto. }
+    simpl in *. destruct decidable_in with A Lv y as [|Hnin]; auto.
+    + destruct Hdec_eq with x y as [->|].
+      * exists Ln. intros x'. rewrite HLn. split; [tauto|]. intros HE.
+        split_all; try assumption.
+        apply E_closed1 in HE as [->|]%Hlist; assumption.
+      * exists Ln. intros x'. rewrite HLn. destruct Hdec_eq with y x' as [->|].
+        -- split; [tauto|]. intros HE. split_all; try assumption.
+          apply E_closed2 in HE as [->|]%Hlist; assumption.
+        -- split; [tauto|]. intros HE.
+          split_all; try assumption;
+            [apply E_closed1 in HE as [->|]%Hlist|
+             apply E_closed2 in HE as [->|]%Hlist];
+            assumption.
+    + destruct Hdec_eq with x y as [->|].
+      * revert Hdec_eq Hdec Hlist Hnin. clear. revert g.
+        induction Lv as [|x Lv IHLv]; simpl; intros.
+        -- destruct Hdec with y y.
+          ++ exists [y]%list. simpl. intros x. split.
+            ** intros [->|[]]. assumption.
+            ** intros ?%E_closed1. apply Hlist. assumption.
+          ++ exists nil. simpl. intros x. split.
+            ** intros [].
+            ** intros HE. apply E_closed1 in HE as HV.
+              apply Hlist in HV as [->|[]]. auto.
+        -- destruct IHLv
+            with (g := induced_subgraph (fun x => y = x \/ List.In x Lv) g)
+            as (Ln&HLn).
+          { assumption. }
+          { intros x' y'. simpl. destruct Hdec_eq with y x' as [->|].
+            { destruct Hdec_eq with x' y' as [->|].
+              { destruct Hdec with y' y'; tauto. }
+              { destruct (decidable_in _ Lv y'); try tauto.
+                destruct Hdec with x' y'; tauto. } }
+            { destruct Hdec_eq with y y' as [->|].
+              { destruct (decidable_in _ Lv x'); try tauto.
+                destruct Hdec with x' y'; tauto. }
+              { destruct (decidable_in _ Lv x'); try tauto.
+                destruct (decidable_in _ Lv y'); try tauto.
+                destruct Hdec with x' y'; tauto. } } }
+          { simpl. unfold intersect. intros. rewrite <- Hlist. tauto. }
+          { auto. }
+          simpl in *. destruct Hdec with x y.
+          ++ exists (x::Ln)%list. simpl. intros x'. rewrite HLn.
+            destruct Hdec_eq with x x' as [->|]; [tauto|].
+            split; [tauto|]. intros HE. apply E_closed1 in HE as HVx'.
+            apply Hlist in HVx'. tauto.
+          ++ exists Ln. intros x'. rewrite HLn. split; [tauto|]. intros HE.
+            apply E_closed1 in HE as HVx'.
+            apply Hlist in HVx' as [->|[->|]]; tauto.
+      * destruct decidable_in with A Lv x; auto.
+        -- destruct Hdec with y x.
+          ++ exists (y::Ln)%list. simpl. intros x'. rewrite HLn.
+            destruct Hdec_eq with y x' as [->|]; try tauto.
+            split; [tauto|]. intros HE. apply E_closed1 in HE as HVx.
+            apply E_closed2 in HE as HVx'. apply Hlist in HVx, HVx'; tauto.
+          ++ exists Ln. intros x'. rewrite HLn.
+            destruct Hdec_eq with x x' as [->|]; try tauto.
+            destruct Hdec_eq with y x' as [->|]; try tauto.
+            split; [tauto|]. intros HE. apply E_closed1 in HE as HVx.
+            apply E_closed2 in HE as HVx'. apply Hlist in HVx, HVx'; tauto.
+        -- exists nil. simpl. intros. split; [tauto|].
+          intros [->|]%E_closed2%Hlist; tauto.
+Qed.
+
+Lemma path_list_in_finite_decidable_graph A (g : graph A) Lv Le u v :
+  is_elem_list (V g) Lv ->
+  is_elem_list (uncurry (E g)) Le ->
+  (*(forall x y, Decidable.decidable (E g x y)) ->*)
+  exists Lp, is_elem_list (is_path g u v) Lp.
+Proof.
+  unfold is_elem_list, is_path, uncurry. (*remember (List.length Lv) as l eqn:Hl.*)
+  revert g u v (*Lv Hl*). induction Lv as [|x Lv IHLv]; simpl; intros ? ? ? (*? ?*) Hlist HElist.
+  - exists nil. intros. simpl. split.
+    + intros [].
+    + intros ([]&?); erewrite Hlist; eauto using E_closed1.
+  - (*specialize (decidable_if_elem_list _ Le (uncurry (E g))). specialize IHLv with (g := induced_subgraph (fun y => y <> x) g).*)
+Admitted.
+
+Lemma shortest_path_if_path A (g : wgraph A) u v p Lv Le :
+  is_elem_list (V g) Lv ->
+  is_elem_list (uncurry (E g)) Le ->
+  is_path g u v p ->
+  exists sp, is_shortest_path g u v sp.
+Proof.
+  unfold is_shortest_path. intros. eapply nonempty_has_min_cost_elem_nat.
+Admitted.
+
+Lemma shortest_path_if_walk A (g : wgraph A) u v p Lv Le :
+  is_elem_list (V g) Lv ->
+  is_elem_list (uncurry (E g)) Le ->
+  is_walk g u v p ->
+  exists sp, is_shortest_path g u v sp.
+Proof.
+Admitted.
+
+Lemma invariant_D_is_some_for_subset A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop) (s : A)
+  (g : wgraph A) x Lv Le :
+  is_elem_list (V g) Lv ->
+  is_elem_list (uncurry (E g)) Le ->
+  Dijkstra_invariant D pred P s g ->
+  V g x ->
+  P x ->
+  exists y, D x = Some y.
+Proof.
+  unfold Dijkstra_invariant, Dijkstra_connectedness_invariant,
+    Dijkstra_distance_invariant, Dijkstra_predecessors_invariant,
+    are_valid_distances, are_valid_predecessors, are_maximal_predecessors,
+    is_shortest_paths_tree, is_root.
+  intros ? ? (Hconnected&?&?) ? ?. edestruct Hconnected; eauto.
+  { simpl. unfold set_sum, intersect, single. eauto. }
+  edestruct shortest_path_if_walk.
+  3,4:eauto; simpl; eauto.
+  { simpl. admit. }
+Admitted.
+
+Lemma invariant_D_is_some_for_neighbours A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop) (s : A)
+  (g : wgraph A) x Lv Le :
+  is_elem_list (V g) Lv ->
+  is_elem_list (uncurry (E g)) Le ->
+  Dijkstra_invariant D pred P s g ->
+  V g x ->
+  neighbourhood g P x ->
+  exists y, D x = Some y.
+Proof.
+  unfold Dijkstra_invariant, Dijkstra_connectedness_invariant,
+    Dijkstra_distance_invariant, Dijkstra_predecessors_invariant,
+    are_valid_distances, are_valid_predecessors, are_maximal_predecessors,
+    is_shortest_paths_tree, is_root.
+  intros ? ? (Hconnected&?&?) ? ?. edestruct Hconnected; eauto.
+  { simpl. unfold set_sum, intersect, single. eauto. }
+  edestruct shortest_path_if_walk.
+  3,4:eauto; simpl; eauto.
+  { simpl. admit. }
+Admitted.
+
+Definition is_vertex_potential A (g : graph A) (P : A -> Prop) p : Prop :=
+  forall s x,
+  is_set_size (V g) s ->
+  is_set_size (V (induced_subgraph P g)) x ->
+  p = s - x.
+
+Definition is_edge_potential A (g : graph A) (P : A -> Prop) p : Prop :=
+  forall s x,
+  is_set_size (uncurry (E g)) s ->
+  is_set_size (uncurry (E (induced_subgraph P g))) x ->
+  p = s - x.
 
 Ltac clear_state_assertions :=
   repeat match goal with
@@ -2121,7 +2515,7 @@ Proof.
             solve_star. revert_implies. prove_implies. }
         -- triple_reorder_exists. repeat triple_pull_exists.
           triple_reorder_pure. triple_pull_pure.
-          instantiate (c0 := 5 + (c_h_empty + ?[cc0])). instantiate (cc0 := ?[c0]).
+          instantiate (c0 := 4 + (c_h_empty + ?[cc0])). instantiate (cc0 := ?[c0]).
           triple_reorder_credits.
           lazymatch goal with
           | [|- triple _ ($ _ <*> ($ _ <*> ($ ?c <*> _))) _] =>
@@ -2185,7 +2579,7 @@ Proof.
             triple_pull_credits 2. triple_reorder_credits.
             lazymatch goal with
             | [|- triple _
-                ($2 <*> ($ S (S (?c0 + (?cm * m + (_ + (_ + ?cn * n * ?t))))) <*>
+                ($2 <*> ($ (S (c_h_empty + ?c0 + (?cm * m + (_ + (_ + ?cn * n * ?t))))) <*>
                   (is_weighted_graph ?g ?vg <*>
                     array_content _ ?a_pred <*> array_content _ ?a_D <*>
                     is_heap ?n' ?C ?P0 _ ?pot ?h)))
@@ -2200,7 +2594,7 @@ Proof.
                 <[is_nat_fun_of_val_list D_list D]> <*>
                 <[is_nat_fun_of_val_list pred_list pred]> <*>
                 <[Dijkstra_invariant D pred P src g]> <*>
-                $ S (S (c0 + (cm * (m - se) + cn * (n - sv) * t))) <*>
+                $ (S (c_h_empty + pot + c0 + (cm * (m - se) + cn * (n - sv) * t))) <*>
                 is_weighted_graph g vg <*> array_content pred_list a_pred <*>
                 array_content D_list a_D <*> is_heap n' C P' D pot h) <*>
                 (<exists> c, $c)))
@@ -2216,11 +2610,12 @@ Proof.
                 <[is_nat_fun_of_val_list D_list D]> <*>
                 <[is_nat_fun_of_val_list pred_list pred]> <*>
                 <[Dijkstra_invariant D pred P src g]> <*>
-                $ (c_h_empty + (cm * (m - se) + cn * (n - sv) * t)) <*>
+                $ (pot + c0 + (cm * (m - se) + cn * (n - sv) * t)) <*>
                 is_weighted_graph g vg <*> array_content pred_list a_pred <*>
                 array_content D_list a_D <*> is_heap n' C P' D pot h) <*>
                 (<exists> c, $c))
               in
+              remember pot as potential eqn:Hpot;
               eapply triple_weaken with
                 (P := pre) (Q := fun res => <[Q' res]> <*> post false),
                 triple_while with (Q := post)
@@ -2228,9 +2623,10 @@ Proof.
             { prove_implies. apply implies_spec. intros ? ? Hpre.
               eapply star_implies_mono in Hpre; [|
                 lazymatch goal with
-                | [|- $ S (S (?c0 + (?n1 + (?k1 + (?k2 + ?n2))))) ->> _] =>
+                | [|- $ (S (?c0 + (?n1 + (?k1 + (?k2 + ?n2))))) ->> _] =>
                   apply credits_star_r with
-                    (c1 := k1 + k2) (c2 := S (S (c0 + (n1 + n2))));
+                    (c1 := k1 + k2 - potential)
+                    (c2 := (S (potential + c0 + (n1 + n2))));
                     lia
                 end|prove_implies_refl].
               normalize_star. swap_star_ctx. eapply star_implies_mono; eauto.
@@ -2242,9 +2638,11 @@ Proof.
                   { unfold set_equiv. intros []. simpl. unfold empty. tauto. }
                   { apply empty_set_size. } }
                 { lia. }
-                { do 2 rewrite Nat.sub_0_r. revert_implies. prove_implies. } }
+                { do 2 rewrite Nat.sub_0_r. revert_implies.
+                rewrite (Nat.add_assoc potential), (Nat.add_comm potential).
+                subst potential. prove_implies. } }
               { apply implies_spec. intros. solve_star. eassumption. } }
-            { intros. prove_implies. apply star_comm. }
+            { intros. rewrite <- Hpot. prove_implies. apply star_comm. }
             ** unfold h_empty_spec in Hspec_h_empty.
               triple_reorder_exists. repeat triple_pull_exists.
               triple_reorder_pure. repeat triple_pull_pure.
@@ -2255,7 +2653,8 @@ Proof.
                 eexists. apply star_pure_l. split; eauto. revert_implies.
                 prove_implies_refl. }
               unfold triple_fun in Hspec_h_empty.
-              triple_pull_1_credit.
+              do 2 rewrite <- (Nat.add_assoc c_h_empty).
+              triple_pull_credits c_h_empty. triple_reorder_credits.
               lazymatch goal with
               | [Hsize : is_set_size (V (G g)) _,
                   H : (_ = empty /\ ?X = set_sum empty _) \/
@@ -2334,8 +2733,132 @@ Proof.
                   eapply decidable_uncurry; unfold Decidable.decidable; lia. } }
               { unfold is_subset. unfold neighbourhood.
                 intros ? (?&?&?&?%E_closed2). assumption. }
-            ** triple_reorder_exists. repeat triple_pull_exists.
+            ** generalize dependent h_empty.
+              generalize dependent pred.
+              generalize dependent D.
+              generalize dependent pred_list.
+              generalize dependent D_list.
+              generalize dependent nonzeroD.
+              (* clear all initial state hypotheses *)
+              intros _ _ _ _ _ _ _ _ _ _ _ _ _ _ _.
+              triple_reorder_exists. repeat triple_pull_exists.
               triple_reorder_pure. repeat triple_pull_pure.
+              triple_reorder_credits.
+              erewrite (Nat.mul_comm _ (n - _)). rewrite Hn.
+              rewrite Nat.sub_succ_l; [|lia]. rewrite <- Hn. simpl "*".
+              erewrite (Nat.mul_add_distr_r _ ((n' - _) * _)).
+              erewrite (Nat.mul_comm _ (S _)). simpl "*".
+              erewrite <- (Nat.add_assoc _ _ ((n' - _)*_*_)).
+              erewrite (Nat.add_assoc (_ * (m - _))).
+              erewrite (Nat.add_comm (_ * (m-_)) _).
+              erewrite <- (Nat.add_assoc _ (_ * (m - _))).
+              lazymatch goal with
+              | [|- triple _ ($ (?c0 + (?c1 + _)) <*> _) _] =>
+                rewrite (Nat.add_assoc c0 c1), (Nat.add_comm c0 c1),
+                  <- (Nat.add_assoc c1 c0)
+              end.
+              rewrite Bool.negb_true_iff, Nat.eqb_neq in *.
+              lazymatch goal with
+              | [Hneq : ?s <> 0,
+                 Hsize : is_set_size _ ?s,
+                 Hinvariant : Dijkstra_invariant ?D ?pred _ _ _ |- _] =>
+                eapply nonempty_has_min_cost_elem_option_nat
+                  with (W := D) in Hsize as (x_min&Hmincost);
+                  unfold Decidable.decidable; try lia;
+                assert (exists y, D x_min = Some y) as Hissome
+              end.
+              { lazymatch goal with
+                | [H : (_ = empty /\ _ = set_sum empty _) \/
+                        _ = neighbourhood _ _ |- _] =>
+                  destruct H as [(?&?) | ?]
+                end.
+                { lazymatch goal with
+                  | [H : Dijkstra_invariant _ _ _ _ _ |- _] =>
+                    unfold Dijkstra_invariant,
+                      Dijkstra_distance_invariant,
+                      Dijkstra_predecessors_invariant,
+                      are_valid_distances in H;
+                    destruct H as (?&Hdist_inv&Hpred_inv)
+                  end.
+                  specialize Hdist_inv with src [src]%list.
+                  subst. unfold empty, set_sum in *.
+                  eapply Some_min_cost_elem with (x := src) (P := single src);
+                    unfold single in *; auto.
+                  { apply Hdist_inv.
+                    unfold is_shortest_path, min_cost_elem, is_path. simpl.
+                    split; [|lia]. split; auto using List.NoDup.
+                    constructor. simpl. unfold set_sum, intersect, single. auto. }
+                  { unfold min_cost_elem in *. intuition. } }
+                { lazymatch goal with
+                  | [H : Dijkstra_invariant _ _ _ _ _ |- _] =>
+                    eapply invariant_D_is_some_for_neighbours
+                  end.
+                  3:eauto.
+                  { eapply H'. }
+                  unfold are_valid_predecessors, is_shortest_paths_tree in Hpred_inv. } }
+              { destruct Hissome.
+                instantiate (cn := S ?[ccn]). instantiate (ccn := ?[cn]).
+                triple_pull_1_credit.
+                app_lambda.
+                2:{
+                  unfold h_extract_min_spec in Hspec_h_extract_min.
+                  erewrite <- Hpot, <- (Nat.add_assoc potential),
+                    (Nat.add_assoc _ potential), (Nat.add_comm _ potential),
+                    <- (Nat.add_assoc potential).
+                  triple_reorder_credits. triple_pull_credits potential.
+                  triple_reorder_credits.
+                  specialize Hspec_h_extract_min with (n := n) (C := x1) (P := x6) (W := x7) (p := x) (h := v).
+                  eapply triple_weaken, triple_frame, triple_fun_app.
+                  4:solve_simple_value.
+                  3:{ apply Hspec_h_extract_min; eassumption. }
+                  { rewrite <- Hpot. apply implies_spec. intros. solve_star.
+                    swap_star. solve_star. conormalize_star. swap_star_ctx.
+                    revert_implies. prove_implies. }
+                  { prove_implies_refl. }
+                }
+                admit.
+              }
+              { lazymatch goal with
+                | [H : (_ = empty /\ _ = set_sum empty _) \/
+                        _ = neighbourhood _ _ |- _] =>
+                  destruct H as [(?&?) | ?]
+                end.
+                { lazymatch goal with
+                  | [H : Dijkstra_invariant _ _ _ _ _ |- _] =>
+                    unfold Dijkstra_invariant,
+                      Dijkstra_distance_invariant,
+                      Dijkstra_predecessors_invariant,
+                      are_valid_distances in H;
+                    destruct H as (Hdist_inv&Hpred_inv)
+                  end.
+                  specialize Hdist_inv with src [src]%list.
+                  unfold is_shortest_path in Hdist_inv.
+                  eapply Hspec_h_extract_min.
+                      [|apply Hdist_inv]; unfold min_cost_elem, single.
+                    { split; auto. intros ? ->. simpl. rewrite Hdist_inv.
+                      { lia. }
+                      { simpl. unfold min_cost_elem. simpl. unfold is_path.
+                        split; [|lia]. split.
+                        { constructor. simpl.
+                          unfold set_sum, vx_edge, intersect, single. auto. }
+                        { auto using List.NoDup. } } }
+                    { simpl in *. unfold is_path.
+                      split; [|lia]. split.
+                      { constructor. simpl.
+                        unfold set_sum, vx_edge, intersect, single. auto. }
+                      { auto using List.NoDup. } } }
+                  { prove_implies_refl. }
+                    unfold Dijkstra_invariant,
+                    Dijkstra_distance_invariant,
+                    Dijkstra_predecessors_invariant,
+                    are_valid_distances,
+                    are_valid_predecessors,
+                    are_maximal_predecessors,
+                    induced_subgraph_with_edge_and_vx,
+                    g_sum in *.
+                  edestruct Some_min_cost_elem with (W := D) (x := src). apply Hspec_h_extract_min with (W := D); rewrite HD. eassumption. simpl. }
+                  2:{ solve_simple_value. revert_implies. prove_implies_refl. }
+               solve_simple_value.
             (* TODO *)
           admit.
           ++ admit.
