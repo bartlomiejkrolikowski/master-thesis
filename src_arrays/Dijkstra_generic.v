@@ -260,16 +260,12 @@ Axiom get_neighbours_cost_exists : exists c, get_neighbours_cost c.
 Definition get_neighbours_spec {A} (get_neighbours : Value A) : Prop :=
   forall vg n (g : wgraph nat) c,
     get_neighbours_cost c ->
-    triple_fun get_neighbours
-      (fun v => $1 <*> <[v = vg]>)
-      (fun v => <[
-        triple_fun v
-          (fun v => $c <*> <[v = Int (Z.of_nat n)]> <*> <[V g n]> <*>
-            is_weighted_graph g vg)
-          (fun v => <exists> L,
-            <[is_elem_weighted_unique_list (neighbours g n) (W g n) L]> <*>
-            is_list (nat_pairs2values L) v </\> is_weighted_graph g vg)
-      ]>).
+    triple_fun_n_ary 1 get_neighbours
+      (fun v1 v2 => $c <*> <[v1 = vg]> <*> <[v2 = Int (Z.of_nat n)]> <*> <[V g n]> <*>
+        is_weighted_graph g vg)
+      (fun v1 v2 res => <exists> L,
+        <[is_elem_weighted_unique_list (neighbours g n) (W g n) L]> <*>
+        is_list (nat_pairs2values L) res </\> is_weighted_graph g vg).
 
 Parameter get_max_label_cost : forall (c : nat), Prop.
 
@@ -370,7 +366,7 @@ Definition h_extract_min_spec {V} (h_extract_min : Value V) : Prop :=
     W k = Some d ->
     triple_fun h_extract_min
       (fun v => $c <*> <[v = h]> <*> is_heap n C P W p h)
-      (fun v => <exists> c' p', $c' <*> <[p' <= c']> <*>
+      (fun v => <exists> c' cx p', $c' <*> <[c' = p' + cx]> <*>
         <[v = pair2Value nat2value nat2value (k,d)]> <*>
         is_heap n C (set_remove P k) W p' h).
 
@@ -385,7 +381,7 @@ Definition h_decrease_key_spec {V} (h_decrease_key : Value V) : Prop :=
   triple_fun_n_ary 2 h_decrease_key
     (fun v1 v2 v3 => $c <*> <[v1 = h]> <*> <[v2 = Int (Z.of_nat k)]> <*>
       <[v3 = Int (Z.of_nat d)]> <*> is_heap n C P W p h)
-    (fun v1 v2 v3 res => <exists> c' p', $c' <*> <[p' <= c']> <*>
+    (fun v1 v2 v3 res => <exists> c' cx p', $c' <*> <[c' <= p' + cx]> <*>
       <[res = U_val]> <*> is_heap n C P (set_value_at W k d) p' h).
 
 Parameter h_free_cost : forall (n C s c : nat), Prop.
@@ -2790,76 +2786,145 @@ Proof.
                     constructor. simpl. unfold set_sum, intersect, single. auto. }
                   { unfold min_cost_elem in *. intuition. } }
                 { lazymatch goal with
+                  | [H : is_set_size (V (G g)) _ |- _] =>
+                    unfold is_set_size, is_elem_unique_list in H;
+                    destruct H as (?&(?&?)&?)
+                  end.
+                  lazymatch goal with
+                  | [H : is_set_size (uncurry (E (G g))) _ |- _] =>
+                    unfold is_set_size, is_elem_unique_list in H;
+                    destruct H as (?&(?&?)&?)
+                  end.
+                  lazymatch goal with
                   | [H : Dijkstra_invariant _ _ _ _ _ |- _] =>
                     eapply invariant_D_is_some_for_neighbours
-                  end.
-                  3:eauto.
-                  { eapply H'. }
-                  unfold are_valid_predecessors, is_shortest_paths_tree in Hpred_inv. } }
-              { destruct Hissome.
-                instantiate (cn := S ?[ccn]). instantiate (ccn := ?[cn]).
-                triple_pull_1_credit.
-                app_lambda.
-                2:{
-                  unfold h_extract_min_spec in Hspec_h_extract_min.
-                  erewrite <- Hpot, <- (Nat.add_assoc potential),
-                    (Nat.add_assoc _ potential), (Nat.add_comm _ potential),
-                    <- (Nat.add_assoc potential).
-                  triple_reorder_credits. triple_pull_credits potential.
-                  triple_reorder_credits.
-                  specialize Hspec_h_extract_min with (n := n) (C := x1) (P := x6) (W := x7) (p := x) (h := v).
-                  eapply triple_weaken, triple_frame, triple_fun_app.
-                  4:solve_simple_value.
-                  3:{ apply Hspec_h_extract_min; eassumption. }
-                  { rewrite <- Hpot. apply implies_spec. intros. solve_star.
-                    swap_star. solve_star. conormalize_star. swap_star_ctx.
-                    revert_implies. prove_implies. }
-                  { prove_implies_refl. }
-                }
-                admit.
+                  end;
+                  eauto.
+                  { subst. unfold min_cost_elem, neighbourhood in Hmincost.
+                    destruct Hmincost as ((?&?&?&?%E_closed2)&?). assumption. }
+                  { subst. unfold min_cost_elem in Hmincost.
+                    destruct Hmincost as (?&?). assumption. } } }
+              destruct Hissome.
+              instantiate (cn := S ?[ccn]). instantiate (ccn := ?[cn]).
+              triple_pull_1_credit.
+              app_lambda.
+              2:{
+                unfold h_extract_min_spec in Hspec_h_extract_min.
+                erewrite <- Hpot, <- (Nat.add_assoc potential),
+                  (Nat.add_assoc _ potential), (Nat.add_comm _ potential),
+                  <- (Nat.add_assoc potential).
+                triple_reorder_credits. triple_pull_credits potential.
+                triple_reorder_credits.
+                specialize Hspec_h_extract_min with (n := n) (C := x1) (P := x6) (W := x7) (p := x) (h := v).
+                eapply triple_weaken, triple_frame, triple_fun_app.
+                4:solve_simple_value.
+                3:{ apply Hspec_h_extract_min; eassumption. }
+                { rewrite <- Hpot. apply implies_spec. intros. solve_star.
+                  swap_star. solve_star. conormalize_star. swap_star_ctx.
+                  revert_implies. prove_implies. }
+                { prove_implies_refl. }
               }
-              { lazymatch goal with
-                | [H : (_ = empty /\ _ = set_sum empty _) \/
-                        _ = neighbourhood _ _ |- _] =>
-                  destruct H as [(?&?) | ?]
+              solve_simple_value. split; auto. intros. cbn.
+              repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id.
+              triple_reorder_exists. repeat triple_pull_exists.
+              triple_reorder_pure. repeat triple_pull_pure. revert Hn Hpot.
+              subst. intros. triple_reorder_credits.
+              instantiate (cn := S (S ?[ccn])). instantiate (ccn := ?[cn]).
+              eapply triple_weaken.
+              { apply implies_spec. intros. swap_star_ctx. eassumption. }
+              { prove_implies_refl. }
+              triple_pull_1_credit. app_lambda.
+              2:{
+                triple_pull_1_credit.
+                eapply triple_get with
+                  (Q := fun v => <[v = nat2value x_min]> <*> _).
+                remember (nat2value x_min). solve_simple_value. constructor.
+              }
+              solve_simple_value. split; auto. intros. cbn.
+              repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id.
+              triple_pull_pure. revert Hpot Hn. subst. intros.
+              instantiate (cn := S (S ?[ccn])). instantiate (ccn := ?[cn]).
+              triple_pull_1_credit. app_lambda.
+              2:{
+                triple_pull_1_credit.
+                lazymatch goal with
+                | [|- triple (Get 1 (Val (RecV [_;?v']))) _ _] =>
+                  eapply triple_get with (Q := fun v => <[v = v']> <*> _);
+                  remember v'
                 end.
-                { lazymatch goal with
-                  | [H : Dijkstra_invariant _ _ _ _ _ |- _] =>
-                    unfold Dijkstra_invariant,
-                      Dijkstra_distance_invariant,
-                      Dijkstra_predecessors_invariant,
-                      are_valid_distances in H;
-                    destruct H as (Hdist_inv&Hpred_inv)
+                solve_simple_value. repeat constructor.
+              }
+              solve_simple_value. split; auto. intros. cbn.
+              repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id.
+              triple_pull_pure. revert Hpot Hn. subst. intros.
+              clear_state_assertions.
+              instantiate (cn := S (S ?[ccn])).
+              instantiate (ccn := ?[cn]). simpl. triple_pull_1_credit.
+              app_lambda.
+              2:{
+                pose proof triple_fun_n_ary_app as Hn_ary.
+                pose proof triple_fun_n_ary_weaken as Hweaken.
+                unfold get_neighbours_spec in Hspec_get_neighbours.
+                triple_pull_1_credit. apply triple_ref.
+                triple_pull_credits (1+S c_neighbours). triple_reorder_credits.
+                triple_pull_credits 2. triple_pull_1_credit.
+                lazymatch goal with
+                | [|- triple (Val get_neighbours <* Val ?v <* _) _ _] =>
+                  eapply triple_weaken with
+                    (P := ($1 <*> ($1 <*> ($ c_neighbours <*> is_weighted_graph g v))) <*> ($ _ <*> $ _ <*> $ _ <*> _)),
+                    triple_frame;
+                    [| |revert v]
+                end.
+                { prove_implies_rev. }
+                { prove_implies_refl. }
+                lazymatch goal with
+                | [|-
+                  forall a,
+                    triple (Val (@?f a) <* (@?e1 a) <* (@?e2 a))
+                      ($1 <*> (@?P0 a))
+                      (@?Q1 a)
+                  ] =>
+                  intros vg;
+                  specialize Hn_ary with
+                    (v := f vg) (e := e1 vg) (es := [e2 vg]%list)
+                    (P := P0 vg)
+                end.
+                lazymatch goal with
+                | [H : forall vg n g c, _ ->
+                    triple_fun_n_ary _ get_neighbours
+                      (@?Pre vg n g c) (@?Post vg n g c)
+                  |- triple
+                    (Val get_neighbours <* Val ?vg' <* Val (Int (Z.of_nat ?n')))
+                    ($_ <*> ($_ <*> ($ ?c' <*> is_weighted_graph g ?vg'))) _
+                  ] =>
+                  specialize Hn_ary with
+                    (Q1 := Pre vg' n' g c')
+                    (Q2 := Post vg' n' g c');
+                  specialize Hspec_get_neighbours with
+                    (vg := vg') (n := n') (g := g) (c := c')
+                end.
+                simpl in Hn_ary, Hspec_get_neighbours, Hweaken. eapply Hn_ary.
+                { eapply Hspec_get_neighbours. assumption. }
+                { solve_simple_value. revert_implies. prove_implies_refl. }
+                { solve_simple_value. revert_implies. remember (Int (Z.of_nat x_min)).
+                  prove_implies_refl. }
+                { simpl. prove_implies. apply implies_spec. intros.
+                  solve_star. unfold min_cost_elem in Hmincost.
+                  destruct Hmincost as (Hx_min&?).
+                  lazymatch goal with
+                  | [H : (_ = empty /\ _ = set_sum empty _) \/
+                          _ = neighbourhood _ _ |- _] =>
+                    destruct H as [(?&->) | ->]
                   end.
-                  specialize Hdist_inv with src [src]%list.
-                  unfold is_shortest_path in Hdist_inv.
-                  eapply Hspec_h_extract_min.
-                      [|apply Hdist_inv]; unfold min_cost_elem, single.
-                    { split; auto. intros ? ->. simpl. rewrite Hdist_inv.
-                      { lia. }
-                      { simpl. unfold min_cost_elem. simpl. unfold is_path.
-                        split; [|lia]. split.
-                        { constructor. simpl.
-                          unfold set_sum, vx_edge, intersect, single. auto. }
-                        { auto using List.NoDup. } } }
-                    { simpl in *. unfold is_path.
-                      split; [|lia]. split.
-                      { constructor. simpl.
-                        unfold set_sum, vx_edge, intersect, single. auto. }
-                      { auto using List.NoDup. } } }
-                  { prove_implies_refl. }
-                    unfold Dijkstra_invariant,
-                    Dijkstra_distance_invariant,
-                    Dijkstra_predecessors_invariant,
-                    are_valid_distances,
-                    are_valid_predecessors,
-                    are_maximal_predecessors,
-                    induced_subgraph_with_edge_and_vx,
-                    g_sum in *.
-                  edestruct Some_min_cost_elem with (W := D) (x := src). apply Hspec_h_extract_min with (W := D); rewrite HD. eassumption. simpl. }
-                  2:{ solve_simple_value. revert_implies. prove_implies_refl. }
-               solve_simple_value.
-            (* TODO *)
-          admit.
+                  { unfold set_sum, empty, single in Hx_min.
+                    destruct Hx_min as [[]| ->]. assumption. }
+                  { unfold neighbourhood in Hx_min.
+                    destruct Hx_min as (?&?&?&?%E_closed2). assumption. } }
+              }
+              solve_simple_value. split; auto. intros. cbn.
+              repeat rewrite bind_v_liftS_shift_swap. repeat rewrite bind_v_shift. repeat rewrite bind_v_id.
+              triple_reorder_exists. repeat triple_pull_exists.
+              triple_reorder_pure. repeat triple_pull_pure.
+              admit.
           ++ admit.
 Admitted.
