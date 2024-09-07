@@ -390,7 +390,7 @@ Definition h_decrease_key_spec {V} (h_decrease_key : Value V) : Prop :=
   c = p ->
   P k ->
   triple_fun_n_ary 2 h_decrease_key
-    (fun v1 v2 v3 => $c <*> <[v1 = h]> <*> <[v2 = Int (Z.of_nat k)]> <*>
+    (fun v1 v2 v3 => $1 <*> $c <*> <[v1 = h]> <*> <[v2 = Int (Z.of_nat k)]> <*>
       <[v3 = Int (Z.of_nat d)]> <*> is_heap n C P W p h)
     (fun v1 v2 v3 res => <exists> c' cx p', $c' <*> <[c' <= p' + cx]> <*>
       <[res = U_val]> <*> is_heap n C P (set_value_at W k d) p' h).
@@ -442,7 +442,7 @@ Definition l_tail_spec {V} (l_tail : Value V) : Prop :=
     l_tail_cost c ->
     triple_fun l_tail
       (fun v => $c <*> <[v = l]> <*> is_list (h::L)%list l)
-      (fun v => <[v = t]> <*> is_list (h::L)%list l <*> (is_list (h::L)%list l <-*> is_list L t)).
+      (fun v => <[v = t]> <*> is_list L l <*> (is_list L l <-*> is_list (h::L)%list t)).
 
 Ltac fold_and_apply f x :=
   try (progress fold (f x); fold_and_apply f (f x)).
