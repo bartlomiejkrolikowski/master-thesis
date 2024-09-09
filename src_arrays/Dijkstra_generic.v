@@ -4382,7 +4382,32 @@ Proof.
                               solve_star. swap_star. solve_star.
                               { repeat f_equal. rewrite Nat2Z.id. reflexivity. }
                               { revert_implies. prove_implies. } }
-                      ++++ solve_simple_value. admit.
+                      ++++ triple_pull_pure. apply triple_value_implies.
+                        apply implies_spec. intros.
+                        repeat apply star_assoc_r. swap_star.
+                        lazymatch goal with
+                        | [H : _ ?c ?m |- _ ?c ?m] =>
+                          do 2 eapply star_assoc_l in H;
+                          eapply star_implies_mono in H;
+                          eauto
+                        end.
+                        { apply implies_spec. intros. solve_star.
+                          eapply credits_star_l; [reflexivity|].
+                          eapply star_implies_mono; eauto; [|prove_implies_refl].
+                          apply credits_star_l. reflexivity. }
+                        apply implies_spec. intros. apply star_pure_l.
+                        split; auto. do 7 eexists.
+                        lazymatch goal with
+                        | [H : (_ <*> (_ <*> array_content ?L ?a)) ?c ?m,
+                           Hfun_a : is_nat_fun_of_val_list ?L _,
+                           Hfun_b : is_nat_fun_of_val_list _ _
+                          |- (_ <*> array_content _ ?a <*> _ <*> _) ?c ?m] =>
+                          repeat apply star_assoc_l;
+                          apply star_pure_l; split; [exact Hfun_a|];
+                          apply star_pure_l; split; [exact Hfun_b|]
+                        end.
+                        eapply star_implies_mono; [prove_implies_refl| |eassumption].
+                        prove_implies.
                   *** admit.
               --- triple_reorder_exists. repeat triple_pull_exists.
                 triple_reorder_pure. repeat triple_pull_pure.
