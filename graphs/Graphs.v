@@ -21,7 +21,7 @@ Definition g_full {A} E : graph A := {|
   E_closed2 _ _ _ := I
 |}.
 
-Definition g_total {A} V : graph A := {|
+Definition g_complete {A} V : graph A := {|
   V := V;
   E u v := V u /\ V v;
   E_closed1 u v HE :=
@@ -32,7 +32,7 @@ Definition g_total {A} V : graph A := {|
 
 Definition empty {A} (x : A) : Prop := False.
 Definition single {A} (x y : A) : Prop := x = y.
-Definition total {A} (x : A) : Prop := True.
+Definition full {A} (x : A) : Prop := True.
 
 Definition g_empty {A} : graph A := {|
   V x := False;
@@ -798,7 +798,7 @@ Admitted.
 
 Theorem valid_final A
   (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
-  Dijkstra_invariant D pred total s g ->
+  Dijkstra_invariant D pred full s g ->
   Dijkstra_final D pred s g.
 Proof.
 Admitted.
