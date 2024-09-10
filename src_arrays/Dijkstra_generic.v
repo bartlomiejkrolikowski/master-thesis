@@ -323,14 +323,14 @@ Admitted.
 
 Lemma Dijkstra_invariant_if_D_some A
   (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
-  (s : A) (g : wgraph A) x n n1 n2 pr1 pr2 :
+  (s : A) (g : wgraph A) x n (*n1*) n2 (*pr1*) pr2 :
   Dijkstra_invariant D pred P s g ->
   D x = Some n ->
-  pred x = Some pr1 ->
+  (*pred x = Some pr1 ->*)
   E g pr2 x ->
-  D pr1 = Some n1 ->
+  (*D pr1 = Some n1 ->*)
   D pr2 = Some n2 ->
-  n = n1 + W g pr1 x ->
+  (*n = n1 + W g pr1 x ->*)
   n2 + W g pr2 x < n ->
   (P = empty /\ x = s) \/ (P s /\ neighbourhood g P x).
 Proof.
@@ -371,6 +371,7 @@ Theorem triple_fun_generic_dijkstra
   is_set_size (V g) n ->
   is_set_size (uncurry (E g)) m ->
   is_max_label g C ->
+  (forall x y, W g x y >= 0) ->
   heap_time_bound n C t ->
   triple_fun_n_ary 1
     (generic_dijkstra
@@ -2540,51 +2541,113 @@ Proof.
                               { eapply nat_function_update. eassumption. }
                               { eapply nat_function_update. eassumption. }
                               { swap_star. rewrite Nat.add_0_l. eassumption. } }
-                            { admit. (*eapply Hspec_h_decrease_key; unfold empty, not; auto.
-                              { lazymatch goal with
-                                | [H : (Z.of_nat ?m_cost + Z.of_nat w' < x')%Z,
-                                  H' : List.nth x_min ?L None = Some (Int (_ ?m_cost)),
-                                  H'' : is_nat_fun_of_val_list ?L ?D
+                            { eapply Hspec_h_decrease_key; unfold empty, not; auto.
+                              { (*lazymatch goal with
+                                | [H : is_elem_weighted_unique_list _ _ (?L++_)%list
                                   |- _] =>
-                                  assert (D x_min = Some m_cost);
-                                  [unfold is_nat_fun_of_val_list, fun_of_list in H'';
-                                    destruct H'' as (?&H''); apply H''; eassumption|]
+                                  unfold is_elem_weighted_unique_list in H;
+                                  rewrite List.map_app in H;
+                                  destruct H as (?&H%List.NoDup_remove_2)
                                 end.
+                                eauto.
+                                admit.*)
                                 unfold set_sum, set_remove. left. split.
-                                { (*apply Dijkstra_invariant_if_D_some.*)
-                                  (*lazymatch goal with
-                                  | [H : is_elem_weighted_unique_list _ _ (?L++_)%list
+                                { lazymatch goal with
+                                  | [H : (Z.of_nat ?m_cost + Z.of_nat w' < x')%Z,
+                                    H' : List.nth x_min ?L None = Some (Int (_ ?m_cost)),
+                                    H'' : is_nat_fun_of_val_list ?L ?D
                                     |- _] =>
-                                    unfold is_elem_weighted_unique_list in H;
-                                    rewrite List.map_app in H;
-                                    destruct H as (?&H%List.NoDup_remove_2)
-                                  end.*)
-                                  lazymatch goal with
-                                  | [H : (_ = empty /\ _ = set_sum empty _) \/
-                                      (_ src /\ _ = neighbourhood _ _)
-                                      |- _] =>
-                                    destruct H as [(->&->)|(?&->)]
+                                    assert (D x_min = Some m_cost) as HDSome;
+                                    [unfold is_nat_fun_of_val_list, fun_of_list in H'';
+                                      destruct H'' as (?&H''); apply H''; eassumption|]
                                   end.
-                                  { exfalso.
-                                    lazymatch goal with
+                                  lazymatch goal with
+                                  | [H : Dijkstra_invariant _ _ _ _ _ |- _] =>
+                                    eapply Dijkstra_invariant_if_D_some with
+                                      (x := i') (pr2 := x_min) in H
+                                      as [(HP&?)|(?&?)]
+                                  end.
+                                  { (*apply Dijkstra_invariant_if_D_some.*)
+                                    (*lazymatch goal with
                                     | [H : is_elem_weighted_unique_list _ _ (?L++_)%list
                                       |- _] =>
-                                      unfold is_elem_weighted_unique_list, is_elem_weighted_list in H;
-                                      destruct H as (?&?)
+                                      unfold is_elem_weighted_unique_list in H;
+                                      rewrite List.map_app in H;
+                                      destruct H as (?&H%List.NoDup_remove_2)
+                                    end.*)
+                                    lazymatch goal with
+                                    | [H : (_ = empty /\ _ = set_sum empty _) \/
+                                        (_ src /\ _ = neighbourhood _ _)
+                                        |- _] =>
+                                      destruct H as [(->&->)|(Hin&->)]
                                     end.
-                                    unfold min_cost_elem, set_sum, empty, single in Hmincost |- *.
-                                    destruct Hmincost as ([[]| ->]&?). } admit. }
-                                { intros ->.
-                                  lazymatch goal with
-                                  | [H : is_elem_weighted_unique_list _ _ (?L++_)%list,
-                                    H' : List.In i' (List.map fst ?L)
+                                    { unfold set_sum, empty, single. auto. }
+                                    { exfalso. rewrite HP in Hin. unfold empty in Hin.
+                                      assumption. } }
+                                  { lazymatch goal with
+                                    | [H : (_ = empty /\ _ = set_sum empty _) \/
+                                        (_ src /\ _ = neighbourhood _ _)
+                                        |- _] =>
+                                      destruct H as [(->&->)|(Hin&->)]
+                                    end.
+                                    { contradiction. }
+                                    { assumption. } }
+                                  { lazymatch goal with
+                                    | [Heq : forall _, _ -> ?f _ = ?D _,
+                                      Hfun : forall _ _, _ <-> ?f _ = _
+                                      |- ?D i' = _] =>
+                                      rewrite <- Heq; auto; apply Hfun
+                                    end.
+                                    rewrite List.app_nth2;
+                                    rewrite List.map_length; subst i'; [|lia].
+                                    rewrite Nat.sub_diag. simpl. repeat f_equal.
+                                    symmetry. apply Z2Nat.id. lia. }
+                                  (*{ lazymatch goal with
+                                    | [Heq : forall _, _ -> ?f _ = ?pred _,
+                                      Hfun : forall _ _, _ <-> ?f _ = _
+                                      |- ?pred i' = _] =>
+                                      rewrite <- Heq; auto; apply Hfun
+                                    end.
+                                    rewrite List.app_nth2;
+                                    rewrite List.map_length; [|lia].
+                                    lazymatch goal with
+                                    | [H : ?l = i' |- _ (i' - ?l) _ _ = _] =>
+                                      rewrite <- H
+                                    end.
+                                    rewrite Nat.sub_diag. simpl. repeat f_equal.
+                                    symmetry. apply Z2Nat.id. admit. }*)
+                                  { lazymatch goal with
+                                    | [H : is_elem_weighted_unique_list _ _ (_++(i',w')::_)%list
+                                      |- _] =>
+                                      unfold is_elem_weighted_unique_list,
+                                        is_elem_weighted_list, neighbours in H;
+                                      edestruct H as (((?&?)&?)&?); [|eassumption]
+                                    end.
+                                    { apply List.in_or_app. simpl. auto. } }
+                                  { eassumption. }
+                                  { lazymatch goal with
+                                    | [H : is_elem_weighted_unique_list _ _ (_++(i',w')::_)%list
+                                      |- _] =>
+                                      unfold is_elem_weighted_unique_list,
+                                        is_elem_weighted_list, neighbours in H;
+                                      edestruct H as (((?&Heq)&?)&?)
+                                    end.
+                                    { apply List.in_or_app. simpl. auto. }
+                                    { rewrite <- Heq. lia. } } }
+                                { lazymatch goal with
+                                  | [H : is_elem_weighted_unique_list _ _ (_++(i',w')::_)%list
                                     |- _] =>
-                                    unfold is_elem_weighted_unique_list in H;
-                                    rewrite List.map_app in H;
-                                    destruct H as (?&H%List.NoDup_remove_2);
-                                    apply H
+                                    unfold is_elem_weighted_unique_list,
+                                      is_elem_weighted_list, neighbours in H;
+                                    edestruct H as (((?&?)&?)&?)
                                   end.
-                                  simpl. apply List.in_or_app. auto. } }*) }
+                                  { apply List.in_or_app. simpl. auto. }
+                                  { intros ->.
+                                    lazymatch goal with
+                                    | [H : is_irreflexive _ |- _] =>
+                                      unfold is_irreflexive in H; eapply H
+                                    end.
+                                    eassumption. } } } }
                             { solve_simple_value. revert_implies. prove_implies_refl. }
                             { solve_simple_value. revert_implies. remember (Int (Z.of_nat i')).
                               prove_implies_refl. }
@@ -2776,7 +2839,7 @@ Proof.
                   eassumption. }
                 solve_simple_value. revert_implies. prove_implies.
                 apply implies_spec. intros.
-                solve_star;
+                (*solve_star;
                   try lazymatch goal with
                   [|- Dijkstra_invariant _ _ _ _ _] => eassumption
                   end;
@@ -2784,24 +2847,25 @@ Proof.
                   [|- is_nat_fun_of_val_list _ _] => eassumption
                   end;
                   eauto.
-                  { admit. }
-                  { swap_star. revert_implies.
-                    eapply implies_trans.
-                    { apply star_implies_mono; [prove_implies_refl|].
-                      apply star_implies_mono; [prove_implies_refl|].
-                      apply star_implies_mono; [prove_implies_refl|].
-                      apply star_implies_mono; [prove_implies_refl|].
-                      apply star_implies_mono; [prove_implies_refl|].
-                      apply star_implies_mono; [prove_implies_refl|].
-                      apply star_implies_mono; [|prove_implies_refl].
-                      apply star_implies_mono; [|prove_implies_refl].
-                      apply star_implies_mono; [|prove_implies_refl].
-                      apply wand_star_r. }
-                   { prove_implies_rev. admit. } }
+                { admit. }
+                { swap_star. revert_implies.
+                  eapply implies_trans.
+                  { apply star_implies_mono; [prove_implies_refl|].
+                    apply star_implies_mono; [prove_implies_refl|].
+                    apply star_implies_mono; [prove_implies_refl|].
+                    apply star_implies_mono; [prove_implies_refl|].
+                    apply star_implies_mono; [prove_implies_refl|].
+                    apply star_implies_mono; [prove_implies_refl|].
+                    apply star_implies_mono; [|prove_implies_refl].
+                    apply star_implies_mono; [|prove_implies_refl].
+                    apply star_implies_mono; [|prove_implies_refl].
+                    apply wand_star_r. }
+                  { prove_implies_rev. admit. } }*) admit.
+            ** { unfold Decidable.decidable. lia. }
           ++ clear get_neighbours h_insert h_empty h_extract_min h_decrease_key
               l_is_nil l_head l_tail Hspec_get_neighbours Hspec_h_insert
               Hspec_h_empty Hspec_h_extract_min Hspec_h_decrease_key
-              Hspec_l_is_nil Hspec_l_head Hspec_l_tail.
+              Hspec_l_is_nil Hspec_l_head Hspec_l_tail Hcost_eq.
             triple_reorder_exists. repeat triple_pull_exists.
             triple_reorder_pure. repeat triple_pull_pure.
             triple_reorder_credits.
@@ -2844,6 +2908,5 @@ Proof.
               end.
               { admit. }
               solve_star.
-               Search array_content Lab.
-           admit.
+           all:admit.
 Admitted.
