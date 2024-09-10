@@ -891,8 +891,8 @@ Proof.
   unfold is_nat_fun_of_val_list.
 Admitted.
 
-Lemma array_content_to_is_nat_function V L f (v : Value V) :
-  is_nat_fun_of_val_list L f ->
-  array_content L ->> is_nat_function f v.
+Lemma array_content_to_is_nat_function V L f l :
+  @is_nat_fun_of_val_list V L f ->
+  array_content L (Lab l) ->> is_nat_function f l.
 Proof.
 Admitted.
