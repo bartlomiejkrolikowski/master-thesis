@@ -2700,7 +2700,7 @@ Proof.
                             apply star_exists_l; eexists; eauto
                           | [|- (<exists> _, _) ?c ?m] => eexists
                           end.
-                          repeat (apply star_pure_l; split); eauto.
+                          (*repeat (apply star_pure_l; split); eauto.*)
                           (*eapply star_implies_mono with
                             (P := <exists> (Nlp : list (nat * nat))
                               (pred : nat -> option nat) (sp st : nat), _ <*> $3).
