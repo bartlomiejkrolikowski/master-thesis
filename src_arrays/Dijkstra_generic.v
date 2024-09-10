@@ -893,7 +893,8 @@ Proof.
             assert (Dijkstra_initial D pred src) as Hinitial.
             { subst. unfold Dijkstra_initial. rewrite Nat.eqb_refl.
               split_all; auto. intros ? ->%Nat.eqb_neq. reflexivity. }
-            apply valid_initial with (g := g) in Hinitial; auto.
+            apply valid_initial with (g := g) in Hinitial;
+              auto using Nat.eq_decidable.
             triple_reorder_credits.
             lazymatch goal with
             | [|- triple _ ($ S (S ?cr) <*> ($ ?n1 <*> ($ ?n2 <*> _))) _] =>
@@ -2861,7 +2862,6 @@ Proof.
                     apply star_implies_mono; [|prove_implies_refl].
                     apply wand_star_r. }
                   { prove_implies_rev. admit. } }*) admit.
-            ** { unfold Decidable.decidable. lia. }
           ++ clear get_neighbours h_insert h_empty h_extract_min h_decrease_key
               l_is_nil l_head l_tail Hspec_get_neighbours Hspec_h_insert
               Hspec_h_empty Hspec_h_extract_min Hspec_h_decrease_key
