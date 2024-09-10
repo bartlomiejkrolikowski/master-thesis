@@ -493,6 +493,22 @@ Proof.
   eauto using star_comm, wand_star, implies_trans.
 Qed.
 
+Fact wand_wand (V : Set) (P Q R : StateAssertion V) :
+  (P <-*> Q) <*> (Q <-*> R) ->> (P <-*> R).
+Proof.
+  unfold sa_wand, sa_implies. intros. normalize_star. swap_star_ctx.
+  normalize_star. solve_star; eauto. intros ? ? H_sa.
+  eapply star_implies_mono in H_sa; [|apply implies_refl|apply star_comm].
+  apply star_assoc_l in H_sa.
+  eapply star_implies_mono in H_sa; eauto using implies_refl.
+Qed.
+
+Fact wand_wand_r (V : Set) (P Q R : StateAssertion V) :
+  (Q <-*> R) <*> (P <-*> Q) ->> (P <-*> R).
+Proof.
+  eauto using star_comm, wand_wand, implies_trans.
+Qed.
+
 Theorem triple_frame (V : Set) (e : Expr V) P Q H :
   triple e P Q ->
   triple e (P <*> H) (Q <*>+ H).

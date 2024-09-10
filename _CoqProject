@@ -34,8 +34,10 @@ src/LamRefLogicFactsTotal_credits_perm.v
 src/Permutation.v
 src/Tactics.v
 src_arrays/Aux.v
+src_arrays/Dijkstra_aux.v
+src_arrays/Dijkstra_aux_graphs.v
 src_arrays/Dijkstra_generic.v
-src_arrays/Dijkstra_graphs.v
+#src_arrays/Dijkstra_graphs.v
 #src_arrays/Example1.v
 #src_arrays/Example2.v
 #src_arrays/Example3.v

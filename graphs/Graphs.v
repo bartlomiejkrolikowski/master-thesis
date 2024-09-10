@@ -294,7 +294,8 @@ Definition is_shortest_paths_tree {A} (s : A) (t : graph A) (g : wgraph A) :=
     forall v p, is_path t s v p -> is_shortest_path g s v p.
 
 Definition are_valid_distances {A} (D : A -> option nat) (s : A) (g : wgraph A) :=
-  forall v p, is_shortest_path g s v p -> D v = Some (walk_cost (W g) p).
+  (forall v p, is_shortest_path g s v p -> D v = Some (walk_cost (W g) p)) /\
+  (forall v d, D v = Some d -> exists p, is_shortest_path g s v p).
 
 Definition pred2graph {A} (root : A) (pred : A -> option A) : graph A := {|
   V x := x = root \/ (exists y, Some y = pred x) \/ exists y, Some x = pred y;
@@ -660,17 +661,25 @@ Qed.
 
 Lemma valid_initial_distance A
   (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
   V g s ->
   ~ E g s s ->
   Dijkstra_initial D pred s ->
   Dijkstra_distance_invariant D empty s g.
 Proof.
   unfold Dijkstra_initial, Dijkstra_distance_invariant.
-  intros HVs HEs (HDs&HD&Hpred).
+  intros Hdec_eq HVs HEs (HDs&HD&Hpred).
   unfold wg_lift, are_valid_distances, is_shortest_path, min_cost_elem.
-  simpl. intros v p (Hpath&_). eapply all_paths_trivial_single in Hpath as (_&->&->).
-  - simpl. eassumption.
-  - apply induced_subgraph_with_edge_and_vx_empty; eassumption.
+  simpl. split.
+  - intros v p (Hpath&_). eapply all_paths_trivial_single in Hpath as (_&->&->).
+    + simpl. eassumption.
+    + apply induced_subgraph_with_edge_and_vx_empty; eassumption.
+  - intros v d Hsome. destruct Hdec_eq with v s as [->|?].
+    + exists [s]%list. unfold is_path. simpl. split.
+      * split; econstructor; simpl; auto using List.NoDup.
+        unfold set_sum, intersect, empty, single. auto.
+      * intros. apply le_0_n.
+    + rewrite HD in Hsome; eauto. discriminate.
 Qed.
 
 Lemma no_cycle_single A (s : A) (g : graph A) (p : list A) :
@@ -774,6 +783,7 @@ Qed.
 
 Theorem valid_initial A
   (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
   V g s ->
   ~ E g s s ->
   Dijkstra_initial D pred s ->
@@ -800,6 +810,16 @@ Theorem valid_final A
   (D : A -> option nat) (pred : A -> option A) (s : A) (g : wgraph A) :
   Dijkstra_invariant D pred full s g ->
   Dijkstra_final D pred s g.
+Proof.
+Admitted.
+
+Lemma to_final_invariant A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) :
+  Dijkstra_invariant D pred P s g ->
+  P s ->
+  set_equiv (neighbourhood g P) empty ->
+  Dijkstra_invariant D pred full s g.
 Proof.
 Admitted.
 

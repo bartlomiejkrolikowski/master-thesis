@@ -1,9 +1,11 @@
 Require Import src_arrays.LambdaRef.
+Require Import src_arrays.LamRefFacts.
 Require Import src_arrays.LambdaAssertions_credits_perm.
 Require Import src_arrays.LambdaTotalTriple_credits_perm.
 Require Import src_arrays.LamRefLogicFactsTotal_credits_perm.
 Require Import List.
 Import ListNotations.
+Require String.
 
 (* state assertion and triple manipulation tactics *)
 
@@ -477,6 +479,119 @@ Ltac triple_clear_empty_r :=
       [prove_implies_refl|prove_implies_clear_empty_bwd|]
   end.
 (*Check (fun x (y : Expr (_ string)) => ltac:(clear_empty ltac:(eval simpl in ltac:(remove (<(x :== -\y)>) (<[]> <*> <[1=1]> <*> (<[2=2]> <*> (<[3=3]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <(x :== -\ y)>) <*> <[]> <*> <[6=6]>))))))).*)
+
+
+Ltac fold_and_apply f x :=
+  try (progress fold (f x); fold_and_apply f (f x)).
+
+Ltac fold_all_inc_set x :=
+  fold_and_apply constr:(inc_set) x.
+
+Ltac fold_all_inc_set_string :=
+  fold_all_inc_set constr:(String.string).
+
+Ltac reorder_exists P :=
+  lazymatch P with
+  | ?Q <*> ?Q' =>
+    lazymatch ltac:(eval simpl in (ltac:(reorder_exists Q))) with
+    | (<exists> x : ?T, @?Q1 x) =>
+        let t := fresh x in
+      reorder_exists ltac:(eval simpl in (<exists> t : T, Q1 t <*> Q'))
+(*      let t := fresh x in
+      let Q2 := ltac:(eval simpl in (fun t =>ltac:(reorder_exists ltac:(eval simpl in (Q1 t <*> Q'))))) in
+      exact (<exists> x, Q2 x)*)
+    | ?Q1 =>
+      lazymatch ltac:(eval simpl in (ltac:(reorder_exists Q'))) with
+      | (<exists> x : ?T, @?Q1' x) =>
+        let t := fresh x in
+        reorder_exists ltac:(eval simpl in (<exists> t : T, Q1 <*> Q1' t))
+(*        let t := fresh x in
+        let Q2 := ltac:(eval simpl in (fun t =>ltac:(reorder_exists ltac:(eval simpl in (Q1 <*> Q1' t))))) in
+        exact (<exists> x, Q2 x)*)
+      | ?Q1' => exact (Q1 <*> Q1')
+      end
+    end
+  | <exists> t : ?T, @?Q t => (*idtac t T Q;*)
+    let Q' := ltac:(eval simpl in ltac:(reorder_exists Q)) in
+    (*idtac T Q'; idtac ">";*) exact (<exists> t : T, Q' t) (*; idtac "OK") || idtac "!")*)
+  | fun t : ?T => @?Q t => (*idtac t T Q;*)
+    let u := fresh t in(*exact (fun x : T => ltac:(eval simpl in ltac:(clear_empty Q)))*)
+    let Q' := ltac:(eval simpl in (fun u =>ltac:(reorder_exists ltac:(eval simpl in (Q u))))) in
+    (*idtac t T Q'; idtac ">!";*) exact Q' (*; idtac "OK!") || idtac "!!")*)
+  | _ => exact P (*; idtac "<>"*)
+  end.
+
+(*Check ltac:(reorder_exists (<[]> <*> (<[1=1]> <*> (<exists> t, <[t < 1]>) <*> <[2=2]> <*> (<exists> x : nat, <[x=0]> <*> <exists> y, <[x=y]>) <*> (sa_credits 2 <*> <[3=3]> <*> <exists> z, sa_credits z) <*> sa_credits 5 <*> <exists> t, <[t>10]>) : StateAssertion string)).*)
+
+Ltac prove_implies_reorder_exists :=
+  lazymatch goal with
+  | [|- ?Q <*> ?Q' ->> _ ] =>
+    eapply implies_trans;
+    [apply star_implies_mono; [prove_implies_reorder_exists|prove_implies_refl]|];
+    lazymatch goal with
+    | [|- (<exists> x, @?Q1 x) <*> ?Q1' ->> _] =>
+      eapply implies_trans; [apply star_exists_l'|];
+      prove_implies_reorder_exists
+    | [|- ?Q1 <*> ?Q1' ->> _] =>
+      eapply implies_trans;
+      [apply star_implies_mono; [prove_implies_refl|prove_implies_reorder_exists]|];
+      lazymatch goal with
+      | [|- ?Q2 <*> (<exists> x, @?Q2' x) ->> _] =>
+        eapply implies_trans; [apply star_exists_r'|];
+        prove_implies_reorder_exists
+      | [|- ?Q2 <*> ?Q2' ->> _] => apply implies_refl
+      end
+    end
+  | [|- (<exists> x, @?P' x) ->> _] =>
+    let t := fresh x in
+    apply implies_trans with (Q := <exists> t, P' t); [prove_implies_refl|];
+    apply exists_implies with (P := P'); prove_implies_reorder_exists
+  | [|- forall x, ?Q ->> _] =>
+    intros; prove_implies_reorder_exists
+  | [|- ?P ->> _] => apply implies_refl
+  end.
+
+Ltac prove_implies_reorder_exists_bwd :=
+  lazymatch goal with
+  | [|- ?Q <*> ?Q' ->> _ ] =>
+    eapply implies_trans;
+    [|apply star_implies_mono; [prove_implies_reorder_exists_bwd|prove_implies_refl]];
+    lazymatch goal with
+    | [|- (<exists> x, @?Q1 x) <*> ?Q1' ->> _] =>
+      eapply implies_trans; [|apply star_exists_l'];
+      prove_implies_reorder_exists_bwd
+    | [|- ?Q1 <*> ?Q1' ->> _] =>
+      eapply implies_trans;
+      [|apply star_implies_mono; [prove_implies_refl|prove_implies_reorder_exists_bwd]];
+      lazymatch goal with
+      | [|- ?Q2 <*> (<exists> x, @?Q2' x) ->> _] =>
+        eapply implies_trans; [|apply star_exists_r'];
+        prove_implies_reorder_exists_bwd
+      | [|- ?Q2 <*> ?Q2' ->> _] => apply implies_refl
+      end
+    end
+  | [|- (<exists> x, @?P' x) ->> _] =>
+    let t := fresh x in
+    apply implies_trans with (Q := <exists> t, P' t); [|prove_implies_refl];
+    apply exists_implies with (P := P'); prove_implies_reorder_exists_bwd
+  | [|- forall x, ?Q ->> _] =>
+    intros; prove_implies_reorder_exists_bwd
+  | [|- ?P ->> _] => apply implies_refl
+  end.
+
+Ltac triple_reorder_exists :=
+  lazymatch goal with
+  | [|- triple ?e ?P' ?Q'] =>
+    apply triple_weaken with (P := ltac:(reorder_exists P')) (Q := Q');
+      [prove_implies_reorder_exists|prove_implies_refl|]
+  end.
+
+(*Ltac prove_post_by_constant_eta_expansion :=
+  match goal with
+  | [H : ?P ?c ?m |- _ ?v ?c ?m]
+  end.
+*)
+
 (*
 Goal True.
 eassert (option (Value string)). shelve.
@@ -598,4 +713,22 @@ Ltac triple_expand_empty_pre_r :=
   | [|- triple ?e ?P' ?Q'] =>
     apply triple_weaken with (P := P' <*> <[]>) (Q := Q');
       [apply empty_star_r_intro|prove_implies_refl|]
+  end.
+
+Ltac rewrite_all_binds :=
+  fold_all_inc_set_string;
+  repeat rewrite bind_v_liftS_shift_swap;
+  repeat rewrite bind_v_shift;
+  repeat rewrite bind_v_id.
+
+Ltac rewrite_all_map_v_closed :=
+  repeat (rewrite map_v_shift_closed;
+    [|repeat apply map_v_closed_value; auto with is_closed_db]).
+
+Ltac clear_state_assertions :=
+  repeat match goal with
+  | [H : ?P ?c ?m |- _] =>
+    let T := ltac:(type of P) in
+    unify T (StateAssertion String.string);
+    clear c m H
   end.
