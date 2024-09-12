@@ -796,6 +796,17 @@ Proof.
     valid_initial_predecessors.
 Qed.
 
+(* loop invariant is kept by the first iteration *)
+Theorem valid_invariant_init A
+  (D D' : A -> option nat) (pred pred' : A -> option A)
+  (s : A) (g : wgraph A) :
+  Dijkstra_invariant D pred empty s g ->
+  distance_decrease g s D D' pred pred' ->
+  Dijkstra_invariant D' pred' (add_single empty s) s g.
+Proof.
+Admitted.
+
+(* loop invariant is kept by the other iterations *)
 Theorem valid_invariant A
   (D D' : A -> option nat) (pred pred' : A -> option A) (P : A -> Prop)
   (s : A) (g : wgraph A) (v : A) :

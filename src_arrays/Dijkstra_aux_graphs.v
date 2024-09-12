@@ -880,7 +880,7 @@ Proof.
 Qed.
 
 Definition update_nat_function_at {A} (f : nat -> A) x y : nat -> A :=
-  fun n => if x =? n then y else f n.
+  fun n => if n =? x then y else f n.
 
 Lemma nat_function_update V f x y L1 t L2 :
   is_nat_fun_of_val_list (L1 ++ t::L2)%list f ->
@@ -895,4 +895,84 @@ Lemma array_content_to_is_nat_function V L f l :
   @is_nat_fun_of_val_list V L f ->
   array_content L (Lab l) ->> is_nat_function f l.
 Proof.
+Admitted.
+
+Fixpoint nat_decrease_distance
+  (v : nat) (NW : list (nat*nat)) (D pred : nat -> option nat) :
+  nat -> option nat * option nat :=
+  fun u =>
+    match D v with
+    | None => (D u, pred u)
+    | Some dv =>
+      match NW with
+      | (n,w)::NW' =>
+        if u =? n then
+          match D u with
+          | None => (Some (dv + w), Some v)
+          | Some du =>
+            if dv + w <? du then
+              (Some (dv + w), Some v)
+            else
+              (D u, pred u)
+          end
+        else
+          nat_decrease_distance v NW' D pred u
+      | nil => (D u, pred u)
+      end
+    end%list.
+
+Definition fun2pair {A B C} (f : A -> B*C) : (A -> B) * (A -> C) :=
+  (fun x => fst (f x), fun x => snd (f x)).
+
+Definition edge_remove {A} (u v : A) (g : graph A) : graph A := {|
+  V := V g;
+  E u' v' := E g u' v' /\ (u <> u' \/ v <> v');
+  E_closed1 v _ HE := let '(conj HE _) := HE in E_closed1 g _ _ HE;
+  E_closed2 _ _ HE := let '(conj HE _) := HE in E_closed2 g _ _ HE
+|}.
+
+Lemma distance_decrease_nat_decrease_distance g v dv NW D D' pred pred' :
+  D v = Some dv ->
+  is_elem_weighted_unique_list (neighbours (G g) v) (W g v) NW ->
+  (D', pred') = fun2pair (nat_decrease_distance v NW D pred) ->
+  distance_decrease g v D D' pred pred'.
+Proof.
+  unfold is_elem_weighted_unique_list, is_elem_weighted_list, neighbours,
+    fun2pair, distance_decrease.
+  intros Hdv (Hlist&Hnodup) [= -> ->]. exists dv. split; auto. intros u.
+  generalize dependent g. induction NW as [|(n&w) NW' IHNW]; simpl in *; intros.
+  - split; intros HE.
+    + exfalso. eapply Hlist. eauto.
+    + rewrite Hdv. simpl. auto.
+  - rewrite Hdv. split; intros HE.
+    + split; intros Hdu.
+      * destruct Nat.eqb_spec with u n as [-> | Hneq].
+        -- rewrite Hdu. simpl. destruct Hlist with n w as ((_&->)&_); auto.
+        -- destruct Hlist with u (W g v u) as (_&[[= -> ->]|Hin]); auto.
+          ++ tauto.
+          ++ (*destruct IHNW with g as (HEvu&HnEvu).
+            { inversion Hnodup. auto. }
+            { intros. rewrite <- Hlist. split.
+              { auto. }
+              { intros [[= -> ]] } }*)
+(*
+            destruct IHNW with (wg_lift (edge_remove v u) g) as (HEvu&HnEvu).
+            { inversion Hnodup. auto. }
+            { intros x w'. simpl.
+             split.
+              { inversion Hnodup. intros Hin'.
+                destruct Hlist with x w as ((?&?)&_).
+                { auto. }
+                repeat split; auto. right. intros ->.
+                apply List.in_map with (f := fst) in Hin. simpl in Hin. auto. }
+              { intros ((HE'&[?|Hneq])&HW).
+                { tauto. }
+                { destruct Hlist with x w as (_&[[= ]|Hin]); tauto. } } }
+            simpl in *.
+          ++
+
+  destruct decidable_in with (L := NW) (x := (u, W g v u)) as [(?&?)%Hlist|?].
+  { intros. apply decidable_uncurry; unfold Decidable.decidable; lia. }
+  - split.
+    +*) admit.
 Admitted.

@@ -153,6 +153,11 @@ Parameter is_heap :
     (potential : nat),
     Value V -> StateAssertion V.
 
+Axiom is_equiv_heap :
+  forall V n C P P' W potential v,
+    set_equiv P P' ->
+    @is_heap V n C P W potential v ->> is_heap n C P' W potential v.
+
 Parameter heap_time_bound :
   forall (n C t : nat), Prop.
 
@@ -301,14 +306,15 @@ Definition l_tail_spec {V} (l_tail : Value V) : Prop :=
       (fun v => $c <*> <[v = l]> <*> is_list (h::L)%list l)
       (fun v => <[v = t]> <*> is_list L l <*> (is_list L l <-*> is_list (h::L)%list t)).
 
-Lemma is_set_size_with_neighbours A B (P : A -> Prop) s g n x f L1 L2 :
+Lemma is_set_size_with_neighbours A B (P P' : A -> Prop) s g n x f L1 L2 :
   is_irreflexive g ->
   is_set_size (V g) n ->
   is_set_size P s ->
   P x ->
+  are_disjoint_sets P P' ->
   @is_elem_weighted_unique_list A B (neighbours g x) f (L1 ++ L2)%list ->
   exists s', s' < n /\ is_set_size
-    (set_sum (set_remove P x) (fun y => List.In y (List.map fst L1))) s'.
+    (set_sum (set_remove P x) (fun y => ~ P' y /\ List.In y (List.map fst L1))) s'.
 Proof.
 Admitted.
 
@@ -1374,7 +1380,7 @@ Proof.
                     ($2 <*> ($ (S (S c_is_nil+?cn_0+(?cm*(m-?km)+?cn_t(*(n-?kn)*?cn'*?t*)))) <*>
                       ($ ?pot' <*>
                       ((((array_content _ ?a_pred <*> array_content _ ?a_D) <*>
-                        is_heap ?n' ?C ?P0 ?D' ?pot' ?h) <*>
+                        is_heap ?n' ?C ?P0 ?D_init ?pot' ?h) <*>
                         (is_list ?L ?l' <*>
                         (is_list ?L ?l' <-*> is_weighted_graph ?g ?vg))) <*>
                         <(?p_l :== ?l')>))))
@@ -1383,22 +1389,33 @@ Proof.
                   let pre :=
                     constr:($2 <*>
                     ((<exists> Neigh_list_processed Neigh_list_todo P'
-                      D_list pred_list D pred sp st l pot,
+                      D_list pred_list D pred D' pred' sp st l pot,
                     <[is_elem_weighted_unique_list
                         (neighbours g x_min)
                         (W g x_min)
                         (Neigh_list_processed ++ Neigh_list_todo)%list]> <*>
-                    <[List.length Neigh_list_processed = sp]> <*>
-                    <[List.length Neigh_list_todo = st]> <*>
-                    <[List.length D_list = n]> <*>
-                    <[List.length pred_list = n]> <*>
-                    <[forall x, List.In x (List.map fst Neigh_list_todo) ->
-                        D x = D_init x]> <*>
-                    <[forall x, List.In x (List.map fst Neigh_list_todo) ->
-                        pred x = pred_init x]> <*>
+                    <[List.length Neigh_list_processed = sp /\
+                      List.length Neigh_list_todo = st]> <*>
+                    <[List.length D_list = n /\ List.length pred_list = n]> <*>
+                    <[(forall x, List.In x (List.map fst Neigh_list_todo) ->
+                        D x = D_init x) /\
+                      (forall x, List.In x (List.map fst Neigh_list_todo) ->
+                        pred x = pred_init x) /\
+                      (forall x, List.In x (List.map fst Neigh_list_processed) ->
+                        D x = D' x) /\
+                      (forall x, List.In x (List.map fst Neigh_list_processed) ->
+                        pred x = pred' x) /\
+                      (forall x, ~ List.In x (List.map fst
+                        (Neigh_list_processed ++ Neigh_list_todo)) ->
+                        D x = D' x) /\
+                      (forall x, ~ List.In x (List.map fst
+                        (Neigh_list_processed ++ Neigh_list_todo)) ->
+                        pred x = pred' x) /\
+                      distance_decrease g x_min D_init D' pred_init pred']> <*>
                     <[is_nat_fun_of_val_list D_list D]> <*>
                     <[is_nat_fun_of_val_list pred_list pred]> <*>
-                    <[P' = set_sum P0 (fun x => List.In x (List.map fst Neigh_list_processed))]> <*>
+                    <[set_equiv P' (set_sum P0 (fun x => ~ P_init x /\
+                      List.In x (List.map fst Neigh_list_processed)))]> <*>
                     <[km + sp + st <= m]> <*>
 (*                    <[is_set_size P0 kn]> <*>
                     <[is_set_size (uncurry (E (induced_subgraph P0 g))) km]> <*>
@@ -1417,23 +1434,34 @@ Proof.
                   let post :=
                     constr:(fun b =>
                     (<exists> l Neigh_list_processed Neigh_list_todo P'
-                      D_list pred_list D pred sp st pot,
+                      D_list pred_list D pred D' pred' sp st pot,
                     <[negb (st =? 0) = b]> <*>
                     <[is_elem_weighted_unique_list
                         (neighbours g x_min)
                         (W g x_min)
                         (Neigh_list_processed ++ Neigh_list_todo)%list]> <*>
-                    <[List.length Neigh_list_processed = sp]> <*>
-                    <[List.length Neigh_list_todo = st]> <*>
-                    <[List.length D_list = n]> <*>
-                    <[List.length pred_list = n]> <*>
-                    <[forall x, List.In x (List.map fst Neigh_list_todo) ->
-                        D x = D_init x]> <*>
-                    <[forall x, List.In x (List.map fst Neigh_list_todo) ->
-                        pred x = pred_init x]> <*>
+                    <[List.length Neigh_list_processed = sp /\
+                      List.length Neigh_list_todo = st]> <*>
+                    <[List.length D_list = n /\ List.length pred_list = n]> <*>
+                    <[(forall x, List.In x (List.map fst Neigh_list_todo) ->
+                        D x = D_init x) /\
+                      (forall x, List.In x (List.map fst Neigh_list_todo) ->
+                        pred x = pred_init x) /\
+                      (forall x, List.In x (List.map fst Neigh_list_processed) ->
+                        D x = D' x) /\
+                      (forall x, List.In x (List.map fst Neigh_list_processed) ->
+                        pred x = pred' x) /\
+                      (forall x, ~ List.In x (List.map fst
+                        (Neigh_list_processed ++ Neigh_list_todo)) ->
+                        D x = D' x) /\
+                      (forall x, ~ List.In x (List.map fst
+                        (Neigh_list_processed ++ Neigh_list_todo)) ->
+                        pred x = pred' x) /\
+                      distance_decrease g x_min D_init D' pred_init pred']> <*>
                     <[is_nat_fun_of_val_list D_list D]> <*>
                     <[is_nat_fun_of_val_list pred_list pred]> <*>
-                    <[P' = set_sum P0 (fun x => List.In x (List.map fst Neigh_list_processed))]> <*>
+                    <[set_equiv P' (set_sum P0 (fun x => ~ P_init x /\
+                      List.In x (List.map fst Neigh_list_processed)))]> <*>
                     <[km + sp + st <= m]> <*>
 (*                    <[is_set_size P0 kn]> <*>
                     <[is_set_size (uncurry (E (induced_subgraph P0 g))) km]> <*>
@@ -1467,12 +1495,65 @@ Proof.
                     apply implies_spec. intros.
                     lazymatch goal with
                     | [H : is_elem_weighted_unique_list _ _ ?L,
+                      Hinv : Dijkstra_invariant ?D ?pred _ _ _,
                       Hpre : (_ <*> (_ <*> (array_content ?pred_list _ <*>
                         array_content ?D_list _ <*> _ <*> _ <*> <(_ :== ?l)>))) _ _
                       |- _] =>
-                      eexists nil, L, _, D_list, pred_list, _, _, 0, _, l
+                      let D'pred' :=
+                        constr:(fun2pair (nat_decrease_distance x_min L D pred)) in
+                      eexists nil, L, _, D_list, pred_list, D, pred,
+                        (fst D'pred'), (snd D'pred'), 0, _, l
                     end.
-                    solve_star; eauto.
+                    solve_star.
+                    { simpl.
+                      (*lazymatch goal with
+                      | [H : is_elem_weighted_unique_list _ _ ?L |- _] =>
+                        rename H into Hlist;
+                        assert (forall u,
+                          ~ List.In u (List.map fst L) -> ~ E g x_min u) as Hnin
+                      end.
+                      { unfold is_elem_weighted_unique_list,
+                          is_elem_weighted_list, neighbours in Hlist.
+                        destruct Hlist as (Hlist&?). intros u Hin HE.
+                        apply Hin. apply List.in_map_iff. eexists.
+                        rewrite Hlist. simpl. auto. }*)
+                      split_all; try tauto.
+                      { clear.
+                        lazymatch goal with
+                        | [|- forall _,
+                          _ -> ?D _ = fst (nat_decrease_distance _ ?L ?D _ _)] =>
+                          rename D into D';
+                          induction L as [|(v&w) L' IHL]; simpl; intros u Hnin
+                        end.
+                        { destruct (D' x_min); simpl; reflexivity. }
+                        { destruct (D' x_min); simpl.
+                          { destruct Nat.eqb_spec with u v as [-> | ?].
+                            { tauto. }
+                            { auto. } }
+                          { reflexivity. } } }
+                      { clear.
+                        lazymatch goal with
+                        | [|- forall _,
+                          _ -> ?pred _ = snd (nat_decrease_distance _ ?L ?D ?pred _)] =>
+                          rename D into D'; rename pred into pred';
+                          induction L as [|(v&w) L' IHL]; simpl; intros u Hnin
+                        end.
+                        { destruct (D' x_min); simpl; reflexivity. }
+                        { destruct (D' x_min); simpl.
+                          { destruct Nat.eqb_spec with u v as [-> | ?].
+                            { tauto. }
+                            { auto. } }
+                          { reflexivity. } } }
+                      eapply distance_decrease_nat_decrease_distance; eauto.
+                      { lazymatch goal with
+                        | [H : is_nat_fun_of_val_list ?L ?D,
+                          H' : List.nth x_min ?L None = _
+                          |- ?D x_min = _] =>
+                          unfold is_nat_fun_of_val_list, fun_of_list in H;
+                          destruct H as (?&Hfun)
+                        end.
+                        apply Hfun. eassumption. } }
+                    { unfold set_equiv. reflexivity. }
                     { rewrite Nat.add_0_r.
                       lazymatch goal with
                       | [H : is_elem_weighted_unique_list _ _ _ |- _] =>
@@ -1558,6 +1639,9 @@ Proof.
                       eapply implies_trans; [apply star_comm|].
                       apply star_implies_mono.
                       { apply implies_spec. intros. do 6 eexists.
+                        repeat lazymatch goal with
+                        | [H : _ /\ _ |- _] => destruct H
+                        end.
                         lazymatch goal with
                         | [_ : Dijkstra_invariant ?D ?pred _ _ _,
                           _ : forall _, List.In _ _ -> ?fD _ = ?D _,
@@ -1572,7 +1656,7 @@ Proof.
                             unify L L'; destruct L'; simpl; reflexivity
                           end. }
                         { eassumption. }
-                        8:{ swap_star_ctx. normalize_star. swap_star_ctx.
+                        7:{ swap_star_ctx. normalize_star. swap_star_ctx.
                           normalize_star. swap_star_ctx. normalize_star.
                           lazymatch goal with
                           | [H : ?x = ?y, H' : ($ (_ + (_ * (_ - ?y) + _ * _)) <*> _) ?c ?m
@@ -1581,14 +1665,13 @@ Proof.
                           end.
                           eapply star_implies_mono; try eassumption.
                           { prove_implies_refl. }
-                          { prove_implies. subst. prove_implies. }
+                          { prove_implies. }
                         }
+                        { auto. }
+                        { eauto 10. }
                         { assumption. }
                         { assumption. }
                         { assumption. }
-                        { assumption. }
-                        { assumption. }
-                        { eassumption. }
                         { subst. assumption. } }
                       { apply implies_spec. intros. solve_star. eassumption. } } }
                 +++ clear Hlen1 Hlen2.
@@ -1603,6 +1686,9 @@ Proof.
                     (Nat.add_comm (_+_ * (m' - _ - _))),
                     (Nat.mul_comm _ (m' - _ - _)),
                     <- (Nat.add_assoc _ (_ + (m' - _ - _)*_)).
+                  repeat lazymatch goal with
+                  | [H : _ /\ _ |- _] => destruct H
+                  end.
                   lazymatch goal with
                   | [Hneq : ?l <> 0, Hlen : List.length ?L = ?l |- _] =>
                     destruct L; simpl in Hlen; [lia|]
@@ -1668,7 +1754,16 @@ Proof.
                   | [Hpred : is_nat_fun_of_val_list ?pred_list ?pred,
                      HD : is_nat_fun_of_val_list ?D_list ?D,
                      HeqD_list : ?D_list = _ ?DL,
-                     HeqDL : ?DL = (?L1 ++ ?t::?L2)%list
+                     HeqDL : ?DL = (?L1 ++ ?t::?L2)%list,
+                     Hmatch_D : forall _,
+                        List.In _ (List.map fst (_::?Neigh_list_todo)) ->
+                        ?D _ = ?D_init _,
+                     Hmatch_pred : forall _,
+                        List.In _ (List.map fst (_::?Neigh_list_todo)) ->
+                        ?pred _ = ?pred_init _,
+                     Hlist : is_elem_weighted_unique_list _ _
+                        (?Neigh_list_processed ++ (i',w')::?Neigh_list_todo),
+                     HDij_inv : Dijkstra_invariant ?D_init ?pred_init ?P_init src g
                     |- triple _
                       ($(S ?cm + ?cm2 + (?cr + ?cr2 + (?cn_t + ?cn_t2)*?t')) <*> ( ($?pot <*> ($?c2 <*>
                         (?P1 <*> ?P2 <*>
@@ -1691,17 +1786,37 @@ Proof.
                     triple_pull_1_credit;
                     eapply triple_seq with
                       (Q1 :=
-                        ((<exists> D' pred' D_list' pred_list' H W pot,
+                        ((<exists> D' pred' D'' pred'' D_list' pred_list' H' (*W*) pot,
                         (*<[distance_decrease g src D D' pred pred']> <*>*)
-                        <[is_nat_fun_of_val_list D_list' D']> <*>
-                        <[is_nat_fun_of_val_list pred_list' pred']> <*>
+                        <[is_nat_fun_of_val_list D_list' D' /\
+                          is_nat_fun_of_val_list pred_list' pred']> <*>
+                        <[List.length D_list' = n /\ List.length pred_list' = n]> <*>
+                        <[(forall x, List.In x (List.map fst Neigh_list_todo) ->
+                            D' x = D_init x) /\
+                          (forall x, List.In x (List.map fst Neigh_list_todo) ->
+                            pred' x = pred_init x) /\
+                          (forall x, List.In x
+                            (List.map fst (Neigh_list_processed ++ [(i',w')])) ->
+                            D' x = D'' x) /\
+                          (forall x, List.In x
+                            (List.map fst (Neigh_list_processed ++ [(i',w')])) ->
+                            pred' x = pred'' x) /\
+                          (forall x, ~ List.In x (List.map fst
+                            (Neigh_list_processed ++ (i',w')::Neigh_list_todo)) ->
+                            D' x = D'' x) /\
+                          (forall x, ~ List.In x (List.map fst
+                            (Neigh_list_processed ++ (i',w')::Neigh_list_todo)) ->
+                            pred' x = pred'' x) /\
+                          distance_decrease g x_min D_init D'' pred_init pred'']> <*>
+                        <[set_equiv H' (set_sum (set_remove _ x_min)
+                          (fun x => ~ P_init x /\ List.In x
+                          (List.map fst (Neigh_list_processed ++ [(i',w')]))))]> <*>
                         $c2 <*> P1 <*> P2 <*> P3 <*>
                         array_content D_list' a_D <*>
-                        is_heap n C H W pot h <*>
+                        is_heap n C H' (*W*) D' pot h <*>
                         array_content pred_list' a_pred) <*>
                         <exists> c, $c) <*> $(cm2 + cr + cr2 + cn_t2*t'))
                   end.
-                 (*eapply triple_seq.*)
                   *** eapply triple_weaken, triple_frame.
                     2:{
                       apply implies_post_spec. intros.
@@ -2130,7 +2245,7 @@ Proof.
                                 eapply implies_trans; [apply star_assoc|].
                                 eapply implies_trans; [apply star_assoc|].
                                 apply star_implies_mono; [prove_implies_refl|].
-                                apply implies_spec. intros. do 7 eexists.
+                                apply implies_spec. intros. do 8 eexists.
                                 conormalize_star. swap_star. apply star_assoc.
                                 eapply star_implies_mono;
                                   [|prove_implies_refl|eassumption].
@@ -2181,20 +2296,212 @@ Proof.
                           { apply implies_post_spec. intros ? ? ? HQ.
                             normalize_star. swap_star_ctx. normalize_star.
                             solve_star. swap_star. solve_star. swap_star.
-                            solve_star.
+                            repeat match goal with
+                            | [|- ((_ <*> _) <*> _) ?c ?m ] =>
+                              apply star_assoc_l; eauto
+                            | [|- (<[_]> <*> _) ?c ?m ] =>
+                              apply star_pure_l; split_all
+                            end.
+                            { assumption. }
+                              (*solve_star.*)
                             (*{ unfold distance_decrease. (*TODO*) }*)
                             { rewrite <- (Nat2Z.inj_add).
                               eapply nat_function_update. eassumption. }
                             { eapply nat_function_update. eassumption. }
-                            { swap_star. eassumption. } }
+                            { rewrite <- Hlen1, List.app_length, List.app_length.
+                              simpl. reflexivity. }
+                            { rewrite <- Hlen2, List.app_length, List.app_length.
+                              simpl. reflexivity. }
+                            { unfold update_nat_function_at. intros i'' Hin.
+                              lazymatch goal with
+                              | [|- (if i'' =? ?x then _ else _) = _] =>
+                                destruct Nat.eqb_spec with i'' x
+                              end.
+                              { exfalso. subst i''.
+                                lazymatch goal with
+                                | [H : is_elem_weighted_unique_list _ _
+                                    (_ ++ (i',w')::_) |- _] =>
+                                  unfold is_elem_weighted_unique_list in H;
+                                  rewrite List.map_app in H; simpl in H;
+                                  destruct H as (?&Hnin%List.NoDup_remove_2)
+                                end.
+                                apply Hnin. apply List.in_or_app. eauto. }
+                              { eauto. } }
+                            { unfold update_nat_function_at. intros i'' Hin.
+                              lazymatch goal with
+                              | [|- (if i'' =? ?x then _ else _) = _] =>
+                                destruct Nat.eqb_spec with i'' x
+                              end.
+                              { exfalso. subst i''.
+                                lazymatch goal with
+                                | [H : is_elem_weighted_unique_list _ _
+                                    (_ ++ (i',w')::_) |- _] =>
+                                  unfold is_elem_weighted_unique_list in H;
+                                  rewrite List.map_app in H; simpl in H;
+                                  destruct H as (?&Hnin%List.NoDup_remove_2)
+                                end.
+                                apply Hnin. apply List.in_or_app. eauto. }
+                              { eauto. } }
+                            { unfold update_nat_function_at. intros i'' Hin.
+                              lazymatch goal with
+                              | [|- (if i'' =? ?x then _ else _) = _] =>
+                                destruct Nat.eqb_spec with i'' x
+                              end.
+                              { subst i''.
+                                lazymatch goal with
+                                | [H : distance_decrease g x_min ?D ?D' ?pred ?pred',
+                                  Hneigh : is_elem_weighted_unique_list _ _
+                                    (?L1++(i',w')::?L2)%list,
+                                  HD : forall _, _ \/ _ -> ?f _ = ?D _,
+                                  (*HD' : forall _, _ -> ?f _ = ?D' _*)
+                                  HDSome : forall _ _, _ <-> ?f _ = Some _
+                                  |- _ = ?g i'] =>
+                                  unify D' g; unfold distance_decrease in H;
+                                  unfold is_elem_weighted_unique_list,
+                                    is_elem_weighted_list, neighbours in Hneigh;
+                                  rewrite List.map_app in Hneigh; simpl in Hneigh;
+                                  destruct Hneigh as (Hneigh&Hnin%List.NoDup_remove_2);
+                                  specialize Hneigh with i' w';
+                                  rewrite List.in_app_iff in Hneigh; simpl in Hneigh;
+                                  destruct Hneigh as ((HE&HW)&_); auto;
+                                  destruct H as (dv&Hdv&Hvalue);
+                                  destruct Hvalue with i' as (((->&?)&?)&?);
+                                  [assumption|
+                                    destruct (D i') eqn:HDi'; auto;
+                                    rewrite <- HD in HDi'; auto;
+                                    rewrite <- HDSome, List.app_nth2,
+                                      List.map_length, Hlen3, Nat.sub_diag in HDi';
+                                    [simpl in HDi'; injection HDi'; lia|
+                                      rewrite List.map_length; lia]|]
+                                end.
+                                subst w'. do 2 f_equal.
+                                lazymatch goal with
+                                | [H : List.nth x_min ?L None = Some (Int (Z.of_nat ?n)),
+                                  Hfun : is_nat_fun_of_val_list ?L ?D
+                                  |- ?n = dv] =>
+                                  unfold is_nat_fun_of_val_list, fun_of_list in Hfun;
+                                  destruct Hfun as (?&Hfun);
+                                  apply Hfun in H; rewrite H in Hdv
+                                end.
+                                injection Hdv. auto. }
+                                { lazymatch goal with
+                                  | [H : forall _, List.In _ _ -> ?f _ = ?D' _
+                                    |- ?f i'' = ?D' i''] =>
+                                    apply H
+                                  end.
+                                  rewrite List.map_app in Hin.
+                                  apply List.in_app_or in Hin.
+                                  simpl in Hin. destruct Hin as [Hin|[->|[]]]; tauto. } }
+                            { unfold update_nat_function_at. intros i'' Hin.
+                              lazymatch goal with
+                              | [|- (if i'' =? ?x then _ else _) = _] =>
+                                destruct Nat.eqb_spec with i'' x
+                              end.
+                              { subst i''.
+                                lazymatch goal with
+                                | [H : distance_decrease g x_min ?D ?D' ?pred ?pred',
+                                  Hneigh : is_elem_weighted_unique_list _ _
+                                    (?L1++(i',w')::?L2)%list,
+                                  HD : forall _, _ \/ _ -> ?h _ = ?D _,
+                                  Hpred : forall _, _ \/ _ -> ?f _ = ?pred _,
+                                  HDSome : forall _ _, _ <-> ?h _ = Some _,
+                                  HpredSome : forall _ _, _ <-> ?f _ = Some _
+                                  |- _ = ?g i'] =>
+                                  unify pred' g; unfold distance_decrease in H;
+                                  unfold is_elem_weighted_unique_list,
+                                    is_elem_weighted_list, neighbours in Hneigh;
+                                  rewrite List.map_app in Hneigh; simpl in Hneigh;
+                                  destruct Hneigh as (Hneigh&Hnin%List.NoDup_remove_2);
+                                  specialize Hneigh with i' w';
+                                  rewrite List.in_app_iff in Hneigh; simpl in Hneigh;
+                                  destruct Hneigh as ((HE&HW)&_); auto;
+                                  destruct H as (dv&Hdv&Hvalue);
+                                  destruct Hvalue with i' as (((?&->)&?)&?);
+                                  [assumption|
+                                    destruct (D i') eqn:HDi'; auto;
+                                    rewrite <- HD in HDi'; auto;
+                                    rewrite <- HDSome, List.app_nth2,
+                                      List.map_length, Hlen3, Nat.sub_diag in HDi';
+                                    [simpl in HDi'; injection HDi'; lia|
+                                      rewrite List.map_length; lia]|]
+                                end.
+                                reflexivity. }
+                                { lazymatch goal with
+                                  | [H : forall _, List.In _ _ -> ?f _ = ?pred' _
+                                    |- ?f i'' = ?pred' i''] =>
+                                    apply H
+                                  end.
+                                  rewrite List.map_app in Hin.
+                                  apply List.in_app_or in Hin.
+                                  simpl in Hin. destruct Hin as [Hin|[->|[]]]; tauto. } }
+                            { unfold update_nat_function_at. intros i'' Hnin.
+                              destruct Nat.eqb_spec with i'' i'.
+                              { exfalso. subst i''.
+                                apply Hnin. rewrite List.map_app, List.in_app_iff.
+                                simpl. auto. }
+                              { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
+                            { unfold update_nat_function_at. intros i'' Hnin.
+                              destruct Nat.eqb_spec with i'' i'.
+                              { exfalso. subst i''.
+                                apply Hnin. rewrite List.map_app, List.in_app_iff.
+                                simpl. auto. }
+                              { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
+                            { assumption. }
+                            { lazymatch goal with
+                              | [ H : set_equiv ?Q ?R,
+                                  H' : (is_heap n C ?P _ _ _ <*> _) _ _
+                                |- set_equiv ?P' _] =>
+                                unify P P'; unfold set_sum;
+                                unfold set_equiv in H |- *; intros; rewrite H
+                              end.
+                              unfold set_sum, single. rewrite List.map_app, List.in_app_iff.
+                              simpl.
+                              lazymatch goal with
+                              | [|- (set_remove ?P x_min _ \/ _) \/ _ <->
+                                  set_remove ?P' x_min _ \/ _] =>
+                                unify P P'
+                              end.
+                              split; [|clear; tauto].
+                              lazymatch goal with
+                              | [|- (_ \/ ~ ?P _ /\_) \/ _ -> _ \/ ~ ?P _ /\ _] =>
+                                assert (~ P i') as Hi'P
+                              end.
+                              { admit. }
+                              intros [Hin | ->]; [revert Hin|revert Hi'P];
+                              clear; tauto. }
+                            { swap_star. unfold update_nat_function_at.
+                              lazymatch goal with
+                              | [H : (is_heap n C _ (_ (Z.to_nat _)) _ _ <*> _)
+                                  _ _ |- _] =>
+                                rewrite Z2Nat.inj_add, Nat2Z.id, Nat2Z.id in H;
+                                try lia;
+                                unfold set_value_at in H
+                              end.
+                              eassumption. } }
                           { rewrite <- Hn in *.
-                            edestruct is_set_size_with_neighbours as (?&?&?); eauto.
+                            lazymatch goal with
+                            | [H : Dijkstra_invariant ?D ?pred ?P src g |- _] =>
+                              edestruct is_set_size_with_neighbours
+                                with (P' := P) as (?&?&?); eauto
+                            end.
                             { unfold min_cost_elem in Hmincost.
                               destruct Hmincost as (?&?). eassumption. }
+                            { unfold are_disjoint_sets. intros.
+                              lazymatch goal with
+                              | [H : (?P = empty /\ ?P' = _) \/ (?P src /\ ?P' = _)
+                                |- ~ (?P' _ /\ ?P _)] =>
+                                destruct H as [(->&->)|(?&->)]
+                              end;
+                              clear; unfold empty, neighbourhood; tauto. }
                             eapply Hspec_h_insert; unfold empty, not; auto.
-                            { eassumption. }
-                            { eassumption. }
-                            { unfold set_sum, set_remove. intros [(Hin&Hneq)|Hin].
+                            { eapply equiv_set_size; [|eassumption].
+                              unfold set_equiv in *. intros. symmetry. eauto. }
+                            { assumption. }
+                            { lazymatch goal with
+                              | [H : set_equiv ?P _ |- ?P _ -> _] =>
+                                unfold set_equiv in H; rewrite H
+                              end.
+                              unfold set_sum, set_remove. intros [(Hin&Hneq)|(Hnin&Hin)].
                               { lazymatch goal with
                                 | [H : forall _ _,
                                     List.nth _ (_ _ ++ Some (Int x')::_ _)%list _ = _
@@ -2484,7 +2791,7 @@ Proof.
                                   eapply implies_trans; [apply star_assoc|].
                                   eapply implies_trans; [apply star_assoc|].
                                   apply star_implies_mono; [prove_implies_refl|].
-                                  apply implies_spec. intros. do 7 eexists.
+                                  apply implies_spec. intros. do 8 eexists.
                                   conormalize_star. swap_star. apply star_assoc.
                                   eapply star_implies_mono;
                                     [|prove_implies_refl|eassumption].
@@ -2537,11 +2844,259 @@ Proof.
                             { apply implies_post_spec. intros ? ? ? HQ.
                               normalize_star. swap_star_ctx. normalize_star.
                               solve_star. swap_star. solve_star. swap_star.
-                              solve_star.
+                              repeat match goal with
+                              | [|- ((_ <*> _) <*> _) ?c ?m ] =>
+                                apply star_assoc_l; eauto
+                              | [|- (<[_]> <*> _) ?c ?m ] =>
+                                apply star_pure_l; split_all
+                              end.
+                              { assumption. }
+                              (*solve_star.*)
                               (*{ unfold distance_decrease. (*TODO*) }*)
                               { eapply nat_function_update. eassumption. }
                               { eapply nat_function_update. eassumption. }
-                              { swap_star. rewrite Nat.add_0_l. eassumption. } }
+                              { rewrite <- Hlen1, List.app_length, List.app_length.
+                                simpl. reflexivity. }
+                              { rewrite <- Hlen2, List.app_length, List.app_length.
+                                simpl. reflexivity. }
+                              { unfold update_nat_function_at. intros i'' Hin.
+                                lazymatch goal with
+                                | [|- (if i'' =? ?x then _ else _) = _] =>
+                                  destruct Nat.eqb_spec with i'' x
+                                end.
+                                { exfalso. subst i''.
+                                  lazymatch goal with
+                                  | [H : is_elem_weighted_unique_list _ _
+                                      (_ ++ (i',w')::_) |- _] =>
+                                    unfold is_elem_weighted_unique_list in H;
+                                    rewrite List.map_app in H; simpl in H;
+                                    destruct H as (?&Hnin%List.NoDup_remove_2)
+                                  end.
+                                  apply Hnin. apply List.in_or_app. eauto. }
+                                { eauto. } }
+                              { unfold update_nat_function_at. intros i'' Hin.
+                                lazymatch goal with
+                                | [|- (if i'' =? ?x then _ else _) = _] =>
+                                  destruct Nat.eqb_spec with i'' x
+                                end.
+                                { exfalso. subst i''.
+                                  lazymatch goal with
+                                  | [H : is_elem_weighted_unique_list _ _
+                                      (_ ++ (i',w')::_) |- _] =>
+                                    unfold is_elem_weighted_unique_list in H;
+                                    rewrite List.map_app in H; simpl in H;
+                                    destruct H as (?&Hnin%List.NoDup_remove_2)
+                                  end.
+                                  apply Hnin. apply List.in_or_app. eauto. }
+                                { eauto. } }
+                              { unfold update_nat_function_at. intros i'' Hin.
+                                lazymatch goal with
+                                | [|- (if i'' =? ?x then _ else _) = _] =>
+                                  destruct Nat.eqb_spec with i'' x
+                                end.
+                                { subst i''.
+                                  lazymatch goal with
+                                  | [H : distance_decrease g x_min ?D ?D' ?pred ?pred',
+                                    Hneigh : is_elem_weighted_unique_list _ _
+                                      (?L1++(i',w')::?L2)%list,
+                                    HD : forall _, _ \/ _ -> ?f _ = ?D _,
+                                    HDSome : forall _ _, _ <-> ?f _ = Some _,
+                                    Hlist : List.nth x_min ?L None = Some (Int (Z.of_nat ?n)),
+                                    Hfun : is_nat_fun_of_val_list ?L ?D,
+                                    Hfun' : is_nat_fun_of_val_list ?L' ?f
+                                    |- _ = ?g i'] =>
+                                    unify D' g; unfold distance_decrease in H;
+                                    unfold is_nat_fun_of_val_list, fun_of_list in Hfun, Hfun';
+                                    destruct Hfun as (?&Hfun); destruct Hfun' as (?&Hfun');
+                                    unfold is_elem_weighted_unique_list,
+                                      is_elem_weighted_list, neighbours in Hneigh;
+                                    rewrite List.map_app in Hneigh; simpl in Hneigh;
+                                    destruct Hneigh as (Hneigh&Hnin%List.NoDup_remove_2);
+                                    specialize Hneigh with i' w';
+                                    rewrite List.in_app_iff in Hneigh; simpl in Hneigh;
+                                    destruct Hneigh as ((HE&HW)&_); auto;
+                                    destruct H as (dv&Hdv&Hvalue);
+                                    apply Hfun in Hlist; rewrite Hlist in Hdv;
+                                    injection Hdv as <-;
+                                    edestruct Hvalue with i' as ((?&((->&?)&?))&?);
+                                    [assumption|
+                                      rewrite <- HD, <- Hfun', List.app_nth2,
+                                      List.map_length, Hlen3, Nat.sub_diag; auto;
+                                      [simpl; do 2 f_equal; rewrite Z2Nat.id; auto; lia|
+                                        rewrite List.map_length; lia]|
+                                      rewrite <- HW;
+                                      lazymatch goal with
+                                      | [|- _ < ?k] => unify k (Z.to_nat x')
+                                      end;
+                                      lia|]
+                                  end.
+                                  do 2 f_equal. assumption. }
+                                  { lazymatch goal with
+                                    | [H : forall _, List.In _ _ -> ?f _ = ?D' _
+                                      |- ?f i'' = ?D' i''] =>
+                                      apply H
+                                    end.
+                                    rewrite List.map_app in Hin.
+                                    apply List.in_app_or in Hin.
+                                    simpl in Hin. destruct Hin as [Hin|[->|[]]]; tauto. } }
+                              { unfold update_nat_function_at. intros i'' Hin.
+                                lazymatch goal with
+                                | [|- (if i'' =? ?x then _ else _) = _] =>
+                                  destruct Nat.eqb_spec with i'' x
+                                end.
+                                { subst i''.
+                                  lazymatch goal with
+                                  | [H : distance_decrease g x_min ?D ?D' ?pred ?pred',
+                                    Hneigh : is_elem_weighted_unique_list _ _
+                                      (?L1++(i',w')::?L2)%list,
+                                    Hpred : forall _, _ \/ _ -> ?h _ = ?pred _,
+                                    HD : forall _, _ \/ _ -> ?f _ = ?D _,
+                                    HDSome : forall _ _, _ <-> ?f _ = Some _,
+                                    Hlist : List.nth x_min ?L None = Some (Int (Z.of_nat ?n)),
+                                    Hfun : is_nat_fun_of_val_list ?L ?D,
+                                    Hfun' : is_nat_fun_of_val_list ?L' ?f
+                                    |- _ = ?g i'] =>
+                                    unify pred' g; unfold distance_decrease in H;
+                                    unfold is_nat_fun_of_val_list, fun_of_list in Hfun, Hfun';
+                                    destruct Hfun as (?&Hfun); destruct Hfun' as (?&Hfun');
+                                    unfold is_elem_weighted_unique_list,
+                                      is_elem_weighted_list, neighbours in Hneigh;
+                                    rewrite List.map_app in Hneigh; simpl in Hneigh;
+                                    destruct Hneigh as (Hneigh&Hnin%List.NoDup_remove_2);
+                                    specialize Hneigh with i' w';
+                                    rewrite List.in_app_iff in Hneigh; simpl in Hneigh;
+                                    destruct Hneigh as ((HE&HW)&_); auto;
+                                    destruct H as (dv&Hdv&Hvalue);
+                                    apply Hfun in Hlist; rewrite Hlist in Hdv;
+                                    injection Hdv as <-;
+                                    edestruct Hvalue with i' as ((?&((->&?)&?))&?);
+                                    [assumption|
+                                      rewrite <- HD, <- Hfun', List.app_nth2,
+                                      List.map_length, Hlen3, Nat.sub_diag; auto;
+                                      [simpl; do 2 f_equal; rewrite Z2Nat.id; auto; lia|
+                                        rewrite List.map_length; lia]|
+                                      rewrite <- HW;
+                                      lazymatch goal with
+                                      | [|- _ < ?k] => unify k (Z.to_nat x')
+                                      end;
+                                      lia|]
+                                  end.
+                                  symmetry. assumption. }
+                                  { lazymatch goal with
+                                    | [H : forall _, List.In _ _ -> ?f _ = ?pred' _
+                                      |- ?f i'' = ?pred' i''] =>
+                                      apply H
+                                    end.
+                                    rewrite List.map_app in Hin.
+                                    apply List.in_app_or in Hin.
+                                    simpl in Hin. destruct Hin as [Hin|[->|[]]]; tauto. } }
+                              { unfold update_nat_function_at. intros i'' Hnin.
+                                destruct Nat.eqb_spec with i'' i'.
+                                { exfalso. subst i''.
+                                  apply Hnin. rewrite List.map_app, List.in_app_iff.
+                                  simpl. auto. }
+                              { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
+                              { unfold update_nat_function_at. intros i'' Hnin.
+                                destruct Nat.eqb_spec with i'' i'.
+                                { exfalso. subst i''.
+                                  apply Hnin. rewrite List.map_app, List.in_app_iff.
+                                  simpl. auto. }
+                              { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
+                              { assumption. }
+                              { lazymatch goal with
+                                | [ H : set_equiv ?Q ?R,
+                                    H' : (is_heap n C ?P _ _ _ <*> _) _ _
+                                  |- set_equiv ?P' _] =>
+                                  unify P P'; unfold set_sum;
+                                  unfold set_equiv in H |- *; intros; rewrite H
+                                end.
+                                unfold set_sum, single.
+                                rewrite List.map_app, List.in_app_iff. simpl.
+                                split; [clear; tauto|]. intros [?|(?&[?|[<-|[]]])]; auto.
+                                left. unfold set_remove. split.
+                                { lazymatch goal with
+                                  | [H : (Z.of_nat ?m_cost + Z.of_nat w' < x')%Z,
+                                    H' : List.nth x_min ?L None = Some (Int (_ ?m_cost)),
+                                    H'' : is_nat_fun_of_val_list ?L ?D
+                                    |- _] =>
+                                    assert (D x_min = Some m_cost) as HDSome;
+                                    [unfold is_nat_fun_of_val_list, fun_of_list in H'';
+                                      destruct H'' as (?&H''); apply H''; eassumption|]
+                                  end.
+                                  lazymatch goal with
+                                  | [H : Dijkstra_invariant _ _ _ _ _ |- _] =>
+                                    eapply Dijkstra_invariant_if_D_some with
+                                      (x := i') (pr2 := x_min) in H
+                                      as [(HP&?)|(?&?)]
+                                  end.
+                                  { lazymatch goal with
+                                    | [H : (_ = empty /\ _ = set_sum empty _) \/
+                                        (_ src /\ _ = neighbourhood _ _)
+                                        |- _] =>
+                                      destruct H as [(->&->)|(Hin&->)]
+                                    end.
+                                    { unfold set_sum, empty, single. auto. }
+                                    { exfalso. rewrite HP in Hin. unfold empty in Hin.
+                                      assumption. } }
+                                  { lazymatch goal with
+                                    | [H : (_ = empty /\ _ = set_sum empty _) \/
+                                        (_ src /\ _ = neighbourhood _ _)
+                                        |- _] =>
+                                      destruct H as [(->&->)|(Hin&->)]
+                                    end.
+                                    { contradiction. }
+                                    { assumption. } }
+                                  { lazymatch goal with
+                                    | [Heq : forall _, _ -> ?f _ = ?D _,
+                                      Hfun : forall _ _, _ <-> ?f _ = _
+                                      |- ?D i' = _] =>
+                                      rewrite <- Heq; auto; apply Hfun
+                                    end.
+                                    rewrite List.app_nth2;
+                                    rewrite List.map_length; subst i'; [|lia].
+                                    rewrite Nat.sub_diag. simpl. repeat f_equal.
+                                    symmetry. apply Z2Nat.id. lia. }
+                                  { lazymatch goal with
+                                    | [H : is_elem_weighted_unique_list _ _ (_++(i',w')::_)%list
+                                      |- _] =>
+                                      unfold is_elem_weighted_unique_list,
+                                        is_elem_weighted_list, neighbours in H;
+                                      edestruct H as (((?&?)&?)&?); [|eassumption]
+                                    end.
+                                    { apply List.in_or_app. simpl. auto. } }
+                                  { eassumption. }
+                                  { lazymatch goal with
+                                    | [H : is_elem_weighted_unique_list _ _ (_++(i',w')::_)%list
+                                      |- _] =>
+                                      unfold is_elem_weighted_unique_list,
+                                        is_elem_weighted_list, neighbours in H;
+                                      edestruct H as (((?&Heq)&?)&?)
+                                    end.
+                                    { apply List.in_or_app. simpl. auto. }
+                                    { rewrite <- Heq. lia. } } }
+                                { lazymatch goal with
+                                  | [H : is_elem_weighted_unique_list _ _ (_++(i',w')::_)%list
+                                    |- _] =>
+                                    unfold is_elem_weighted_unique_list,
+                                      is_elem_weighted_list, neighbours in H;
+                                    edestruct H as (((?&?)&?)&?)
+                                  end.
+                                  { apply List.in_or_app. simpl. auto. }
+                                  { intros ->.
+                                    lazymatch goal with
+                                    | [H : is_irreflexive _ |- _] =>
+                                      unfold is_irreflexive in H; eapply H
+                                    end.
+                                    eassumption. } } }
+                              { swap_star. rewrite Nat.add_0_l.
+                                unfold update_nat_function_at.
+                                lazymatch goal with
+                                | [H : (is_heap n C _ (_ (Z.to_nat _)) _ _ <*> _)
+                                    _ _ |- _] =>
+                                  rewrite Nat2Z.id in H; try lia;
+                                  unfold set_value_at in H
+                                end.
+                                eassumption. } }
                             { eapply Hspec_h_decrease_key; unfold empty, not; auto.
                               { (*lazymatch goal with
                                 | [H : is_elem_weighted_unique_list _ _ (?L++_)%list
@@ -2552,6 +3107,10 @@ Proof.
                                 end.
                                 eauto.
                                 admit.*)
+                                lazymatch goal with
+                                | [ H : set_equiv ?P ?P' |- ?P _] =>
+                                  unfold set_equiv in H |- *; rewrite H
+                                end.
                                 unfold set_sum, set_remove. left. split.
                                 { lazymatch goal with
                                   | [H : (Z.of_nat ?m_cost + Z.of_nat w' < x')%Z,
@@ -2675,16 +3234,35 @@ Proof.
                           eapply star_implies_mono; eauto; [|prove_implies_refl].
                           apply credits_star_l. reflexivity. }
                         apply implies_spec. intros. apply star_pure_l.
-                        split; auto. do 7 eexists.
+                        split; auto. do 8 eexists.
                         lazymatch goal with
                         | [H : (_ <*> (_ <*> array_content ?L ?a)) ?c ?m,
                            Hfun_a : is_nat_fun_of_val_list ?L _,
                            Hfun_b : is_nat_fun_of_val_list _ _
                           |- (_ <*> array_content _ ?a <*> _ <*> _) ?c ?m] =>
                           repeat apply star_assoc_l;
-                          apply star_pure_l; split; [exact Hfun_a|];
-                          apply star_pure_l; split; [exact Hfun_b|]
+                          apply star_pure_l; split_all; [exact Hfun_a|exact Hfun_b|]
                         end.
+                        rewrite Z.ltb_nlt in *. solve_star.
+                        { split_all; try eassumption; eauto. all:admit. }
+                        { lazymatch goal with
+                          | [ H : set_equiv ?Q ?R,
+                              H' : (_ <*> (_ <*>
+                                is_heap n C ?P _ _ _ <*> _ <*> _ <*> _)) _ _
+                            |- set_equiv ?P' _] =>
+                            unify P P'; unfold set_sum;
+                            unfold set_equiv in H |- *; intros; rewrite H
+                          end.
+                          unfold set_sum, single. rewrite List.map_app, List.in_app_iff.
+                          simpl. split; [clear; tauto|].
+                          lazymatch goal with
+                          | [|- _ \/ ~ ?P _ /\ _ -> _ \/ ~ ?P _ /\ _] =>
+                            assert (P i') as Hi'P
+                          end.
+                          { admit. }
+                          intros [Hin | (Hnin&[Hin| [<-|[]]])];
+                            [revert Hin|revert Hnin Hin|revert Hnin Hi'P];
+                            clear; tauto. }
                         eapply star_implies_mono; [prove_implies_refl| |eassumption].
                         prove_implies.
                   *** triple_reorder_exists. repeat triple_pull_exists.
@@ -2714,7 +3292,7 @@ Proof.
                           (pred : nat -> option nat) (sp st : nat),
                           ?[xx]) <*> _);
                         [prove_implies_refl|].
-                      apply implies_spec. intros. normalize_star. do 11 eexists.
+                      apply implies_spec. intros. normalize_star. do 13 eexists.
                       conormalize_star.
                       eapply star_implies_mono; [|prove_implies_refl|eassumption].
                       apply implies_spec. intros. swap_star_ctx. normalize_star.
@@ -2755,6 +3333,9 @@ Proof.
                             repeat apply star_assoc_r in H;
                             apply star_pure_l in H as (->&?)
                           end.
+                          repeat lazymatch goal with
+                          | [H : _ /\ _ |- _] => destruct H
+                          end.
                           swap_star. solve_star. swap_star.
                           (* only that part of solve_star works here *)
                           repeat match goal with
@@ -2764,14 +3345,46 @@ Proof.
                             apply star_exists_l; eexists; eauto
                           | [|- (<exists> _, _) ?c ?m] => eexists
                           end.
-                          (*repeat (apply star_pure_l; split); eauto.*)
+                          repeat (apply star_pure_l; split_all).
+                          { lazymatch goal with
+                            | [H : is_elem_weighted_unique_list _ _
+                                (?L1++?x::?L2)%list
+                              |- is_elem_weighted_unique_list _ _ ?L] =>
+                              unify ((L1++[x])++L2)%list L
+                            end.
+                            rewrite <- List.app_assoc. simpl. eassumption. }
+                          { rewrite List.app_length. simpl. rewrite Nat.add_1_r.
+                            apply f_equal. eassumption. }
+                          { lazymatch goal with
+                            | [H : S ?n = ?k |- ?n = _] =>
+                              destruct k; [discriminate|]; injection H; auto
+                            end. }
+                          { eassumption. }
+                          { eassumption. }
+                          { eauto. }
+                          { eauto. }
+                          { eauto. }
+                          { eauto. }
+                          { rewrite <- List.app_assoc. simpl. eauto. }
+                          { rewrite <- List.app_assoc. simpl. eauto. }
+                          { eassumption. }
+                          { eassumption. }
+                          { eassumption. }
+                          { eassumption. }
+                          { lia. }
+                          swap_star. solve_star. swap_star. solve_star.
+                          eapply star_implies_mono; [prove_implies_refl| |eassumption].
+                          prove_implies_rev.
+                          (*instantiate (cm2 := x39).*)
+                          (*all: eauto.*)
                           (*eapply star_implies_mono with
                             (P := <exists> (Nlp : list (nat * nat))
                               (pred : nat -> option nat) (sp st : nat), _ <*> $3).
                           { apply implies_spec. intros. normalize_star.
                            solve_star. apply <- star_exists_l. }
                            solve_star. swap_star.
-                          apply star_assoc_l. revert_implies. solve_star.*) all:admit. }
+                          apply star_assoc_l. revert_implies. solve_star.*) (*all:admit.*)
+                          admit. }
                         (*{ prove_implies_refl. }
                         { apply implies_post_spec. intros. swap_star.
                           apply star_assoc_l.
@@ -2829,7 +3442,11 @@ Proof.
                         { prove_implies_rev. }
                         { intros. simpl. prove_implies. }
                         solve_simple_value. revert_implies. prove_implies_rev.*)
-              --- triple_reorder_exists. repeat triple_pull_exists.
+              --- repeat lazymatch goal with
+                  | [H : is_nat_fun_of_val_list _ _ |- _] => clear H
+                  end.
+                clear Hlen1 Hlen2.
+                triple_reorder_exists. repeat triple_pull_exists.
                 triple_reorder_pure. repeat triple_pull_pure.
                 instantiate (cn_0 := 4+?[ccn_0]). instantiate (ccn_0 := ?[cn_0]).
                 triple_reorder_credits. triple_pull_credits 4.
@@ -2840,28 +3457,130 @@ Proof.
                   eassumption. }
                 solve_simple_value. revert_implies. prove_implies.
                 apply implies_spec. intros.
-                (*solve_star;
+                repeat lazymatch goal with
+                | [H : _ /\ _ |- _] => destruct H
+                end.
+                rewrite Bool.negb_false_iff, Nat.eqb_eq in * |-.
+                lazymatch goal with
+                | [H : forall _, List.In _ _ -> ?f _ = ?D' _,
+                  H' : forall _, List.In _ _ -> ?f' _ = ?pred' _,
+                  H'' : forall _, ~ List.In _ _ -> ?f _ = ?D' _,
+                  H''' : forall _, ~ List.In _ _ -> ?f' _ = ?pred' _,
+                  Hdist : distance_decrease g x_min ?D ?D' ?pred ?pred'
+                  |- _] =>
+                  rename Hdist into Hdist_dec; rename H into HD;
+                  rename H' into Hpred; rename H'' into HD';
+                  rename H''' into Hpred';
+                  assert (distance_decrease g x_min D f pred f');
+                    [|clear Hdist_dec]
+                end.
+                { unfold distance_decrease in Hdist_dec |- *.
+                  destruct Hdist_dec as (?&->&Hd). eexists. split; auto.
+                  intros u. specialize Hd with u as (HdE&HdnE). split.
+                  { intros.
+                    lazymatch goal with
+                    | [H : is_elem_weighted_unique_list _ _ (?L1++?L2),
+                      H' : List.length ?L2 = ?l,
+                      H'' : ?l = 0
+                      |- _] =>
+                      rewrite H'' in H'; destruct L2; simpl in H';
+                      [|discriminate]; rewrite List.app_nil_r in H;
+                      unfold is_elem_weighted_unique_list,
+                        is_elem_weighted_list, neighbours in H;
+                      destruct H as (Hneigh&Hnodup);
+                      assert (List.In u (List.map fst L1))
+                    end.
+                    { apply List.in_map_iff. eexists. rewrite Hneigh. simpl.
+                      auto. }
+                    destruct HdE as (HdNone&HdSome); auto. split.
+                    { rewrite HD, Hpred; auto. }
+                    { intros du. specialize HdSome with du.
+                      rewrite HD, Hpred; auto. } }
+                  { intros.
+                    lazymatch goal with
+                    | [H : is_elem_weighted_unique_list _ _ (?L1++?L2),
+                      H' : List.length ?L2 = ?l,
+                      H'' : ?l = 0
+                      |- _] =>
+                      rewrite H'' in H'; destruct L2; simpl in H';
+                      [|discriminate]; rewrite List.app_nil_r in H;
+                      unfold is_elem_weighted_unique_list,
+                        is_elem_weighted_list, neighbours in H;
+                      destruct H as (Hneigh&Hnodup);
+                      assert (~ List.In u (List.map fst L1))
+                    end.
+                    { rewrite List.in_map_iff. intros ((?&?)&Hfst&Hin).
+                      rewrite Hneigh in Hin. simpl in Hfst. rewrite Hfst in Hin.
+                      tauto. }
+                    rewrite HD', Hpred'; auto; rewrite List.app_nil_r; auto. } }
+                lazymatch goal with
+                | [H : (_ = empty /\ _ = set_sum empty _) \/
+                    (_ src /\ _ = neighbourhood _ _)
+                  |- _] =>
+                  destruct H as [(->&->)|(?&->)]
+                end.
+                { unfold min_cost_elem, set_sum, empty, single in Hmincost.
+                  destruct Hmincost as ([[]| ->]&_).
+                  repeat match goal with
+                  | [|- ((_ <*> _) <*> _) ?c ?m ] =>
+                    apply star_assoc_l; eauto
+                  | [|- (<[_]> <*> _) ?c ?m ] =>
+                    apply star_pure_l; split
+                  | [|- ((<exists> _, _) <*> _) ?c ?m ] =>
+                    apply star_exists_l; eexists; eauto
+                  | [|- (<exists> _, _) ?c ?m] => eexists
+                  end;
                   try lazymatch goal with
-                  [|- Dijkstra_invariant _ _ _ _ _] => eassumption
+                  [|- Dijkstra_invariant _ _ _ _ _] =>
+                    eapply valid_invariant_init; eauto
                   end;
                   try lazymatch goal with
                   [|- is_nat_fun_of_val_list _ _] => eassumption
                   end;
-                  eauto.
-                { admit. }
-                { swap_star. revert_implies.
-                  eapply implies_trans.
-                  { apply star_implies_mono; [prove_implies_refl|].
-                    apply star_implies_mono; [prove_implies_refl|].
-                    apply star_implies_mono; [prove_implies_refl|].
-                    apply star_implies_mono; [prove_implies_refl|].
-                    apply star_implies_mono; [prove_implies_refl|].
-                    apply star_implies_mono; [prove_implies_refl|].
-                    apply star_implies_mono; [|prove_implies_refl].
-                    apply star_implies_mono; [|prove_implies_refl].
-                    apply star_implies_mono; [|prove_implies_refl].
-                    apply wand_star_r. }
-                  { prove_implies_rev. admit. } }*) admit.
+                  try lazymatch goal with
+                  [|- List.length _ = n] => eassumption
+                  end.
+                  { right. unfold add_single, empty, single, set_sum. auto. }
+                  { eassumption. }
+                  { unfold is_set_size. admit. }
+                  { admit. }
+                  { admit. }
+                  { admit. } }
+                { repeat match goal with
+                  | [|- ((_ <*> _) <*> _) ?c ?m ] =>
+                    apply star_assoc_l; eauto
+                  | [|- (<[_]> <*> _) ?c ?m ] =>
+                    apply star_pure_l; split
+                  | [|- ((<exists> _, _) <*> _) ?c ?m ] =>
+                    apply star_exists_l; eexists; eauto
+                  | [|- (<exists> _, _) ?c ?m] => eexists
+                  end;
+                  try lazymatch goal with
+                  [|- Dijkstra_invariant _ _ _ _ _] =>
+                    eapply valid_invariant; eauto
+                  end;
+                  try lazymatch goal with
+                  [H : forall _, _ -> ?f1 _ = ?g1 _,
+                  H' : forall _, _ -> ?f2 _ = ?g2 _
+                  |- distance_decrease g ?v ?g1 ?f1' ?g2 ?f2'] =>
+                    unify f1 f1'; unify f2 f2'; unify v x_min
+                  end;
+                  try lazymatch goal with
+                  [|- is_nat_fun_of_val_list _ _] => eassumption
+                  end;
+                  try lazymatch goal with
+                  [|- List.length _ = n] => eassumption
+                  end.
+                  { right. unfold add_single, set_sum, single. auto. }
+                  { admit. }
+                  { admit. }
+                  { admit. }
+                  { admit. }
+                  swap_star. solve_star. admit. (*revert_implies.
+                  eapply implies_trans;
+                    [|eapply star_implies_mono;
+                      [apply wand_star|prove_implies_refl]].
+                  prove_implies_rev.*) }
           ++ clear get_neighbours h_insert h_empty h_extract_min h_decrease_key
               l_is_nil l_head l_tail Hspec_get_neighbours Hspec_h_insert
               Hspec_h_empty Hspec_h_extract_min Hspec_h_decrease_key
@@ -2904,9 +3623,36 @@ Proof.
               lazymatch goal with
               | [|- ((<exists> _ _ _ _,
                 <[RecV [?a1;?a2] = _]> <*> _ <*> _ <*> _ <*> _) <*> _) _ _] =>
-                assert (exists l1 l2, a1 = Lab l1 /\ a2 = Lab l2)
+                assert (exists l1 l2, a1 = Lab l1 /\ a2 = Lab l2) as (?&?&->&->)
               end.
               { admit. }
-              solve_star.
-           all:admit.
+              solve_star. conormalize_star. swap_star_ctx. conormalize_star.
+              swap_star_ctx. conormalize_star. swap_star_ctx.
+              eapply star_implies_mono; [prove_implies_refl| |eassumption].
+              eapply implies_spec. intros. swap_star. solve_star.
+              eapply star_implies_mono; [| |eassumption].
+              { apply array_content_to_is_nat_function. eassumption. }
+              { eapply implies_trans; [|apply star_comm].
+                apply star_implies_mono.
+                { apply array_content_to_is_nat_function. eassumption. }
+                { apply implies_spec. intros. solve_star.
+                  { apply valid_final. eapply to_final_invariant; eauto.
+                    { lazymatch goal with
+                      | [H : (_ = empty /\ _ = set_sum empty _) \/
+                          (_ src /\ _ = neighbourhood _ _) |- _] =>
+                        destruct H as [(->&->)|(Hin&->)]
+                      end.
+                      { lazymatch goal with
+                        | [Heq : ?s = 0, H : is_set_size _ ?s |- _] =>
+                          rewrite Heq in H; rename H into Hsize
+                        end.
+                        unfold is_set_size, is_elem_unique_list, is_elem_list
+                          in Hsize.
+                        destruct Hsize as (L&(Hin&?)&?).
+                        destruct L; [|discriminate]. simpl in Hin.
+                        unfold set_sum, empty, single in Hin.
+                        specialize Hin with src. tauto. }
+                      { assumption. } }
+                    { unfold set_equiv, neighbourhood, empty. (*TODO*) (*intros u.
+                      split; [|intros []]. intros (Hnin&u'&Hin&HE).*) admit. } } admit. } }
 Admitted.
