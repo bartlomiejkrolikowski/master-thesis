@@ -3244,7 +3244,107 @@ Proof.
                           apply star_pure_l; split_all; [exact Hfun_a|exact Hfun_b|]
                         end.
                         rewrite Z.ltb_nlt in *. solve_star.
-                        { split_all; try eassumption; eauto. all:admit. }
+                        { split_all; try eassumption; eauto.
+                          { intros i'' Hin.
+                            rewrite List.map_app in Hin.
+                            apply List.in_app_or in Hin as [Hin|Heq].
+                            { lazymatch goal with
+                              | [H : forall _, List.In _ _ -> ?f _ = ?D' _
+                                |- ?f i'' = ?D' i''] =>
+                                apply H
+                              end.
+                              assumption. }
+                            { simpl in Heq. destruct Heq as [<-|[]].
+                              lazymatch goal with
+                              | [H : distance_decrease g x_min ?D ?D' ?pred ?pred',
+                                Hneigh : is_elem_weighted_unique_list _ _
+                                  (?L1++(i',w')::?L2)%list,
+                                HD : forall _, _ \/ _ -> ?f _ = ?D _,
+                                HDSome : forall _ _, _ <-> ?f _ = Some _,
+                                Hfun : is_nat_fun_of_val_list ?L ?D,
+                                Hfun' : is_nat_fun_of_val_list ?L' ?f,
+                                Hlist : List.nth x_min ?L None = Some (Int (Z.of_nat ?n))
+                                |- _ = ?g i'] =>
+                                unify D' g; unfold distance_decrease in H;
+                                unfold is_elem_weighted_unique_list,
+                                  is_elem_weighted_list, neighbours in Hneigh;
+                                unfold is_nat_fun_of_val_list, fun_of_list
+                                  in Hfun, Hfun';
+                                destruct Hfun as (?&Hfun); destruct Hfun' as (?&Hfun');
+                                rewrite List.map_app in Hneigh; simpl in Hneigh;
+                                destruct Hneigh as (Hneigh&Hnin%List.NoDup_remove_2);
+                                specialize Hneigh with i' w';
+                                rewrite List.in_app_iff in Hneigh; simpl in Hneigh;
+                                destruct Hneigh as ((HE&HW)&_); auto;
+                                destruct H as (dv&Hdv&Hvalue);
+                                edestruct Hvalue with i' as ((?&(?&(->&?)))&?);
+                                [assumption|
+                                  rewrite <- HD, <- Hfun', List.app_nth2,
+                                  List.map_length, Hlen3, Nat.sub_diag; auto;
+                                  [simpl; do 2 f_equal; rewrite Z2Nat.id; auto; lia|
+                                    rewrite List.map_length; lia]|
+                                  rewrite <- HW; apply Hfun in Hdv;
+                                  rewrite Hdv in Hlist;
+                                  injection Hlist as ->%Nat2Z.inj; lia|]
+                              end.
+                              auto. } }
+                          { intros i'' Hin.
+                            rewrite List.map_app in Hin.
+                            apply List.in_app_or in Hin as [Hin|Heq].
+                            { lazymatch goal with
+                              | [H : forall _, List.In _ _ -> ?f _ = ?D' _
+                                |- ?f i'' = ?D' i''] =>
+                                apply H
+                              end.
+                              assumption. }
+                            { simpl in Heq. destruct Heq as [<-|[]].
+                              lazymatch goal with
+                              | [H : distance_decrease g x_min ?D ?D' ?pred ?pred',
+                                Hneigh : is_elem_weighted_unique_list _ _
+                                  (?L1++(i',w')::?L2)%list,
+                                HD : forall _, _ \/ _ -> ?f _ = ?D _,
+                                HDSome : forall _ _, _ <-> ?f _ = Some _,
+                                Hfun : is_nat_fun_of_val_list ?L ?D,
+                                Hfun' : is_nat_fun_of_val_list ?L' ?f,
+                                Hlist : List.nth x_min ?L None = Some (Int (Z.of_nat ?n)),
+                                Hpred : forall _, _ \/ _ -> ?f' _ = ?pred _,
+                                HpredSome : forall _ _, _ <-> ?f' _ = Some _
+                                |- _ = ?g i'] =>
+                                unify pred' g; unfold distance_decrease in H;
+                                unfold is_elem_weighted_unique_list,
+                                  is_elem_weighted_list, neighbours in Hneigh;
+                                unfold is_nat_fun_of_val_list, fun_of_list
+                                  in Hfun, Hfun';
+                                destruct Hfun as (?&Hfun); destruct Hfun' as (?&Hfun');
+                                rewrite List.map_app in Hneigh; simpl in Hneigh;
+                                destruct Hneigh as (Hneigh&Hnin%List.NoDup_remove_2);
+                                specialize Hneigh with i' w';
+                                rewrite List.in_app_iff in Hneigh; simpl in Hneigh;
+                                destruct Hneigh as ((HE&HW)&_); auto;
+                                destruct H as (dv&Hdv&Hvalue);
+                                edestruct Hvalue with i' as ((?&(?&(?&->)))&?);
+                                [assumption|
+                                  rewrite <- HD, <- Hfun', List.app_nth2,
+                                  List.map_length, Hlen3, Nat.sub_diag; auto;
+                                  [simpl; do 2 f_equal; rewrite Z2Nat.id; auto; lia|
+                                    rewrite List.map_length; lia]|
+                                  rewrite <- HW; apply Hfun in Hdv;
+                                  rewrite Hdv in Hlist;
+                                  injection Hlist as ->%Nat2Z.inj; lia|]
+                              end.
+                              eauto. } }
+                          { intros i'' Hnin.
+                            destruct Nat.eqb_spec with i'' i'.
+                            { exfalso. subst i''.
+                              apply Hnin. rewrite List.map_app, List.in_app_iff.
+                              simpl. auto. }
+                            { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
+                          { intros i'' Hnin.
+                            destruct Nat.eqb_spec with i'' i'.
+                            { exfalso. subst i''.
+                              apply Hnin. rewrite List.map_app, List.in_app_iff.
+                              simpl. auto. }
+                            { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } } }
                         { lazymatch goal with
                           | [ H : set_equiv ?Q ?R,
                               H' : (_ <*> (_ <*>
@@ -3653,6 +3753,28 @@ Proof.
                         unfold set_sum, empty, single in Hin.
                         specialize Hin with src. tauto. }
                       { assumption. } }
-                    { unfold set_equiv, neighbourhood, empty. (*TODO*) (*intros u.
-                      split; [|intros []]. intros (Hnin&u'&Hin&HE).*) admit. } } admit. } }
+                    { lazymatch goal with
+                      | [H : (_ = empty /\ ?N = set_sum empty _) \/
+                          (_ src /\ ?N = neighbourhood _ _),
+                        H' : is_set_size ?N ?s,
+                        H'' : ?s = 0
+                        |- _] =>
+                        rename H into Hset, H' into Hsize, H'' into Heq
+                      end.
+                      rewrite Heq in Hsize.
+                      unfold is_set_size, is_elem_unique_list, is_elem_list
+                        in Hsize.
+                      destruct Hsize as ([]&(Hequiv&?)&?); [|discriminate].
+                      simpl in Hequiv. destruct Hset as [(_&->)|(_&->)].
+                      { exfalso. rewrite Hequiv.
+                        unfold set_equiv, set_sum, single, empty. auto. }
+                      { unfold set_equiv, empty. intros. symmetry. auto. } } }
+                  { revert_implies.
+                    instantiate (cm2:=0). instantiate (cn_t:=0).
+                    instantiate (cn_t2:=0). instantiate (cn_0:=0).
+                    simpl.
+                    repeat (eapply implies_trans;
+                      [apply star_implies_mono
+                      |apply credits_star_l; reflexivity]);
+                      prove_implies_refl. } } }
 Admitted.
