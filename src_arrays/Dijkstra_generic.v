@@ -3676,7 +3676,16 @@ Proof.
                   { admit. }
                   { admit. }
                   { admit. }
-                  swap_star. solve_star. admit. (*revert_implies.
+                  swap_star. solve_star. conormalize_star. swap_star_ctx.
+                  conormalize_star. swap_star_ctx. conormalize_star.
+                  swap_star_ctx. conormalize_star. swap_star_ctx.
+                  conormalize_star. swap_star_ctx.
+                  lazymatch goal with
+                  | [H : _ ?c ?m |- _ ?c ?m] =>
+                    apply star_assoc_l in H
+                  end.
+                  eapply star_implies_mono; [apply wand_star_r| |eassumption].
+                  prove_implies. admit. (*revert_implies.
                   eapply implies_trans;
                     [|eapply star_implies_mono;
                       [apply wand_star|prove_implies_refl]].
@@ -3725,7 +3734,19 @@ Proof.
                 <[RecV [?a1;?a2] = _]> <*> _ <*> _ <*> _ <*> _) <*> _) _ _] =>
                 assert (exists l1 l2, a1 = Lab l1 /\ a2 = Lab l2) as (?&?&->&->)
               end.
-              { admit. }
+              { lazymatch goal with
+                | [H : (_ <*> _) _ _ |- _] =>
+                  rename H into Hassertion
+                end.
+                unfold "<*>" in Hassertion. edestruct_direct.
+                lazymatch goal with
+                | [H : array_content _ ?a1 _ _,
+                  H' : array_content _ ?a2 _ _
+                  |- exists _ _, ?a1 = _ /\ ?a2 = _] =>
+                  apply only_lab_is_array in H as (?&?);
+                  apply only_lab_is_array in H' as (?&?)
+                end.
+                eauto. }
               solve_star. conormalize_star. swap_star_ctx. conormalize_star.
               swap_star_ctx. conormalize_star. swap_star_ctx.
               eapply star_implies_mono; [prove_implies_refl| |eassumption].
