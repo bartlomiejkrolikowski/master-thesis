@@ -390,11 +390,61 @@ Lemma elem_unique_list_of_weighted_unique A B P (W : A -> B) LW :
 Proof.
 Admitted.
 
-Lemma neighbourhood_add_single_size A g P v ns N N' :
+Lemma neighbourhood_add_new_single_size A g P v ns N N' :
   @is_set_size A (neighbourhood g P) ns ->
   is_elem_unique_list (neighbours g v) N ->
   is_filtered_list (fun x => ~ P x) N N' ->
-  is_set_size (neighbourhood g (add_single P v)) (ns + List.length N').
+  neighbourhood g P v ->
+  is_set_size (neighbourhood g (add_single P v)) (ns + List.length N' - 1).
+Proof.
+Admitted.
+
+Lemma edges_add_single_size A g P x es n n' :
+  @is_irreflexive A g ->
+  is_set_size (uncurry (fun u v => P u /\ P v /\ E g u v)) es ->
+  is_set_size (neighbours g x) n ->
+  is_set_size (neighbour_of g x) n' ->
+  is_set_size
+    (uncurry (fun u v => add_single P x u /\ add_single P x v /\ E g u v))
+    (es + n + n').
+Proof.
+Admitted.
+
+Lemma elem_list_to_unique A P L :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  @is_elem_list A P L ->
+  exists L', is_elem_unique_list P L'.
+Proof.
+  intros Hdec_eq Hlist. assert (forall x, Decidable.decidable (P x)) as Hdec.
+  { intros. eapply decidable_if_elem_list; eassumption. }
+  assert (forall x L, Decidable.decidable (@List.In A x L)) as HdecL.
+  { intros. apply decidable_in. assumption. }
+  unfold is_elem_unique_list, is_elem_list in *. generalize dependent P.
+  induction L as [|x L IHL]; simpl in *; intros.
+  - exists nil. simpl. auto using List.NoDup.
+  - destruct HdecL with x L.
+    + apply IHL; auto. intros. rewrite <- Hlist. intuition (subst;assumption).
+    + edestruct IHL with (P := fun x => P x /\ List.In x L) as (L'&Hin&?).
+      { intros. rewrite <- Hlist. tauto. }
+      { intros. apply Decidable.dec_and; auto. }
+      destruct Hdec with x.
+        * exists (x::L')%list. simpl. split.
+          -- intros. rewrite Hin, <- Hlist. tauto.
+          -- constructor; auto. rewrite Hin. tauto.
+        * exists L'. split; auto. intros. rewrite Hin.
+          rewrite <- Hlist in *. tauto.
+Qed.
+
+Lemma elem_list_intersect_filtered A P Q L L' :
+  @is_elem_list A P L ->
+  is_filtered_list Q L L' ->
+  is_elem_list (intersect P Q) L'.
+Proof.
+Admitted.
+
+Lemma neighbourhood_add_single A g P u v :
+  @neighbourhood A g (add_single P u) v <->
+    (neighbourhood g P v) \/ (~ P v /\ neighbours g u v).
 Proof.
 Admitted.
 
@@ -984,14 +1034,13 @@ Proof.
               let pre :=
                 constr:($2 <*> ((<exists> D_list pred_list P P' D pred sv sv' se,
                 <[(P = empty /\ P' = P0) \/ (P src /\ P' = neighbourhood g P)]> <*>
-                <[is_set_size P sv]> <*>
-                <[is_set_size P' sv']> <*>
+                <[is_subset P (V g) /\ is_subset P' (V g)]> <*>
+                <[is_set_size P sv /\ is_set_size P' sv']> <*>
                 <[is_set_size (uncurry (E (induced_subgraph P g))) se]> <*>
                 <[sv + sv' <= n]> <*>
-                <[List.length D_list = n]> <*>
-                <[List.length pred_list = n]> <*>
-                <[is_nat_fun_of_val_list D_list D]> <*>
-                <[is_nat_fun_of_val_list pred_list pred]> <*>
+                <[List.length D_list = n /\ List.length pred_list = n]> <*>
+                <[is_nat_fun_of_val_list D_list D /\
+                  is_nat_fun_of_val_list pred_list pred]> <*>
                 <[Dijkstra_invariant D pred P src g]> <*>
                 $ (S (c_h_empty + pot + c0 + (cm * (m - se) + cn * (n - sv) * t))) <*>
                 is_weighted_graph g vg <*> array_content pred_list a_pred <*>
@@ -1002,14 +1051,13 @@ Proof.
                 constr:(fun b => (<exists> D_list pred_list P P' D pred sv sv' se,
                 <[negb (sv' =? 0) = b]> <*>
                 <[(P = empty /\ P' = P0) \/ (P src /\ P' = neighbourhood g P)]> <*>
-                <[is_set_size P sv]> <*>
-                <[is_set_size P' sv']> <*>
+                <[is_subset P (V g) /\ is_subset P' (V g)]> <*>
+                <[is_set_size P sv /\ is_set_size P' sv']> <*>
                 <[is_set_size (uncurry (E (induced_subgraph P g))) se]> <*>
                 <[sv + sv' <= n]> <*>
-                <[List.length D_list = n]> <*>
-                <[List.length pred_list = n]> <*>
-                <[is_nat_fun_of_val_list D_list D]> <*>
-                <[is_nat_fun_of_val_list pred_list pred]> <*>
+                <[List.length D_list = n /\ List.length pred_list = n]> <*>
+                <[is_nat_fun_of_val_list D_list D /\
+                  is_nat_fun_of_val_list pred_list pred]> <*>
                 <[Dijkstra_invariant D pred P src g]> <*>
                 $ (pot + c0 + (cm * (m - se) + cn * (n - sv) * t)) <*>
                 is_weighted_graph g vg <*> array_content pred_list a_pred <*>
@@ -1033,7 +1081,10 @@ Proof.
               normalize_star. swap_star_ctx. eapply star_implies_mono; eauto.
               { clear_state_assertions. apply implies_spec. intros.
                 eexists D_list, pred_list, empty, (set_sum _ _), D, pred, 0, 1, 0.
-                solve_star.
+                solve_star; split_all.
+                { unfold is_subset, empty. tauto. }
+                { unfold is_subset, empty, set_sum, single. intros ? [[]|<-].
+                  assumption. }
                 { apply empty_set_size. }
                 { apply equiv_set_size with (single src), single_set_size.
                   unfold set_equiv, empty, set_sum. tauto. }
@@ -1082,6 +1133,9 @@ Proof.
                 { apply implies_spec. intros. solve_star. swap_star. solve_star.
                   revert_implies. prove_implies_rev. apply star_comm. }
                 { apply implies_post_spec. intros. normalize_star.
+                  repeat lazymatch goal with
+                  | [H : _ /\ _ |- _] => destruct H
+                  end.
                   lazymatch goal with
                   | [
                     H0 : is_set_size ?P' ?s1,
@@ -1100,7 +1154,7 @@ Proof.
                     repeat apply star_assoc_l. apply star_pure_l. split; eauto.
                     apply star_pure_l. split.
                     { left. eauto. }
-                    solve_star;
+                    solve_star; split_all;
                       try lazymatch goal with
                       [|- Dijkstra_invariant _ _ _ _ _] => eassumption
                       end;
@@ -1115,7 +1169,7 @@ Proof.
                     repeat apply star_assoc_l. apply star_pure_l. split; eauto.
                     apply star_pure_l. split.
                     { right. eauto. }
-                    solve_star;
+                    solve_star; split_all;
                       try lazymatch goal with
                       [|- Dijkstra_invariant _ _ _ _ _] => eassumption
                       end;
@@ -1129,6 +1183,9 @@ Proof.
                 { eassumption. }
               }
               { intros.
+                repeat lazymatch goal with
+                | [H : _ /\ _ |- _] => destruct H
+                end.
                 lazymatch goal with
                 | [H : is_set_size ?P _
                   |- Decidable.decidable (neighbourhood _ ?P _)] =>
@@ -1188,6 +1245,9 @@ Proof.
               end.
               erewrite (Nat.mul_comm _ (S _)). simpl "*".
               erewrite <- Nat.add_assoc.
+              repeat lazymatch goal with
+              | [H : _ /\ _ |- _] => destruct H
+              end.
               lazymatch goal with
               | [Hneq : ?s <> 0,
                  Hsize : is_set_size _ ?s,
@@ -1468,11 +1528,12 @@ Proof.
                         (Neigh_list_processed ++ Neigh_list_todo)) ->
                         pred x = pred' x) /\
                       distance_decrease g x_min D_init D' pred_init pred']> <*>
-                    <[is_nat_fun_of_val_list D_list D]> <*>
-                    <[is_nat_fun_of_val_list pred_list pred]> <*>
+                    <[is_nat_fun_of_val_list D_list D /\
+                      is_nat_fun_of_val_list pred_list pred]> <*>
                     <[set_equiv P' (set_sum P0 (fun x => ~ P_init x /\
                       List.In x (List.map fst Neigh_list_processed)))]> <*>
                     <[km + sp + st <= m]> <*>
+                    <[is_subset P' (V g)]> <*>
 (*                    <[is_set_size P0 kn]> <*>
                     <[is_set_size (uncurry (E (induced_subgraph P0 g))) km]> <*>
                     <[sv < n]> <*>
@@ -1514,11 +1575,12 @@ Proof.
                         (Neigh_list_processed ++ Neigh_list_todo)) ->
                         pred x = pred' x) /\
                       distance_decrease g x_min D_init D' pred_init pred']> <*>
-                    <[is_nat_fun_of_val_list D_list D]> <*>
-                    <[is_nat_fun_of_val_list pred_list pred]> <*>
+                    <[is_nat_fun_of_val_list D_list D /\
+                      is_nat_fun_of_val_list pred_list pred]> <*>
                     <[set_equiv P' (set_sum P0 (fun x => ~ P_init x /\
                       List.In x (List.map fst Neigh_list_processed)))]> <*>
                     <[km + sp + st <= m]> <*>
+                    <[is_subset P' (V g)]> <*>
 (*                    <[is_set_size P0 kn]> <*>
                     <[is_set_size (uncurry (E (induced_subgraph P0 g))) km]> <*>
                     <[sv < n]> <*>
@@ -1654,6 +1716,8 @@ Proof.
                           apply cross_size; eauto using single_set_size. } }
                       { unfold is_subset, uncurry, cross, set_sum, single, neighbours.
                         intros [] [(?&?&?)|(->&?)]; auto. } }
+                    { simpl. unfold is_subset in *. unfold set_sum, set_remove.
+                      firstorder. }
                     { rewrite Nat.sub_0_r.
                       eapply star_implies_mono; [prove_implies_refl| |eassumption].
                       (*revert_implies.*)
@@ -1725,10 +1789,10 @@ Proof.
                         }
                         { auto. }
                         { eauto 10. }
+                        { auto. }
                         { assumption. }
-                        { assumption. }
-                        { assumption. }
-                        { subst. assumption. } }
+                        { subst. assumption. }
+                        { assumption. } }
                       { apply implies_spec. intros. solve_star. eassumption. } } }
                 +++ clear Hlen1 Hlen2.
                   triple_reorder_exists. repeat triple_pull_exists.
@@ -1867,6 +1931,7 @@ Proof.
                         <[set_equiv H' (set_sum (set_remove _ x_min)
                           (fun x => ~ P_init x /\ List.In x
                           (List.map fst (Neigh_list_processed ++ [(i',w')]))))]> <*>
+                        <[is_subset H' (V g)]> <*>
                         $c2 <*> P1 <*> P2 <*> P3 <*>
                         array_content D_list' a_D <*>
                         is_heap n C H' (*W*) D' pot h <*>
@@ -2537,6 +2602,18 @@ Proof.
                                 end. }
                               intros [Hin | ->]; [revert Hin|revert Hi'P];
                               clear; tauto. }
+                            { unfold is_subset, set_sum, single. intros i'' [Hin|<-].
+                              { auto. }
+                              { lazymatch goal with
+                                | [H : is_elem_weighted_unique_list _ _ (_++(i',w')::_)%list
+                                  |- _] =>
+                                  unfold is_elem_weighted_unique_list,
+                                    is_elem_weighted_list, neighbours in H;
+                                  destruct H as (Hin&_);
+                                  specialize Hin with i' w'; simpl in Hin;
+                                  rewrite List.in_app_iff in Hin; simpl in Hin;
+                                  destruct Hin as ((?%E_closed2&?)&?); auto
+                                end. } }
                             { swap_star. unfold update_nat_function_at.
                               lazymatch goal with
                               | [H : (is_heap n C _ (_ (Z.to_nat _)) _ _ <*> _)
@@ -3156,6 +3233,7 @@ Proof.
                                       unfold is_irreflexive in H; eapply H
                                     end.
                                     eassumption. } } }
+                              { assumption. }
                               { swap_star. rewrite Nat.add_0_l.
                                 unfold update_nat_function_at.
                                 lazymatch goal with
@@ -3499,6 +3577,7 @@ Proof.
                           intros [Hin | (Hnin&[Hin| [<-|[]]])];
                             [revert Hin|revert Hnin Hin|revert Hnin Hi'P];
                             clear; tauto. }
+                        { assumption. }
                         eapply star_implies_mono; [prove_implies_refl| |eassumption].
                         prove_implies.
                   *** triple_reorder_exists. repeat triple_pull_exists.
@@ -3608,6 +3687,7 @@ Proof.
                           { eassumption. }
                           { eassumption. }
                           { lia. }
+                          { assumption. }
                           swap_star. solve_star. swap_star. solve_star.
                           eapply star_implies_mono; [prove_implies_refl| |eassumption].
                           prove_implies_rev.
@@ -3761,7 +3841,7 @@ Proof.
                   | [|- ((_ <*> _) <*> _) ?c ?m ] =>
                     apply star_assoc_l; eauto
                   | [|- (<[_]> <*> _) ?c ?m ] =>
-                    apply star_pure_l; split
+                    apply star_pure_l; split_all
                   | [|- ((<exists> _, _) <*> _) ?c ?m ] =>
                     apply star_exists_l; eexists; eauto
                   | [|- (<exists> _, _) ?c ?m] => eexists
@@ -3777,6 +3857,9 @@ Proof.
                   [|- List.length _ = n] => eassumption
                   end.
                   { right. unfold add_single, empty, single, set_sum. auto. }
+                  { eassumption. }
+                  { unfold neighbourhood, is_subset. intros ? (?&?&?&?%E_closed2).
+                    assumption. }
                   { eassumption. }
                   { unfold is_set_size, neighbourhood.
                     lazymatch goal with
@@ -3802,13 +3885,65 @@ Proof.
                     intros (u&w). unfold is_irreflexive, not in *. split.
                     { contradiction. }
                     { intros ([[]|<-]&[[]|<-]&?). eauto. } }
-                  { (*subst. rewrite Nat.add_0_r. lia.*) admit. }
+                  { lazymatch goal with
+                    | [H : is_elem_weighted_unique_list _ _ (?L1++?L2)%list,
+                      H' : List.length ?L1 = ?y1,
+                      H'' : List.length ?L2 = ?y2,
+                      H''' : is_set_size ?P ?x
+                      |- ?x + (?y1+?y2) <= n] =>
+                      rename H into Hlist, L1 into N1, L2 into N2, x into sP,
+                        y1 into s1, y2 into s2, H' into Hs1, H'' into Hs2,
+                        H''' into HsP
+                    end.
+                    eapply subset_size_le with
+                      (P := V g)
+                      (P' := set_sum (single x_min) (neighbours g x_min)).
+                    { intros. unfold set_sum. apply Decidable.dec_or.
+                      { unfold single. apply Nat.eq_decidable. }
+                      { eapply decidable_if_elem_list.
+                        { apply Nat.eq_decidable. }
+                        { apply elem_unique_list_of_weighted_unique in Hlist.
+                          unfold is_elem_unique_list in Hlist.
+                          destruct Hlist as (?&?). eassumption. } } }
+                    { rewrite Hn. assumption. }
+                    { apply disjoint_sum_size.
+                      { unfold are_disjoint_sets, single, neighbours.
+                        unfold is_irreflexive, not in *. intros ? (->&?).
+                        eauto. }
+                      { eapply equiv_set_size; eauto. unfold set_equiv.
+                        unfold set_sum, empty, single. clear. tauto. }
+                      { apply elem_weighted_unique_list_to_size in Hlist.
+                        rewrite List.app_length, Hs1, Hs2 in Hlist. assumption. } }
+                    { unfold is_subset, set_sum, single, neighbours.
+                      intros ? [<-|?]; eauto using E_closed2. } }
                   admit. }
-                { repeat match goal with
+                { lazymatch goal with
+                  | [H : is_elem_weighted_unique_list _ _ (?L1 ++ ?L2)%list,
+                    H' : Dijkstra_invariant _ _ ?P' _ _,
+                    H'' : is_set_size (V (G g)) _
+                    |- _] =>
+                    remember H'' eqn:Heq; clear Heq;
+                    unfold is_set_size, is_elem_unique_list in H'';
+                    destruct H'' as (?&(?&?)&?);
+                    destruct exists_filtered with
+                      (P := fun x => ~ P' x) (L := List.map fst (L1++L2)%list)
+                  end.
+                  { intros. apply Decidable.dec_not.
+                    eapply decidable_if_finite; eauto using Nat.eq_decidable. }
+                  edestruct neighbour_of_list_in_finite_decidable_graph with
+                    (x := x_min) as (?&(?&Hlist)%elem_list_to_unique);
+                    eauto using Nat.eq_decidable.
+                  { intros.
+                    lazymatch goal with
+                    | [|- _ (E ?g ?u ?v)] => fold (uncurry (E g) (u,v))
+                    end.
+                    eapply decidable_if_finite;
+                      eauto using decidable_uncurry, Nat.eq_decidable. }
+                  repeat match goal with
                   | [|- ((_ <*> _) <*> _) ?c ?m ] =>
                     apply star_assoc_l; eauto
                   | [|- (<[_]> <*> _) ?c ?m ] =>
-                    apply star_pure_l; split
+                    apply star_pure_l; split_all
                   | [|- ((<exists> _, _) <*> _) ?c ?m ] =>
                     apply star_exists_l; eexists; eauto
                   | [|- (<exists> _, _) ?c ?m] => eexists
@@ -3830,6 +3965,12 @@ Proof.
                   [|- List.length _ = n] => eassumption
                   end.
                   { right. unfold add_single, set_sum, single. auto. }
+                  { unfold is_subset, add_single, set_sum, single. intros ? [?|<-].
+                    { auto. }
+                    { unfold min_cost_elem, neighbourhood in Hmincost.
+                      destruct Hmincost as ((?&?&?&?%E_closed2)&?). assumption. } }
+                  { unfold neighbourhood, is_subset. intros ? (?&?&?&?%E_closed2).
+                    assumption. }
                   { unfold add_single. apply disjoint_sum_size.
                     { unfold are_disjoint_sets, single.
                       intros ? (Hin&<-).
@@ -3837,9 +3978,72 @@ Proof.
                       revert Hmincost Hin. clear. tauto. }
                     { eassumption. }
                     { apply single_set_size. } }
-                  { admit. }
-                  { admit. }
-                  { admit. }
+                  { eapply neighbourhood_add_new_single_size; eauto.
+                    { eapply elem_unique_list_of_weighted_unique. eassumption. }
+                    { unfold min_cost_elem in Hmincost. tauto. } }
+                  { apply edges_add_single_size;
+                      eauto using elem_weighted_unique_list_to_size.
+                    unfold is_set_size. eexists. split; eauto. }
+                  { lazymatch goal with
+                    | [H : is_elem_weighted_unique_list _ _ (?L1++?L2)%list,
+                      H' : List.length ?L1 = ?y1,
+                      H'' : List.length ?L2 = ?y2,
+                      H''' : is_set_size ?P ?x,
+                      H'''' : is_set_size ?Q ?y,
+                      H''''' : is_filtered_list _ (List.map _ (_++_)%list) ?L
+                      |- ?x + 1 + (?y+?z-1) <= n] =>
+                      rename H into Hlist', L1 into N1, L2 into N2, L into N12,
+                        x into sP, y into sQ, y1 into s1, y2 into s2, P into P',
+                        H' into Hs1, H'' into Hs2, H''' into HsP, H'''' into HsQ,
+                        H''''' into Hfiltered
+                    end.
+                    eapply subset_size_le with
+                      (P := V g)
+                      (P' := set_sum (add_single P' x_min)
+                        (neighbourhood g (add_single P' x_min))).
+                    { intros u. unfold set_sum. apply Decidable.dec_or.
+                      { unfold add_single, single, set_sum.
+                        apply Decidable.dec_or;
+                          eauto using decidable_if_finite, Nat.eq_decidable. }
+                      { unfold is_set_size, is_elem_unique_list in HsQ.
+                          destruct HsQ as (?&(?&?)&?). unfold Decidable.decidable.
+                          rewrite neighbourhood_add_single. apply Decidable.dec_or.
+                          { eapply decidable_if_elem_list;
+                              eauto using Nat.eq_decidable. }
+                          { change (?f (?g u) /\ ?h u)
+                              with ((fun x => f (g x) /\ h x) u).
+                            eapply decidable_if_elem_list.
+                            { apply Nat.eq_decidable. }
+                            { eassert (is_elem_list (intersect
+                                (neighbours g x_min) (fun x => ~ P' x)) _).
+                              { eapply elem_list_intersect_filtered; eauto.
+                                apply elem_unique_list_of_weighted_unique in Hlist'.
+                                unfold is_elem_unique_list in Hlist'.
+                                destruct Hlist' as (?&?). eassumption. }
+                              { lazymatch goal with
+                                | [H : is_elem_list (intersect ?Q (fun _ => ?P _)) _
+                                  |- is_elem_list (fun _ => ?P _ /\ ?Q _) _] =>
+                                  rename H into Hlist''
+                                end.
+                                unfold is_elem_list, intersect in Hlist'' |- *.
+                                intros. rewrite Hlist''. clear. tauto. } } } } }
+                    { rewrite Hn. assumption. }
+                    { apply disjoint_sum_size.
+                      { unfold are_disjoint_sets, add_single, single,
+                          intersect, set_sum, neighbourhood. tauto. }
+                      { unfold add_single. apply disjoint_sum_size.
+                        { unfold are_disjoint_sets, single.
+                          unfold is_irreflexive, not in *. intros ? (Hin&<-).
+                          unfold min_cost_elem, neighbourhood in Hmincost. tauto. }
+                        { assumption. }
+                        { apply single_set_size. } }
+                      { eapply neighbourhood_add_new_single_size; eauto.
+                        { eapply elem_unique_list_of_weighted_unique. eassumption. }
+                        { unfold min_cost_elem in Hmincost. tauto. } } }
+                    { unfold is_subset, add_single, set_sum, single, neighbourhood.
+                      intros ? [[?|<-]|(?&?&[?|<-]&?)]; eauto using E_closed2.
+                      unfold min_cost_elem, neighbourhood in Hmincost.
+                      destruct Hmincost as ((?&?&?&?%E_closed2)&?). assumption. } }
                   swap_star. solve_star. conormalize_star. swap_star_ctx.
                   conormalize_star. swap_star_ctx. conormalize_star.
                   swap_star_ctx. conormalize_star. swap_star_ctx.
@@ -3889,10 +4093,16 @@ Proof.
               { prove_implies_rev. }
               { intros. simpl. apply star_assoc_r. }
               eapply triple_fun_app.
-              --- subst. eapply Hspec_h_free; eauto.
+              --- repeat lazymatch goal with
+                | [H : _ /\ _ |- _] => destruct H
+                end.
+                subst. eapply Hspec_h_free; eauto.
               --- solve_simple_value. apply star_comm. eassumption.
             ** triple_reorder_exists. repeat triple_pull_exists.
               solve_simple_value. swap_star.
+              repeat lazymatch goal with
+              | [H : _ /\ _ |- _] => destruct H
+              end.
               lazymatch goal with
               | [|- ((<exists> _ _ _ _,
                 <[RecV [?a1;?a2] = _]> <*> _ <*> _ <*> _ <*> _) <*> _) _ _] =>
