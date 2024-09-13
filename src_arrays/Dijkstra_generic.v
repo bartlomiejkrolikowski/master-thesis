@@ -153,22 +153,17 @@ Parameter is_heap :
     (potential : nat),
     Value V -> StateAssertion V.
 
-Axiom is_equiv_heap :
-  forall V n C P P' W potential v,
+Axiom equiv_set_heap :
+  forall V n C P P' W potential (h : Value V),
     set_equiv P P' ->
-    @is_heap V n C P W potential v ->> is_heap n C P' W potential v.
+    is_heap n C P W potential h ->>
+      is_heap n C P' W potential h.
 
 Parameter heap_time_bound :
   forall (n C t : nat), Prop.
 
 Axiom heap_time_bound_ge_1 :
   forall n C t, heap_time_bound n C t -> t >= 1.
-
-Axiom equiv_set_heap :
-  forall V n C P P' W potential (h : Value V),
-    set_equiv P P' ->
-    is_heap n C P W potential h ->>
-      is_heap n C P' W potential h.
 
 Parameter mkheap_cost : forall (n C c : nat), Prop.
 
@@ -1032,7 +1027,7 @@ Proof.
                 (fun res => <[@?Q' res]> <*> _)
               ] =>
               let pre :=
-                constr:($2 <*> ((<exists> D_list pred_list P P' D pred sv sv' se,
+                constr:($2 <*> ((<exists> D_list pred_list P P' D pred sv sv' se pot',
                 <[(P = empty /\ P' = P0) \/ (P src /\ P' = neighbourhood g P)]> <*>
                 <[is_subset P (V g) /\ is_subset P' (V g)]> <*>
                 <[is_set_size P sv /\ is_set_size P' sv']> <*>
@@ -1042,13 +1037,13 @@ Proof.
                 <[is_nat_fun_of_val_list D_list D /\
                   is_nat_fun_of_val_list pred_list pred]> <*>
                 <[Dijkstra_invariant D pred P src g]> <*>
-                $ (S (c_h_empty + pot + c0 + (cm * (m - se) + cn * (n - sv) * t))) <*>
+                $ (S (c_h_empty + pot' + c0 + (cm * (m - se) + cn * (n - sv) * t))) <*>
                 is_weighted_graph g vg <*> array_content pred_list a_pred <*>
-                array_content D_list a_D <*> is_heap n' C P' D pot h) <*>
+                array_content D_list a_D <*> is_heap n' C P' D pot' h) <*>
                 (<exists> c, $c)))
               in
               let post :=
-                constr:(fun b => (<exists> D_list pred_list P P' D pred sv sv' se,
+                constr:(fun b => (<exists> D_list pred_list P P' D pred sv sv' se pot',
                 <[negb (sv' =? 0) = b]> <*>
                 <[(P = empty /\ P' = P0) \/ (P src /\ P' = neighbourhood g P)]> <*>
                 <[is_subset P (V g) /\ is_subset P' (V g)]> <*>
@@ -1059,9 +1054,9 @@ Proof.
                 <[is_nat_fun_of_val_list D_list D /\
                   is_nat_fun_of_val_list pred_list pred]> <*>
                 <[Dijkstra_invariant D pred P src g]> <*>
-                $ (pot + c0 + (cm * (m - se) + cn * (n - sv) * t)) <*>
+                $ (pot' + c0 + (cm * (m - se) + cn * (n - sv) * t)) <*>
                 is_weighted_graph g vg <*> array_content pred_list a_pred <*>
-                array_content D_list a_D <*> is_heap n' C P' D pot h) <*>
+                array_content D_list a_D <*> is_heap n' C P' D pot' h) <*>
                 (<exists> c, $c))
               in
               remember pot as potential eqn:Hpot;
@@ -1095,11 +1090,12 @@ Proof.
                 { subst D_list. rewrite List.app_length. simpl.
                   repeat rewrite List.repeat_length. lia. }
                 { subst pred_list. rewrite List.repeat_length. reflexivity. }
-                { do 2 rewrite Nat.sub_0_r. revert_implies.
+                { do 2 rewrite Nat.sub_0_r.
+                  eapply star_implies_mono; eauto; prove_implies.
                   rewrite (Nat.add_assoc potential), (Nat.add_comm potential).
                   subst potential. prove_implies. } }
               { apply implies_spec. intros. solve_star. eassumption. } }
-            { intros. rewrite <- Hpot. prove_implies. apply star_comm. }
+            { intros. prove_implies. apply star_comm. }
             ** unfold h_empty_spec in Hspec_h_empty.
               triple_reorder_exists. repeat triple_pull_exists.
               triple_reorder_pure. repeat triple_pull_pure.
@@ -1150,7 +1146,7 @@ Proof.
                     destruct H as [(?&?) | (?&?)]
                   end.
                   { eexists. apply star_pure_l. split; eauto.
-                    do 9 (apply star_exists_l; eexists).
+                    do 10 (apply star_exists_l; eexists).
                     repeat apply star_assoc_l. apply star_pure_l. split; eauto.
                     apply star_pure_l. split.
                     { left. eauto. }
@@ -1162,10 +1158,13 @@ Proof.
                       [|- is_nat_fun_of_val_list _ _] => eassumption
                       end;
                       eauto.
-                    revert_implies. prove_implies_rev. apply implies_spec.
+                    swap_star_ctx. normalize_star.
+                    eapply star_implies_mono;
+                      [prove_implies_refl| |eassumption].
+                    prove_implies_rev. apply implies_spec.
                     intros. solve_star. eassumption. }
                   { eexists. apply star_pure_l. split; eauto.
-                    do 9 (apply star_exists_l; eexists).
+                    do 10 (apply star_exists_l; eexists).
                     repeat apply star_assoc_l. apply star_pure_l. split; eauto.
                     apply star_pure_l. split.
                     { right. eauto. }
@@ -1177,7 +1176,10 @@ Proof.
                       [|- is_nat_fun_of_val_list _ _] => eassumption
                       end;
                       subst; eauto.
-                    revert_implies. prove_implies_rev. apply implies_spec.
+                    swap_star_ctx. normalize_star.
+                    eapply star_implies_mono;
+                      [prove_implies_refl| |eassumption].
+                    prove_implies_rev. apply implies_spec.
                     intros. solve_star. eassumption. } }
                 { eassumption. }
                 { eassumption. }
@@ -1305,13 +1307,18 @@ Proof.
               app_lambda.
               2:{
                 unfold h_extract_min_spec in Hspec_h_extract_min.
-                erewrite <- Hpot, <- (Nat.add_assoc potential),
-                  (Nat.add_assoc _ potential), (Nat.add_comm _ potential),
-                  <- (Nat.add_assoc potential), (Nat.add_assoc _ potential),
-                  (Nat.add_comm _ potential), <- (Nat.add_assoc potential),
-                  (Nat.add_assoc _ potential), (Nat.add_comm _ potential),
-                  <- (Nat.add_assoc potential).
-                triple_reorder_credits. triple_pull_credits potential.
+                lazymatch goal with
+                | [|- triple _
+                    (_ <*> (_ <*> (_ <*> is_heap n C _ _ ?p _))) _] =>
+                  rename p into potential'
+                end.
+                erewrite <- (Nat.add_assoc potential'),
+                  (Nat.add_assoc _ potential'), (Nat.add_comm _ potential'),
+                  <- (Nat.add_assoc potential'), (Nat.add_assoc _ potential'),
+                  (Nat.add_comm _ potential'), <- (Nat.add_assoc potential'),
+                  (Nat.add_assoc _ potential'), (Nat.add_comm _ potential'),
+                  <- (Nat.add_assoc potential').
+                triple_reorder_credits. triple_pull_credits potential'.
                 triple_reorder_credits.
                 lazymatch goal with
                 | [|- triple _
@@ -4053,11 +4060,87 @@ Proof.
                     apply star_assoc_l in H
                   end.
                   eapply star_implies_mono; [apply wand_star_r| |eassumption].
-                  prove_implies. admit. (*revert_implies.
-                  eapply implies_trans;
-                    [|eapply star_implies_mono;
-                      [apply wand_star|prove_implies_refl]].
-                  prove_implies_rev.*) }
+                  prove_implies. eapply implies_trans; [|apply star_assoc_l].
+                  lazymatch goal with
+                  | [H : is_elem_weighted_unique_list _ _ (?L1++?L2)%list,
+                    H' : List.length ?L2 = ?s2,
+                    H'' : ?s2 = 0
+                    |- _] =>
+                    rewrite H'' in H'; destruct L2; [|discriminate];
+                    rename H into Hneighs
+                  end.
+                  rewrite List.app_nil_r in Hneighs |- *.
+                  apply star_implies_mono.
+                  { apply equiv_set_heap.
+                    lazymatch goal with
+                    | [H : set_equiv ?P _ |- set_equiv ?P _] =>
+                      rename H into Hequiv
+                    end.
+                    unfold set_equiv in Hequiv |- *. intros y. rewrite Hequiv.
+                    unfold set_sum, set_remove, neighbourhood.
+                    rewrite List.in_map_iff.
+                    unfold is_elem_weighted_unique_list,
+                      is_elem_weighted_list in Hneighs.
+                    destruct Hneighs as (Hin&?).
+                    split.
+                    { intros [((?&?&?&?)&?)|(?&(?&?)&<-&(Hneigh&?)%Hin)];
+                        simpl in *.
+                      { split.
+                        { intros []; auto. }
+                        { eauto. } }
+                      { unfold neighbours in Hneigh. split.
+                        { unfold is_irreflexive, not in *. intros [?|<-]; eauto. }
+                        { eauto. } } }
+                    { intros (?&?&[?|<-]&?).
+                      { eauto 15. }
+                      { right. split; auto. eexists. rewrite Hin.
+                        unfold neighbours. simpl. auto. } } }
+                  { match goal with
+                    | [H : List.length _ = _ |- _] => rewrite H
+                    end.
+                    instantiate (cn_0 := S c_h_empty).
+                    instantiate (cn_t := 0). instantiate (cn_t2 := 0).
+                    instantiate (cm2 := 0). simpl.
+                    repeat change (?x + ?y*?x) with (S y * x).
+                    repeat change (S (?x + ?y)) with (S x + y).
+                    lazymatch goal with
+                    | [H : ?x + ?y + ?z <= m,
+                      H' : is_elem_unique_list (neighbour_of _ _) ?L' |- _] =>
+                      rename x into a, y into b, L' into L
+                    end.
+                    rewrite <- (Nat.sub_add_distr m a b),
+                      (Nat.sub_add_distr m (a + b) (List.length L)).
+                    destruct Nat.le_gt_cases with (List.length L) (m - (a+b)).
+                    { erewrite <- Nat.sub_add with (List.length L) (m - (a+b)),
+                        (Nat.mul_add_distr_l _ _ (List.length L));
+                        auto.
+                      lazymatch goal with
+                      | [|- $ (_+(_+?c0+?c0')) <*> _ <*> $?c1 <*> $?c2 <*> $?c3 <*>
+                          $ (?c4 + _ + _) ->> _] =>
+                        apply implies_spec; intros; apply star_exists_l;
+                        exists (c0+c0'+c1+c2+c3+c4)
+                      end.
+                      normalize_star. eapply credits_star_r; auto. revert_implies.
+                      repeat (eapply implies_trans;
+                        [apply star_implies_mono; [prove_implies_refl|]
+                        |apply credits_star_l]);
+                        try prove_implies_refl; auto.
+                        lia. }
+                    { rewrite Minus.not_le_minus_0_stt
+                        with (m - (a+b)) (List.length L);
+                        [|lia].
+                      lazymatch goal with
+                      | [|- $ (_+(?c0+?c0')) <*> _ <*> $?c1 <*> $?c2 <*> $?c3 <*>
+                          $ (?c4 + _ + _) ->> _] =>
+                        apply implies_spec; intros; apply star_exists_l;
+                        exists (c0+c0'+c1+c2+c3+c4)
+                      end.
+                      normalize_star. eapply credits_star_r; auto. revert_implies.
+                      repeat (eapply implies_trans;
+                        [apply star_implies_mono; [prove_implies_refl|]
+                        |apply credits_star_l]);
+                        try prove_implies_refl; auto.
+                        lia. } } }
           ++ clear get_neighbours h_insert h_empty h_extract_min h_decrease_key
               l_is_nil l_head l_tail Hspec_get_neighbours Hspec_h_insert
               Hspec_h_empty Hspec_h_extract_min Hspec_h_decrease_key
@@ -4066,7 +4149,10 @@ Proof.
             triple_reorder_pure. repeat triple_pull_pure.
             triple_reorder_credits.
             rewrite Bool.negb_false_iff, Nat.eqb_eq in *.
-            erewrite (Nat.add_comm x), <- (Nat.add_assoc _ x).
+            lazymatch goal with
+            | [|- triple _ ($ (?x + ?y + _) <*> _) _] =>
+              rewrite (Nat.add_comm x), <- (Nat.add_assoc y x)
+            end.
             edestruct Hh_free_cost with (s := 0) as (c1&c&Hcost_eq&?);
               eauto.
             rewrite Nat.add_0_r in Hcost_eq.
@@ -4164,10 +4250,7 @@ Proof.
                       { exfalso. rewrite Hequiv.
                         unfold set_equiv, set_sum, single, empty. auto. }
                       { unfold set_equiv, empty. intros. symmetry. auto. } } }
-                  { revert_implies.
-                    instantiate (cm2:=0). instantiate (cn_t:=0).
-                    instantiate (cn_t2:=0). instantiate (cn_0:=0).
-                    simpl.
+                  { revert_implies. simpl.
                     repeat (eapply implies_trans;
                       [apply star_implies_mono
                       |apply credits_star_l; reflexivity]);
