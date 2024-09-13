@@ -327,6 +327,15 @@ Lemma Dijkstra_invariant_nonnone A
 Proof.
 Admitted.
 
+Lemma Dijkstra_invariant_D_some A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) x n :
+  Dijkstra_invariant D pred P s g ->
+  D x = Some n ->
+  x = s \/ P x \/ neighbourhood g P x.
+Proof.
+Admitted.
+
 Lemma Dijkstra_invariant_if_D_some A
   (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
   (s : A) (g : wgraph A) x n (*n1*) n2 (*pr1*) pr2 :
@@ -339,6 +348,53 @@ Lemma Dijkstra_invariant_if_D_some A
   (*n = n1 + W g pr1 x ->*)
   n2 + W g pr2 x < n ->
   (P = empty /\ x = s) \/ (P s /\ neighbourhood g P x).
+Proof.
+Admitted.
+
+Lemma Dijkstra_invariant_if_D_some_neighbour_le_W A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) u v du dv :
+  Dijkstra_invariant D pred P s g ->
+  closest_neighbour g P D u ->
+  neighbours g u v ->
+  D u = Some du ->
+  D v = Some dv ->
+  dv <= du + W g u v ->
+  P v.
+Proof.
+Admitted.
+
+Lemma Dijkstra_invariant_D_is_some_in_set A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) v :
+  Dijkstra_invariant D pred P s g ->
+  P v ->
+  exists d, D v = Some d.
+Proof.
+Admitted.
+
+(* distance labels are greater or equal in the neighbourhood of P *)
+Lemma Dijkstra_invariant_D_ge_in_neighbourhood A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) u v :
+  Dijkstra_invariant D pred P s g ->
+  P u ->
+  (neighbourhood g P v) ->
+  (exists d, D u = Some d) /\ le (D u) (D v).
+Proof.
+Admitted.
+
+Lemma elem_unique_list_of_weighted_unique A B P (W : A -> B) LW :
+  is_elem_weighted_unique_list P W LW ->
+  is_elem_unique_list P (List.map fst LW).
+Proof.
+Admitted.
+
+Lemma neighbourhood_add_single_size A g P v ns N N' :
+  @is_set_size A (neighbourhood g P) ns ->
+  is_elem_unique_list (neighbours g v) N ->
+  is_filtered_list (fun x => ~ P x) N N' ->
+  is_set_size (neighbourhood g (add_single P v)) (ns + List.length N').
 Proof.
 Admitted.
 
@@ -2466,7 +2522,19 @@ Proof.
                               | [|- (_ \/ ~ ?P _ /\_) \/ _ -> _ \/ ~ ?P _ /\ _] =>
                                 assert (~ P i') as Hi'P
                               end.
-                              { admit. }
+                              { intros Hin.
+                                eapply Dijkstra_invariant_D_is_some_in_set in Hin as (d&Heq);
+                                  [|eassumption].
+                                lazymatch goal with
+                                | [H : forall _, i' = _ \/ _ -> ?f _ = ?D _,
+                                  H' : forall _ _, List.nth _ _ None = _ <-> ?f _ = _,
+                                  Heq : ?D i' = Some d
+                                  |- _] =>
+                                  rewrite <- H, <- H', List.app_nth2,
+                                    List.map_length, Hlen3, Nat.sub_diag in Heq;
+                                    [simpl in Heq; injection Heq; lia
+                                    |rewrite List.map_length; lia|auto]
+                                end. }
                               intros [Hin | ->]; [revert Hin|revert Hi'P];
                               clear; tauto. }
                             { swap_star. unfold update_nat_function_at.
@@ -3359,7 +3427,75 @@ Proof.
                           | [|- _ \/ ~ ?P _ /\ _ -> _ \/ ~ ?P _ /\ _] =>
                             assert (P i') as Hi'P
                           end.
-                          { admit. }
+                          { lazymatch goal with
+                            | [H : is_elem_weighted_unique_list _ _ (?L1++(i',w')::?L2),
+                              H' : forall _, i' = _ \/ _ -> ?f _ = ?D _,
+                              H'' : forall _ _, List.nth _ _ _ = _ <-> ?f _ = _,
+                              H''' : Dijkstra_invariant ?D ?pred _ _ _
+                              |- _] =>
+                              rename H into Hneigh, H' into HD, H'' into Hnth,
+                                H''' into Hinv;
+                              unfold is_elem_weighted_unique_list,
+                                is_elem_weighted_list, neighbours in Hneigh;
+                              destruct Hneigh as (Hin&Hnodup);
+                              specialize Hin with i' w';
+                              rewrite List.in_app_iff in Hin; simpl in Hin;
+                              destruct Hin as ((HE&->)&_); auto;
+                              assert (D i' = Some (Z.to_nat x')) as Heq
+                            end.
+                            { rewrite <- HD, <- Hnth, List.app_nth2; auto;
+                                rewrite List.map_length, Hlen3; auto.
+                              rewrite Nat.sub_diag. simpl. do 2 f_equal. lia. }
+                            (*eapply Dijkstra_invariant_if_D_some in Hinv; eauto.
+                            { lazymatch goal with
+                              | [H : (_ = empty /\ _ = set_sum empty _) \/
+                                  (_ src /\ _ = neighbourhood _ _)
+                                |- _] =>
+                                destruct H as [(->&->)|(?&->)]
+                              end.
+                              { destruct Hinv as [(_&->)|(Hin&Hneigh)].
+                                { unfold min_cost_elem in Hmincost.
+                                  destruct Hmincost as (Hsingle&_).
+                                  unfold set_sum, single, empty in Hsingle.
+                                  destruct Hsingle as [[]| ->].
+                                  unfold is_irreflexive, empty, not in *. eauto. }
+                                { tauto. } }
+                              { destruct Hinv as [(->&->)|(Hin&Hneigh)].
+                                { tauto. }
+                                { unfold min_cost_elem in Hmincost.
+                                  destruct Hmincost as (Hsingle&_).
+                                  unfold set_sum, single, empty in Hsingle.
+                                  destruct Hsingle as [[]| ->].
+                                  unfold is_irreflexive, empty, not in *. eauto. } } }
+                            {  }*)
+                            eapply Dijkstra_invariant_if_D_some_neighbour_le_W; eauto.
+                            { unfold closest_neighbour.
+                              lazymatch goal with
+                              | [H : (_ = empty /\ _ = set_sum empty _) \/
+                                  (_ src /\ _ = neighbourhood _ _)
+                                |- _] =>
+                                destruct H as [(->&->)|(?&->)]
+                              end.
+                              { eapply Dijkstra_invariant_D_some in Hinv
+                                  as [Hi'|[[]|(?&?&[]&?)]];
+                                  eauto.
+                                subst src. unfold min_cost_elem in Hmincost.
+                                destruct Hmincost as (Hsingle&_).
+                                unfold set_sum, single, empty in Hsingle.
+                                destruct Hsingle as [[]| ->]. exfalso.
+                                unfold is_irreflexive, empty, not in *. eauto. }
+                              { eassumption. } }
+                            { lazymatch goal with
+                              | [H : is_nat_fun_of_val_list ?L ?D,
+                                H' : List.nth _ _ _ = _,
+                                _ : Dijkstra_invariant ?D ?pred _ _ _
+                                |- _] =>
+                                rename H into Hlist, H' into Hnth'
+                              end.
+                              unfold is_nat_fun_of_val_list, fun_of_list in Hlist.
+                              destruct Hlist as (?&Hlist). rewrite Hlist in Hnth'.
+                              eassumption. }
+                            { lia. } }
                           intros [Hin | (Hnin&[Hin| [<-|[]]])];
                             [revert Hin|revert Hnin Hin|revert Hnin Hi'P];
                             clear; tauto. }
@@ -3642,10 +3778,32 @@ Proof.
                   end.
                   { right. unfold add_single, empty, single, set_sum. auto. }
                   { eassumption. }
-                  { unfold is_set_size. admit. }
-                  { admit. }
-                  { admit. }
-                  { admit. } }
+                  { unfold is_set_size, neighbourhood.
+                    lazymatch goal with
+                    | [H : is_elem_weighted_unique_list _ _ (_++_)%list |- _] =>
+                      apply elem_unique_list_of_weighted_unique in H;
+                      unfold neighbours in H
+                    end.
+                    eexists. split.
+                    { eapply equiv_elem_unique_list; eauto. unfold set_equiv.
+                      unfold is_irreflexive, not in *. intros. split.
+                      { intros. split.
+                        { intros [[]| ->]. eauto. }
+                        { eauto. } }
+                      { intros (?&?&[[]| ->]&?). assumption. } }
+                    { rewrite List.map_length, List.app_length.
+                      lazymatch goal with
+                      | [H : ?n1 = _, H' : ?n2 = _ |- ?n1 + ?n2 = _] =>
+                        rewrite H, H'
+                      end.
+                      reflexivity. } }
+                  { eapply equiv_set_size, empty_set_size.
+                    unfold set_equiv, empty, uncurry, add_single, set_sum, single.
+                    intros (u&w). unfold is_irreflexive, not in *. split.
+                    { contradiction. }
+                    { intros ([[]|<-]&[[]|<-]&?). eauto. } }
+                  { (*subst. rewrite Nat.add_0_r. lia.*) admit. }
+                  admit. }
                 { repeat match goal with
                   | [|- ((_ <*> _) <*> _) ?c ?m ] =>
                     apply star_assoc_l; eauto
@@ -3672,7 +3830,13 @@ Proof.
                   [|- List.length _ = n] => eassumption
                   end.
                   { right. unfold add_single, set_sum, single. auto. }
-                  { admit. }
+                  { unfold add_single. apply disjoint_sum_size.
+                    { unfold are_disjoint_sets, single.
+                      intros ? (Hin&<-).
+                      unfold min_cost_elem, neighbourhood in Hmincost.
+                      revert Hmincost Hin. clear. tauto. }
+                    { eassumption. }
+                    { apply single_set_size. } }
                   { admit. }
                   { admit. }
                   { admit. }
