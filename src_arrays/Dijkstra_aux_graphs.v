@@ -771,6 +771,16 @@ Proof.
   apply List.in_app_iff.
 Qed.
 
+Lemma sum2_elem_list A (P Q : A -> A -> Prop) Lp Lq :
+  is_elem_list (uncurry P) Lp ->
+  is_elem_list (uncurry Q) Lq ->
+  is_elem_list (uncurry (set_sum2 P Q)) (Lp ++ Lq)%list.
+Proof.
+  unfold is_elem_list, is_elem_list, set_sum2, uncurry.
+  intros HinLp HinLq (x&y).
+  rewrite List.in_app_iff, HinLp, HinLq. reflexivity.
+Qed.
+
 Lemma disjoint_list_nodup A (L1 L2 : list A) :
   List.NoDup L1 ->
   List.NoDup L2 ->
@@ -804,6 +814,17 @@ Proof.
   eauto using sum_elem_list, disjoint_list_nodup, disjoint_elem_list.
 Qed.
 
+Lemma disjoint_sum2_elem_unique_list A (P Q : A -> A -> Prop) Lp Lq :
+  are_disjoint_sets (uncurry P) (uncurry Q) ->
+  is_elem_unique_list (uncurry P) Lp ->
+  is_elem_unique_list (uncurry Q) Lq ->
+  is_elem_unique_list (uncurry (set_sum2 P Q)) (Lp ++ Lq)%list.
+Proof.
+  unfold is_elem_unique_list, is_elem_unique_list.
+  intros Hdisjoint (?&HnodupP) (?&HnodupQ).
+  eauto using sum2_elem_list, disjoint_list_nodup, disjoint_elem_list.
+Qed.
+
 Lemma disjoint_sum_size A (P Q : A -> Prop) p q :
   are_disjoint_sets P Q ->
   is_set_size P p ->
@@ -812,6 +833,16 @@ Lemma disjoint_sum_size A (P Q : A -> Prop) p q :
 Proof.
   unfold is_set_size. intros ? (Lp&?&?) (Lq&?&?). exists (Lp ++ Lq)%list.
   subst. auto using disjoint_sum_elem_unique_list, List.app_length.
+Qed.
+
+Lemma disjoint_sum_size2 A (P Q : A -> A -> Prop) p q :
+  are_disjoint_sets (uncurry P) (uncurry Q) ->
+  is_set_size (uncurry P) p ->
+  is_set_size (uncurry Q) q ->
+  is_set_size (uncurry (set_sum2 P Q)) (p + q).
+Proof.
+  unfold is_set_size. intros ? (Lp&?&?) (Lq&?&?). exists (Lp ++ Lq)%list.
+  subst. auto using disjoint_sum2_elem_unique_list, List.app_length.
 Qed.
 
 Definition cross {A B} (P : A -> Prop) (Q : B -> Prop) : A * B -> Prop :=
