@@ -2040,8 +2040,10 @@ Proof.
                           (fun x => ~ P_init x /\ List.In x
                           (List.map fst (Neigh_list_processed ++ [(i',w')]))))]> <*>
                         <[is_subset H' (V g) /\ is_set_size H' sv' /\
-                          (set_sum Pr H' i' -> c3 = 2*t') /\
-                          (~ set_sum Pr H' i' -> c3 = 0)]> <*>
+                          (*(set_sum Pr H' i' -> c3 = 2*t') /\
+                          (~ set_sum Pr H' i' -> c3 = 0)*)
+                          (set_sum P_init H i' -> c3 = 2*t') /\ (* credits after other than insert *)
+                          (~ set_sum P_init H i' -> c3 = 0)]> <*> (* credits after insert *)
                         $pot' <*> $c2 <*> $c3 <*> P1 <*> P2 <*> P3 <*>
                         array_content D_list' a_D <*>
                         is_heap n C Pr H' (*W*) D' pot' h <*>
@@ -4031,14 +4033,37 @@ Proof.
                             rename s1' into s1, s2' into s2, k1' into k1,
                               t' into t, k2' into k2, s' into s
                           end.
+                          (*lazymatch goal with
+                          | [|- $?t0 <*> ($?t1<*>($?t2<*>$?t3)) ->> $?t4 <*> $_ <*> $?t5] =>
+                            instantiate (y := t0 + t1 + t2 + t3 - t4 - t5)
+                          end.
                           lazymatch goal with
+                          | [H : ?s' + _ <= n
+                            |- $(_ + ?c*(n-(?s'+1+?s1'))*?t0 + _) <*>
+                              ($?k1'<*>($?t'<*>$?k2')) ->>
+                              _ <*> $(_ + (_ + _*(n-(_+1+?s2'))*_))] =>
+                            rename s1' into s1, s2' into s2, k1' into k1,
+                              t' into t, k2' into k2, s' into s
+                          end.*)
+                          (*lazymatch goal with
                           | [H : set_sum (add_single ?P' x_min) ?Q' i' -> t = _,
                             H' : ~ set_sum (add_single ?P' x_min) ?Q' i' -> t = 0
                             |- _] =>
                             rename H into HifIn, H' into HifNot, P' into P, Q' into Q
                           end.
                           assert (Decidable.decidable (set_sum (add_single P x_min) Q i')) as [HIn|HNot].
-                          { eapply decidable_if_finite.
+                          *)
+                          lazymatch goal with
+                          | [H : set_sum ?P' ?Q' i' -> t = _,
+                            H' : ~ set_sum ?P' ?Q' i' -> t = 0
+                            |- _] =>
+                            rename H into HifIn, H' into HifNot, P' into P, Q' into Q
+                          end.
+                          assert (Decidable.decidable (set_sum P Q i')) as [HIn|HNot] (*by admit*).
+                          { unfold set_sum.
+                            apply Decidable.dec_or; eapply decidable_if_finite;
+                              eauto using Nat.eq_decidable. }
+                          (*{ eapply decidable_if_finite.
                             { apply Nat.eq_decidable. }
                             lazymatch goal with
                             | [H : P = _ /\ ?QQ = _ \/ P src /\ ?QQ = _ |- _] =>
@@ -4060,8 +4085,91 @@ Proof.
                                 { auto. } }
                               { admit. } }
                             { unfold add_single. apply disjoint_sum_size; eauto using single_set_size.
-                              admit. } }
-                          { assert (s2 = s1) by admit.
+                              admit. } }*)
+                          { lazymatch goal with
+                            | [H : set_equiv ?P' _, H' : set_equiv ?Q _,
+                              H'' : is_set_size ?P' s1, H''' : is_set_size ?Q s2
+                              |- _] =>
+                              rename H into HequivR, H' into HequivQ, P' into R,
+                                H'' into HsizeR, H''' into HsizeQ
+                            end.
+                            (*assert (s2 = s1 \/ s2 = S s1).
+                            { assert (Decidable.decidable (P i')) as [Hin|Hout].
+                              { unfold set_equiv in HequivR.
+                                eapply decidable_if_finite; eauto using Nat.eq_decidable. }
+                              { left. eapply is_set_size_unique, equiv_set_size; eauto.
+                                unfold set_equiv in HequivQ, HequivR |- *. intros u.
+                                rewrite HequivQ, HequivR. rewrite HequivR in Hin.
+                                unfold set_sum in Hin |- *.
+                                rewrite List.map_app, List.in_app_iff.
+                                simpl. split.
+                                { clear. tauto. }
+                                { intros [?|(?&[?|[<-|[]]])]; auto. } }
+                              { right. unfold set_equiv in HequivQ, HequivR.
+                                eapply is_set_size_unique; eauto.
+                                eapply equiv_set_size with (add_single R i').
+                                { unfold set_equiv, add_single, set_sum, single.
+                                  intros u. rewrite HequivQ, HequivR, List.map_app.
+                                  rewrite HequivR in Hout. simpl. unfold set_sum.
+                                  rewrite or_assoc. apply or_iff_compat_l.
+                                  rewrite List.in_app_iff. simpl. split.
+                                  { intros [H'|<-].
+                                    { revert H'. clear. tauto. }
+                                    { split; auto. intros HP. apply Hout.
+                                      unfold add_single, set_sum in HIn |- *. auto. } }
+                                  { clear. tauto. } }
+                                { unfold add_single.
+                                  apply disjoint_sum_size; auto using single_set_size.
+                                  unfold are_disjoint_sets, single. intros u (HP1%Hequiv1&<-).
+                                  unfold add_single, single, set_sum, set_remove
+                                    in HP1, Hequiv2, HNot.
+                                  destruct HP1 as [(?&?)|(HP&Hin)].
+                                  { apply HNot. right. apply Hequiv2. auto. }
+                                  { apply HNot. right. apply Hequiv2.
+                                    rewrite List.map_app, List.in_app_iff. auto. } } } }*)
+                            (*assert (s1 <= s2 <= S s1).
+                            { split.
+                              { eapply subset_size_le; eauto.
+                                { eauto using decidable_if_finite, Nat.eq_decidable. }
+                                { unfold is_subset, set_equiv in HequivQ, HequivR |- *.
+                                  intros u. rewrite HequivQ, HequivR. unfold set_sum.
+                                  rewrite List.map_app, List.in_app_iff. simpl.
+                                  clear. tauto. } }
+                              { assert (is_subset Q (add_single R i')) as Hsub.
+                                { unfold set_equiv, is_subset, add_single, set_sum, single
+                                    in HequivQ, HequivR |- *.
+                                  intros u.
+                                  rewrite HequivQ, HequivR, List.map_app, List.in_app_iff.
+                                  simpl. clear. tauto. }
+                                assert (Decidable.decidable (R i')) as [Hin|Hout].
+                                { unfold set_equiv in HequivR.
+                                  eapply decidable_if_finite; eauto using Nat.eq_decidable. }
+                                { apply le_S.
+                                  eapply subset_size_le with (P := add_single R i'); eauto.
+                                  { eauto using decidable_if_finite, Nat.eq_decidable. }
+                                  eapply equiv_set_size; eauto.
+                                  unfold set_equiv, add_single, set_sum, single.
+                                  intros. split; auto. intros [?|<-]; auto. }
+                                { eapply subset_size_le with (P := add_single R i'); eauto.
+                                  { eauto using decidable_if_finite, Nat.eq_decidable. }
+                                  unfold add_single. change (S ?x) with (1+x). rewrite Nat.add_comm.
+                                  apply disjoint_sum_size; auto using single_set_size.
+                                  unfold are_disjoint_sets, single. intros ? (?&<-). auto. } } }
+                            (*{ eapply is_set_size_unique, equiv_set_size; eauto.
+                              lazymatch goal with
+                              | [H : set_equiv ?P' _, H' : set_equiv ?Q _
+                                |- set_equiv ?P' ?Q] =>
+                                rename H into HequivR, H' into HequivQ, P' into R
+                              end.
+                              unfold set_equiv in HequivQ, HequivR |- *. intros u.
+                              rewrite HequivQ, HequivR. unfold set_sum.
+                              apply or_iff_compat_l. rewrite List.map_app, List.in_app_iff.
+                              simpl. split.
+                              { clear. tauto. }
+                              { intros (?&[?|[<-|[]]]); auto.
+                                unfold add_single, set_sum, single in HIn.
+                                admit. } }*)
+                            (*assert (s2 = s1 + (s2-s1)) as -> by lia.*)
                             rewrite HifIn; auto.
                             (* folding the lhs of the entailment *)
                             eapply implies_trans;
@@ -4081,9 +4189,58 @@ Proof.
                               [|apply star_implies_mono;
                                 [apply credits_star_r|prove_implies_refl]];
                               try reflexivity.
-                            eapply credits_star_r. lia. }
-                          { assert (s2 = s1+1) as ->.
+                            eapply credits_star_r. (*simpl.*) admit. (*lia.*) } (* TODO *)*)
+                          { assert (s2 = s1) (*by admit*).
+                            { eapply is_set_size_unique, equiv_set_size; eauto.
+                              unfold set_equiv in HequivQ, HequivR |- *. intros u.
+                              rewrite HequivQ, HequivR. unfold set_sum in HIn |- *.
+                              destruct HIn as [HP|HR].
+                              { apply or_iff_compat_l.
+                                rewrite List.map_app, List.in_app_iff. simpl.
+                                revert HP. clear. intuition. subst. tauto. }
+                              { apply HequivR in HR. unfold set_sum in HR.
+                                revert HR. clear. rewrite List.map_app, List.in_app_iff.
+                                simpl. intuition; subst; auto. } }
+                            rewrite HifIn; auto.
+                            (* folding the lhs of the entailment *)
+                            eapply implies_trans;
+                              [apply star_implies_mono;
+                                [prove_implies_refl
+                                |apply star_implies_mono;
+                                  [prove_implies_refl|apply credits_star_l]]|];
+                              try reflexivity.
+                            eapply implies_trans;
+                              [apply star_implies_mono;
+                                [prove_implies_refl|apply credits_star_l]|];
+                              try reflexivity.
+                            eapply implies_trans; [apply credits_star_l|];
+                              try reflexivity.
+                            (* folding the rhs of the entailment *)
+                            eapply implies_trans;
+                              [|apply star_implies_mono;
+                                [apply credits_star_r|prove_implies_refl]];
+                              try reflexivity.
+                            eapply credits_star_r. lia. } }
+                          { assert (s2 = s1+1) as -> (*by admit*).
                             { lazymatch goal with
+                              | [H : set_equiv ?P' _, H' : set_equiv ?Q' _,
+                                H'' : is_set_size ?P' s1, H''' : is_set_size ?Q' s2
+                                |- _] =>
+                                rename H into HequivQ, H' into HequivR, Q' into R,
+                                  H'' into HsizeQ, H''' into HsizeR
+                              end.
+                              eapply is_set_size_unique, equiv_set_size
+                                with (P := add_single Q i'); eauto.
+                              { unfold set_equiv, add_single, set_sum, single
+                                  in HNot, HequivQ, HequivR |- *.
+                                intros u.
+                                rewrite HequivQ, HequivR, List.map_app, List.in_app_iff.
+                                simpl. revert HNot. clear. intuition. subst. auto. }
+                              { unfold add_single.
+                                apply disjoint_sum_size; auto using single_set_size.
+                                unfold are_disjoint_sets, set_sum, single in HNot |- *.
+                                intros ? (?&<-). auto. } }
+                            (*{ lazymatch goal with
                               | [H : is_set_size ?P s1, H' : is_set_size ?Q s2,
                                 H'' : set_equiv ?P _, H''' : set_equiv ?Q _
                                 |- _] =>
@@ -4096,24 +4253,25 @@ Proof.
                               eapply equiv_set_size with (add_single P1 i').
                               { unfold set_equiv, add_single, set_sum, single.
                                 intros u. rewrite Hequiv1, Hequiv2, List.map_app.
-                                simpl. unfold set_sum. rewrite List.in_app_iff. simpl.
-                                split.
+                                simpl. unfold set_sum. rewrite or_assoc.
+                                apply or_iff_compat_l. rewrite List.in_app_iff.
+                                simpl. split.
                                 { intros [H'|<-].
                                   { revert H'. clear. tauto. }
-                                  { left. unfold set_remove.
-                                    lazymatch goal with
-                                    | [H : is_elem_weighted_unique_list _ _ (_++(i',w')::_)
-                                      |- _] =>
-                                      rename H into Hlist
-                                    end.
-                                    unfold is_elem_weighted_unique_list,
-                                      is_elem_weighted_list, neighbours in Hlist.
-                                    destruct Hlist as (Hlist&_).
-                                    specialize Hlist with i' w' as ((?&?)&?).
-                                    { apply List.in_app_iff. simpl. auto. }
-                                    admit. } }
-                                { admit. } }
-                              admit. }
+                                  { split; auto. intros HP. apply HNot.
+                                    unfold add_single, set_sum. auto. } }
+                                { clear. tauto. } }
+                              { unfold add_single.
+                                apply disjoint_sum_size; auto using single_set_size.
+                                unfold are_disjoint_sets, single.
+                                (* intros u (HP1%Hequiv1&<-).
+                                unfold add_single, single, set_sum, set_remove
+                                  in HP1, Hequiv2, HNot.
+                                destruct HP1 as [(?&?)|(HP&Hin)].
+                                { apply HNot. right. apply Hequiv2. auto. }
+                                { apply HNot. right. apply Hequiv2.
+                                  rewrite List.map_app, List.in_app_iff. auto. }*)
+                                intros u (HP1&<-). unfold set_sum in HNot. auto. } }*)
                               rewrite HifNot; auto.
                               (* folding the lhs of the entailment *)
                               eapply implies_trans;
@@ -4139,8 +4297,64 @@ Proof.
                               | [H : ?s' + _ <= n |- _] => rename s' into s
                               end.*)
                               assert (n > s+1+s1) (*by admit*).
-                               (*assert (n > x8+1+s1).*)
                               { unfold gt, lt. rewrite <- Nat.add_assoc, (Nat.add_comm 1 s1).
+                                change (1+s + (s1 + 1) <= n).
+                                lazymatch goal with
+                                | [H : set_equiv Q _ |- _] => rename H into HeqQ
+                                end.
+                                unfold set_equiv, set_sum, set_remove in HeqQ.
+                                lazymatch goal with
+                                | [H : P = empty /\ _ = _ \/
+                                    P src /\ _ = neighbourhood _ _ |- _] =>
+                                  rename H into Hor
+                                end.
+                                lazymatch goal with
+                                | [H : is_elem_weighted_unique_list _ _ (?L1' ++ (i',w')::?L2')
+                                  |- _] =>
+                                  rename H into Hneighs, L1' into L1, L2' into L2
+                                end.
+                                unfold is_elem_weighted_unique_list,
+                                  is_elem_weighted_list, neighbours in Hneighs.
+                                destruct Hneighs as (Hneighs&?).
+                                lazymatch goal with
+                                | [H : set_equiv ?R' _, H' : is_set_size ?R' ?s
+                                  |- _ + ?s <= _] =>
+                                  rename H into HeqR, H' into HsizeR, R' into R
+                                end.
+                                assert (are_disjoint_sets (add_single P x_min) R).
+                                { unfold are_disjoint_sets, add_single, set_sum, single.
+                                  intros u ([HP|<-]&HR); apply HeqR in HR.
+                                  { destruct HR as [(?&?)|(?&?)]; auto.
+                                    destruct Hor as [(->&->)|(?&->)].
+                                    { unfold empty, single, set_sum in *. auto. }
+                                    { unfold neighbourhood in *. tauto. } }
+                                  { destruct HR as [(?&?)|(?&Hin)]; auto.
+                                    apply List.in_map_iff in Hin as ((i''&w'')&<-&Hin).
+                                    assert (List.In (i'',w'') (L1 ++ (i',w')::L2)) as Hin'.
+                                    { change (?L1 ++ ?x :: ?L2)%list with (L1++[x]++L2)%list.
+                                      rewrite List.app_assoc, List.in_app_iff. auto. }
+                                    apply Hneighs in Hin' as (HE&?). simpl in HE.
+                                    unfold is_irreflexive, not in *. eauto. } }
+                                assert (is_set_size (add_single P x_min) (1+s)).
+                                { rewrite Nat.add_comm. unfold add_single.
+                                  eapply disjoint_sum_size; eauto using single_set_size.
+                                  unfold are_disjoint_sets, single. intros u (HP&<-).
+                                  destruct Hor as [(->&->)|(?&->)]; auto.
+                                  unfold min_cost_elem, neighbourhood in Hmincost.
+                                  tauto. }
+                                subst n.
+                                eapply subset_size_le with (P' := set_sum (add_single P x_min) R);
+                                  eauto.
+                                { intros. eapply decidable_if_finite.
+                                  { apply Nat.eq_decidable. }
+                                  { eapply disjoint_sum_size; eauto. } }
+                                { apply disjoint_sum_size; auto. }
+                                { unfold is_subset, add_single, single, set_sum in *.
+                                  intros u [[HP|<-]|HQ]; eauto. specialize Hneighs with i' w'.
+                                  destruct Hneighs as ((?%E_closed1&?)&?); auto.
+                                  apply List.in_or_app. simpl. auto. } }
+                               (*assert (n > x8+1+s1).*)
+                              (*{ unfold gt, lt. rewrite <- Nat.add_assoc, (Nat.add_comm 1 s1).
                                 change (1+s + (s1 + 1) <= n).
                                 lazymatch goal with
                                 | [H : set_equiv Q _ |- _] => rename H into HeqQ
@@ -4190,7 +4404,7 @@ Proof.
                                 { unfold is_subset, add_single, single, set_sum in *.
                                   intros u [[HP|<-]|HQ]; eauto. specialize Hneighs with i' w'.
                                   destruct Hneighs as ((?%E_closed1&?)&?); auto.
-                                  apply List.in_or_app. simpl. auto. } }
+                                  apply List.in_or_app. simpl. auto. } }*)
                               (*destruct Nat.leb_spec with (s1+1) (n-(s+1)).*)
                               assert (n - (s+1+s1) = n-(s+1+(s1+1)) + 1) as -> by lia.
                               simpl. repeat f_equal.
