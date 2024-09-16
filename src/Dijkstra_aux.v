@@ -3,15 +3,15 @@ Import List.ListNotations.
 Require Import String.
 Require Import ZArith.
 
-Require Import src_arrays.LambdaRef.
-Require Import src_arrays.LamRefFacts.
-Require Import src_arrays.LambdaAssertions_credits_perm.
-Require Import src_arrays.LambdaTotalTriple_credits_perm.
-Require Import src_arrays.LamRefLogicFactsTotal_credits_perm.
+Require Import src.LambdaRef.
+Require Import src.LamRefFacts.
+Require Import src.LambdaAssertions_credits_perm.
+Require Import src.LambdaTotalTriple_credits_perm.
+Require Import src.LamRefLogicFactsTotal_credits_perm.
 Require Import Lia.
-Require Import src_arrays.Tactics.
-Require Import src_arrays.SA_Tactics.
-Require Import src_arrays.Interweave.
+Require Import src.Tactics.
+Require Import src.SA_Tactics.
+Require Import src.Interweave.
 
 Definition assign_array_at : Value string :=
   ([-\] "array", [-\] "index", [-\] "value",

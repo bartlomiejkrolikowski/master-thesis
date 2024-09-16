@@ -5,13 +5,12 @@ Require Import ZArith.
 
 Require Import src.LambdaRef.
 Require Import src.Interweave.
-(* Require Import src.Permutation. *)
 
 Definition StateAssertion (V : Set) :=
   nat -> Map V -> Prop.
 
 Definition subst_map {V : Set} (m : Map (inc_set V)) (v : Value V) : Map V :=
-  List.map (fun '(l,v') => (l, subst_v v' v)) m.
+  List.map (fun '(l,ov) => (l, option_map (fun v' => subst_v v' v) ov)) m.
 
 Definition subst_sa {V : Set} (A : StateAssertion V) (v : Value V) :
   StateAssertion (inc_set V) :=
@@ -23,8 +22,18 @@ Definition sa_empty {V : Set} : StateAssertion V :=
 Definition sa_pure {V : Set} (P : Prop) : StateAssertion V :=
   fun c m => P /\ sa_empty c m.
 
+Definition sa_single_any {V : Set} (l : Label) (ov : option (Value V)) :
+  StateAssertion V :=
+  fun c m => c = 0 /\ m = [(l,ov)]%list.
+
 Definition sa_single {V : Set} (l : Label) (v : Value V) : StateAssertion V :=
-  fun c m => c = 0 /\ m = [(l,v)]%list.
+  fun c m => c = 0 /\ m = [(l,Some v)]%list.
+
+Definition sa_single_decl {V : Set} (l : Label) : StateAssertion V :=
+  fun c m => c = 0 /\ m = [(l,None)]%list.
+
+Definition sa_array_decl {V : Set} (l : Label) (n : nat) : StateAssertion V :=
+  fun c m => c = 0 /\ m = n_new_cells_from l n.
 
 Definition sa_credits {V : Set} (k : nat) : StateAssertion V :=
   fun c m => c = k /\ m = []%list.
@@ -40,6 +49,9 @@ Definition sa_star {V : Set} (A1 A2 : StateAssertion V) : StateAssertion V :=
     disjoint_maps m1 m2 /\
     Interweave m1 m2 m.
 
+Definition sa_and {V : Set} (A1 A2 : StateAssertion V) : StateAssertion V :=
+  fun c m => A1 c m /\ A2 c m.
+
 Definition sa_exists {T} {V : Set} (F : T -> StateAssertion V) : StateAssertion V :=
   fun c m => exists x : T, F x c m.
 
@@ -51,9 +63,14 @@ Definition sa_implies {V : Set} (A1 A2 : StateAssertion V) : Prop :=
 
 Notation "<[]>" := (sa_empty).
 Notation "<[ P ]>" := (sa_pure P).
+Notation "<( l :?= v )>" := (sa_single_any l v).
 Notation "<( l :== v )>" := (sa_single l v).
+Notation "<( l :\= )>" := (sa_single_decl l).
+Notation "<( l :\ n \= )>" := (sa_array_decl l n).
+Notation "$ c " := (sa_credits c) (at level 30).
 Notation "P <*> Q" := (sa_star P Q) (at level 40).
 Notation "P <*>+ Q" := (fun v => sa_star (P v) Q) (at level 40).
+Notation "P </\> Q" := (sa_and P Q) (at level 20).
 Notation "'<exists>' x .. y , p" :=
   (sa_exists (fun x => .. (sa_exists (fun y => p)) ..))
   (at level 200, x binder, right associativity,
@@ -70,14 +87,33 @@ Notation "P -->> Q" := (forall v, sa_implies (P v) (Q v)) (at level 50).
 Notation "P <<->> Q" := (P ->> Q /\ Q ->> P) (at level 50).
 Notation "P <<-->> Q" := (P -->> Q /\ Q -->> P) (at level 50).
 
+Definition sa_wand {V} (P Q : StateAssertion V) : StateAssertion V :=
+  <exists> H, <[P <*> H ->> Q]> <*> H.
+
+Notation "P <-*> Q" := (sa_wand P Q) (at level 50).
+
 Global Hint Unfold subst_map : st_assertions.
 Global Hint Unfold subst_sa : st_assertions.
 Global Hint Unfold sa_empty : st_assertions.
 Global Hint Unfold sa_pure : st_assertions.
+Global Hint Unfold sa_single_any : st_assertions.
 Global Hint Unfold sa_single : st_assertions.
+Global Hint Unfold sa_single_decl : st_assertions.
+Global Hint Unfold sa_array_decl : st_assertions.
 Global Hint Unfold sa_credits : st_assertions.
 Global Hint Unfold disjoint_maps : st_assertions.
 Global Hint Unfold sa_star : st_assertions.
+Global Hint Unfold sa_and : st_assertions.
 Global Hint Unfold sa_exists : st_assertions.
 Global Hint Unfold sa_forall : st_assertions.
 Global Hint Unfold sa_implies : st_assertions.
+Global Hint Unfold sa_wand : st_assertions.
+
+Inductive array_content {V} : list (option (Value V)) -> Value V -> StateAssertion V :=
+| array_nil l : array_content nil (Lab l) 0 nil
+| array_cons ov A n c m m' :
+  Interweave [(OfNat n, ov)] m m' ->
+  array_content A (Lab (OfNat (S n))) c m ->
+  array_content (ov::A) (Lab (OfNat n)) c m'.
+
+Global Hint Constructors array_content : st_assertions.

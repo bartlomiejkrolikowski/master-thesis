@@ -13,7 +13,13 @@ Fact liftS_inc (V V' : Set) (f : V -> Value V') x v' :
 Proof.
   destruct x; reflexivity.
 Qed.
-
+(*
+Fact liftS_liftS (V V' : Set) (f : V -> Value V') x :
+  liftS (liftS f) (option_map Some x) = map_v (option_map Some) (liftS f x).
+Proof.
+  destruct x; simpl. unfold shift_v ; reflexivity.
+Qed.
+*)
 Fact liftS_ext (V V' : Set) (f g : V -> Value V') x :
   (forall x, f x = g x) ->
   liftS f x = liftS g x.
@@ -26,6 +32,315 @@ Fact liftS_Var V (x : inc_set V) :
 Proof.
   destruct x; reflexivity.
 Qed.
+
+Fixpoint map_v_ext (V V' : Set) (f g : V -> V') v {struct v} :
+  (forall x, f x = g x) ->
+  map_v f v = map_v g v
+with map_e_ext (V V' : Set) (f g : V -> V') e {struct e} :
+  (forall x, f x = g x) ->
+  map_e f e = map_e g e.
+Proof.
+  - destruct v; simpl; trivial; intro Hext; f_equal; auto.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + apply map_e_ext. intros. destruct x; simpl; f_equal. auto.
+  - destruct e; simpl; intro; f_equal; auto.
+    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Fixpoint map_v_map_v (V V' V'' : Set) (f : V' -> V'') (g : V -> V') v {struct v} :
+  map_v f (map_v g v) = map_v (fun x => f (g x)) v
+with map_e_map_e (V V' V'' : Set) (f : V' -> V'') (g : V -> V') e {struct e} :
+  map_e f (map_e g e) = map_e (fun x => f (g x)) e.
+Proof.
+  - destruct v; simpl; trivial; f_equal.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + erewrite map_e_ext with (f := option_map (fun x => f (g x)));
+        [|destruct x]; auto.
+  - destruct e; simpl; f_equal; auto.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Lemma map_v_closed_value (V V' : Set) (f : V -> V') v :
+  is_closed_value v ->
+  is_closed_value (map_v f v).
+Proof.
+  unfold is_closed_value, is_limited_value.
+  intros [v' ->]. exists v'. rewrite map_v_map_v.
+  apply map_v_ext. intros [].
+Qed.
+
+Lemma map_e_closed_expr (V V' : Set) (f : V -> V') e :
+  is_closed_expr e ->
+  is_closed_expr (map_e f e).
+Proof.
+  unfold is_closed_expr, is_limited_expr.
+  intros [e' ->]. exists e'. rewrite map_e_map_e.
+  apply map_e_ext. intros [].
+Qed.
+
+Lemma map_v_same_on_closed (V V' : Set) (f g : V -> V') v :
+  is_closed_value v ->
+  map_v f v = map_v g v.
+Proof.
+  unfold is_closed_value, is_limited_expr.
+  intros [v' ->]. repeat rewrite map_v_map_v.
+  apply map_v_ext. intros [].
+Qed.
+
+Lemma map_e_same_on_closed (V V' : Set) (f g : V -> V') e :
+  is_closed_expr e ->
+  map_e f e = map_e g e.
+Proof.
+  unfold is_closed_value, is_limited_expr.
+  intros [e' ->]. repeat rewrite map_e_map_e.
+  apply map_e_ext. intros [].
+Qed.
+
+Corollary map_v_shift_closed (V : Set) (f : V -> option V) v :
+  is_closed_value v ->
+  map_v f v = shift_v v.
+Proof.
+  unfold shift_v. apply map_v_same_on_closed.
+Qed.
+
+Corollary map_e_shift_closed (V : Set) (f : V -> option V) e :
+  is_closed_expr e ->
+  map_e f e = shift_e e.
+Proof.
+  unfold shift_e. apply map_e_same_on_closed.
+Qed.
+
+Definition in_range [A B] (f : A -> B) (y : B) :=
+  exists x, y = f x.
+
+Ltac prove_is_limited :=
+  unfold is_limited_value, is_limited_expr, in_range; repeat intros (?&->);
+  unshelve eexists; [econstructor|simpl; reflexivity]; eassumption.
+
+Fact is_limited_U_val V A f :
+  is_limited_value A f (@U_val V).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_U_val : is_closed_db.
+
+Fact is_limited_Int V i A f :
+  is_limited_value A f (@Int V i).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Int : is_closed_db.
+
+Fact is_limited_Bool V b A f :
+  is_limited_value A f (@Bool V b).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Bool : is_closed_db.
+
+Fact is_limited_Lab V l A f :
+  is_limited_value A f (@Lab V l).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Lab : is_closed_db.
+
+Fact is_limited_RecV V (vs : list (Value V)) A f :
+  List.Forall (is_limited_value A f) vs ->
+  is_limited_value A f (RecV vs).
+Proof.
+  unfold is_limited_value. intros Hlimited. induction Hlimited.
+  - now exists (RecV []).
+  - destruct H as (v'&->). destruct IHHlimited as (vs'&Hvs').
+    destruct vs'; try discriminate. simpl in Hvs'. injection Hvs' as ->.
+    eexists (RecV (v'::_)). simpl. reflexivity.
+Qed.
+Global Hint Resolve is_limited_RecV : is_closed_db.
+
+Fact is_limited_Lam V A f (e1 : Expr (inc_set V)) :
+  is_limited_expr (inc_set A) (option_map f) e1 ->
+  is_limited_value A f (Lam e1).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Lam : is_closed_db.
+
+Fact is_limited_Val V (v : Value V) A f :
+  is_limited_value A f v ->
+  is_limited_expr A f (Val v).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Val : is_closed_db.
+
+Fact is_limited_App V (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (e1 <* e2).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_App : is_closed_db.
+
+Fact is_limited_UnOp V k (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (UnOp k e1).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_UnOp : is_closed_db.
+
+Fact is_limited_BinOp V k (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (BinOp k e1 e2).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_BinOp : is_closed_db.
+
+Fact is_limited_RecE V (es : list (Expr V)) A f :
+  List.Forall (is_limited_expr A f) es ->
+  is_limited_expr A f (RecE es).
+Proof.
+  unfold is_limited_expr. intros Hlimited. induction Hlimited.
+  - now exists (RecE []).
+  - destruct H as (e'&->). destruct IHHlimited as (es'&Hes').
+    destruct es'; try discriminate. simpl in Hes'. injection Hes' as ->.
+    eexists (RecE (e'::_)). simpl. reflexivity.
+Qed.
+Global Hint Resolve is_limited_RecE : is_closed_db.
+
+Fact is_limited_Get V n (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (Get n e1).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Get : is_closed_db.
+
+Fact is_limited_Ref V (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (Ref e1).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Ref : is_closed_db.
+
+Fact is_limited_NewArray V (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (NewArray e1).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_NewArray : is_closed_db.
+
+Fact is_limited_Deref V (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (Deref e1).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Deref : is_closed_db.
+
+Fact is_limited_Shift V (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (Shift e1 e2).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Shift : is_closed_db.
+
+Fact is_limited_Assign V (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (Assign e1 e2).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Assign : is_closed_db.
+
+Fact is_limited_Free V (e1 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f (Free e1).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Free : is_closed_db.
+
+Fact is_limited_Seq V (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (Seq e1 e2).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Seq : is_closed_db.
+
+Fact is_limited_If V (e1 e2 e3 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f e3 ->
+  is_limited_expr A f (If e1 e2 e3).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_If : is_closed_db.
+
+Fact is_limited_While V (e1 e2 : Expr V) A f :
+  is_limited_expr A f e1 ->
+  is_limited_expr A f e2 ->
+  is_limited_expr A f (While e1 e2).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_While : is_closed_db.
+
+Fact is_limited_Var V A f x :
+  in_range f x ->
+  is_limited_value A f (@Var V x).
+Proof.
+  prove_is_limited.
+Qed.
+Global Hint Resolve is_limited_Var : is_closed_db.
+
+Ltac prove_in_range := prove_is_limited.
+
+Fact in_range_None A B f :
+  @in_range (inc_set A) (inc_set B) (option_map f) None.
+Proof.
+  prove_in_range.
+Qed.
+Global Hint Resolve in_range_None : is_closed_db.
+
+Fact in_range_Some A B f x :
+  in_range f x ->
+  @in_range (inc_set A) (inc_set B) (option_map f) (Some x).
+Proof.
+  prove_in_range.
+Qed.
+Global Hint Resolve in_range_Some : is_closed_db.
+
+Fact is_limited_shift_v A B f v :
+  is_limited_value A f v ->
+  @is_limited_value (inc_set A) (inc_set B) (option_map f) (shift_v v).
+Proof.
+  unfold is_limited_value. intros (x&->). exists (shift_v x).
+  unfold shift_v, option_map. repeat rewrite -> map_v_map_v.
+  reflexivity.
+Qed.
+Global Hint Resolve is_limited_shift_v : is_closed_db.
+
+Fact is_limited_shift_e A B f e :
+  is_limited_expr A f e ->
+  @is_limited_expr (inc_set A) (inc_set B) (option_map f) (shift_e e).
+Proof.
+  unfold is_limited_expr. intros (x&->). exists (shift_e x).
+  unfold shift_e, option_map. repeat rewrite -> map_e_map_e.
+  reflexivity.
+Qed.
+Global Hint Resolve is_limited_shift_e : is_closed_db.
 
 Fixpoint bind_v_ext (V V' : Set) (f g : V -> Value V') v {struct v} :
   (forall x, f x = g x) ->
@@ -50,6 +365,20 @@ Proof.
     + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
     + erewrite bind_e_ext with (f := liftS (fun x => f (g x)));
         [|destruct x]; eauto.
+  - destruct e; simpl; f_equal; eauto.
+    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Fixpoint bind_v_map_v_l (V V' V'' : Set) (f : V' -> V'') (g : V -> Value V') v {struct v} :
+  map_v f (bind_v g v) = bind_v (fun x => map_v f (g x)) v
+with bind_e_map_e_l (V V' V'' : Set) (f : V' -> V'') (g : V -> Value V') e {struct e} :
+  map_e f (bind_e g e) = bind_e (fun x => map_v f (g x)) e.
+Proof.
+  - destruct v; simpl; trivial; f_equal.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + erewrite bind_e_ext with (f := liftS (fun x => map_v f (g x)));
+        [|destruct x]; eauto.
+      simpl. unfold shift_v. do 2 rewrite map_v_map_v. auto.
   - destruct e; simpl; f_equal; eauto.
     revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
 Qed.
@@ -79,6 +408,32 @@ Proof.
     + erewrite bind_e_ext; auto using liftS_Var.
   - destruct e; simpl; f_equal; auto.
     revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Fixpoint bind_v_liftS_shift (A B : Set) (f : A -> Value B) (v : Value A) {struct v} :
+  bind_v (liftS f) (shift_v v) = bind_v (fun x => shift_v (f x)) v
+with bind_e_liftS_shift (A B : Set) (f : A -> Value B) (e : Expr A) {struct e} :
+  bind_e (liftS f) (shift_e e) = bind_e (fun x => shift_v (f x)) e.
+Proof.
+  - destruct v; cbn; trivial; f_equal.
+    + revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+    + erewrite bind_e_ext with (f := liftS (fun x => shift_v (f x))).
+      * apply bind_e_map_e.
+      * destruct x; reflexivity.
+  - destruct e; cbn; f_equal; eauto.
+    revert l. fix Hind 1. destruct l; simpl; f_equal; auto.
+Qed.
+
+Theorem bind_v_liftS_shift_swap (A B : Set) (f : A -> Value B) (v : Value A) :
+  bind_v (liftS f) (shift_v v) = shift_v (bind_v f v).
+Proof.
+  unfold shift_v. rewrite bind_v_map_v, bind_v_map_v_l. auto using bind_v_ext.
+Qed.
+
+Theorem bind_e_liftS_shift_swap (A B : Set) (f : A -> Value B) (e : Expr A) :
+  bind_e (liftS f) (shift_e e) = shift_e (bind_e f e).
+Proof.
+  unfold shift_e. rewrite bind_e_map_e, bind_e_map_e_l. auto using bind_e_ext.
 Qed.
 
 (** OTHER LEMMAS *)
@@ -281,14 +636,17 @@ Proof.
   - discriminate.
   - simpl in *. unfold_all_lab.
     destruct Nat.eqb_spec with n n'.
-    + injection Hlookup as []. subst. constructor 1.
+    + destruct v' as [v'|].
+      * injection Hlookup as []. subst. constructor 1.
+      * discriminate.
     + constructor 2. auto.
 Qed.
 
 Lemma Lookup_map (V V' : Set)
   f (g : Value V -> Value V') (l : Label) (m : Map V) m' v :
   Lookup l m v ->
-  Lookup (f l) (List.map (fun '(l', v') => (f l', g v')) m ++ m')%list (g v).
+  Lookup (f l)
+    (List.map (fun '(l', v') => (f l', option_map g v')) m ++ m')%list (g v).
 Proof.
   intro Hlookup. induction Hlookup; simpl; constructor. assumption.
 Qed.
@@ -297,7 +655,8 @@ Lemma Lookup_map_nat (V V' : Set)
   f (g : Value V -> Value V') (l : Label) (m : Map V) m' v :
   Lookup l m v ->
   Lookup (lift f l)
-    (List.map (fun '(OfNat n', v') => (f n', g v')) m ++ m')%list (g v).
+    (List.map (fun '(OfNat n', v') => (f n', option_map g v')) m ++ m')%list
+    (g v).
 Proof.
   destruct l as [n]. intro Hlookup.
   induction Hlookup; simpl; constructor. assumption.
@@ -313,8 +672,8 @@ Lemma Assignment_map_nat (V V' : Set)
   f (g : Value V -> Value V') (l : Label) (m : Map V) m' m'' v :
   Assignment l v m m' ->
   Assignment (lift f l) (g v)
-    (List.map (fun '(OfNat n', v') => (f n', g v')) m ++ m'')%list
-    (List.map (fun '(OfNat n', v') => (f n', g v')) m' ++ m'')%list.
+    (List.map (fun '(OfNat n', v') => (f n', option_map g v')) m ++ m'')%list
+    (List.map (fun '(OfNat n', v') => (f n', option_map g v')) m' ++ m'')%list.
 Proof.
   destruct l as [n]. intro Hassign.
   induction Hassign; simpl; constructor. assumption.
@@ -372,6 +731,7 @@ Proof.
     + auto.
 Qed.
 
+(*
 Lemma lookup_None (V : Set) (l : Label) (m : Map V) :
   lookup l m = None ->
   Is_fresh_label l m.
@@ -397,6 +757,7 @@ Proof.
   - eauto.
   - contradiction.
 Qed.
+*)
 
 Lemma valid_labels (V : Set) (m m' : Map V) :
   labels m = labels m' ->
@@ -566,11 +927,12 @@ Fact f_if A B (f : A -> B) (b : bool) x y :
 Proof.
   now destruct b.
 Qed.
-
+(*
+(* TODO *)
 Theorem red_shift (V : Set) n m m' m'' m2 m2' (e e' e2 e2' : Expr V) :
   S n = of_label (new_label m'') ->
-  m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m ->
-  m2' = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m' ->
+  m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), option_map (map_labels_v (lift (fun n' => OfNat (plus n n')))) v)) m ->
+  m2' = List.map (fun '(OfNat n', v) => (OfNat (n + n'), option_map (map_labels_v (lift (fun n' => OfNat (plus n n')))) v)) m' ->
   e2 = map_labels_e (lift (fun n' => OfNat (plus n n'))) e ->
   e2' = map_labels_e (lift (fun n' => OfNat (plus n n'))) e' ->
   R[e, m ~~> e', m'] ->
@@ -589,17 +951,20 @@ Proof.
     repeat rewrite List.map_app. f_equal.
     repeat rewrite List.map_map. apply List.map_ext.
     intros [[n] v']. simpl. reflexivity.
+  - apply red_new_array; try assumption. admit.
   - apply red_deref. apply Lookup_map_nat. assumption.
+  - admit.
   - apply red_assign. apply Assignment_map_nat. assumption.
+  - apply red_free. admit.
   - rewrite f_if. apply red_if.
   - eapply red_rec_split; try (rewrite vals2expr_shift; apply SplitAt_map);
       eassumption.
-Qed.
+Admitted.
 
 Theorem cost_red_shift (V : Set) n m m' m'' m2 m2' (e e' e2 e2' : Expr V) c :
   S n = of_label (new_label m'') ->
-  m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m ->
-  m2' = List.map (fun '(OfNat n', v) => (OfNat (n + n'), map_labels_v (lift (fun n' => OfNat (plus n n'))) v)) m' ->
+  m2 = List.map (fun '(OfNat n', v) => (OfNat (n + n'), option_map (map_labels_v (lift (fun n' => OfNat (plus n n')))) v)) m ->
+  m2' = List.map (fun '(OfNat n', v) => (OfNat (n + n'), option_map (map_labels_v (lift (fun n' => OfNat (plus n n')))) v)) m' ->
   e2 = map_labels_e (lift (fun n' => OfNat (plus n n'))) e ->
   e2' = map_labels_e (lift (fun n' => OfNat (plus n n'))) e' ->
   C[e, m ~~> e', m' | c] ->
@@ -608,7 +973,7 @@ Proof.
   intros Hn Hm2 Hm2' He2 He2' Hred. subst.
   induction Hred; econstructor; eauto using red_shift.
 Qed.
-
+*)
 (*
 Inductive equiv_v :
   forall {V : Set}, Map V -> Map V -> Value V -> Value V -> Prop :=
@@ -801,7 +1166,7 @@ Ltac discriminate_red_Val :=
   match goal with
   | [ H : red (Val _) _ _ _ |- _ ] => inversion H
   end.
-
+(*
 (* uniqueness of reduction results *)
 Theorem uniqueness (V : Set)
   (e e' e'' : Expr V) (m m' m'' : Map V) :
@@ -843,6 +1208,9 @@ Proof.
       apply Lookup_spec in H; try assumption
     end;
     try (repeat split; congruence).
+  - admit.
+  - admit.
+  - admit.
   - edestruct SplitAt_deterministic with (y := e) (y' := e0) as [? [? ?]];
       eauto;
       try match goal with
@@ -865,8 +1233,8 @@ Proof.
     | [H : SplitAt ?es1 _ _ _ |- _ ] => apply SplitAt_spec_eq in H
     end.
     subst. auto.
-Qed.
-
+Admitted.
+*)(*
 Lemma no_red_val (V : Set) (e e' : Expr V) (m m' : Map V) :
   C[e, m ~~> e', m' | 0] ->
   e = e' /\ m = m'.
@@ -893,7 +1261,7 @@ Proof.
         as [? [? [? ?]]].
       auto.
 Qed.
-
+*)
 Theorem cost_red_comp :
   forall V (e : _ V) m e' m' c e'' m'' c',
     C[e, m ~~> e', m' | c] ->
@@ -1091,6 +1459,15 @@ Proof.
   - apply red_value in HR. destruct HR.
 Qed.
 
+Fact cost_red_0 :
+  forall V m m' (e e' : Expr V) c,
+    c = 0 ->
+    C[e, m ~~> e', m' | c] ->
+    e = e' /\ m = m'.
+Proof.
+  intros. destruct H0; try discriminate. auto.
+Qed.
+
 Fact is_value_or_not :
   forall V (e : Expr V),
     (exists v : Value V, e = v) \/
@@ -1112,7 +1489,7 @@ Proof with eauto.
   - repeat econstructor...
   - econstructor...
 Qed.
-
+(*
 (* inversions of lemmas above *)
 Lemma cost_red_split1 :
   forall V (e : _ V) m e' m' e'' m'' c,
@@ -1250,7 +1627,7 @@ Proof.
   - inversion HR; subst; try now (cut_values Hnvalue).
     finish_inversion_proof IHHred Hnvalue.
 Qed.
-
+*)
 (*
 Theorem cost_red_binop1 :
   forall V k (m : _ V) m' e1 e1' e2 c,
@@ -1317,7 +1694,7 @@ Proof.
   - destruct Hdecidable with y x as [Hx | Hx], IHxs as [HIn | HIn];
     intuition.
 Qed.
-
+(*
 Theorem cost_red_rec_split_inv :
   forall V m m' es es' vs0 e (v : Value V) es0 c,
     L[es  ~~> vals2exprs vs0 | e | es0] ->
@@ -1350,6 +1727,7 @@ Proof.
         admit. (*TODO*)
       }
 Admitted.
+*)
 (*
 Theorem cost_red_ref_e :
   forall V (m : _ V) m' e e' c,
@@ -1814,7 +2192,17 @@ Theorem big_red_ref (V : Set) l m1 m2 c
   (e : Expr V) (v : Value V) :
   l = new_label m2 ->
   C[e,m1 ~~> v,m2|c] ->
-  C[Ref e,m1 ~~> Lab l,(l,v)::m2|1+c]%list.
+  C[Ref e,m1 ~~> Lab l,(l, Some v)::m2|1+c]%list.
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_new_array (V : Set) l m1 m2 m3 c
+  (e : Expr V) i :
+  (i >= 0)%Z ->
+  (m3, l) = alloc_array (Z.to_nat i) m2 ->
+  C[e,m1 ~~> Int i,m2|c] ->
+  C[NewArray e,m1 ~~> Lab l,m3|1+c].
 Proof.
   solve_by_induction.
 Qed.
@@ -1828,12 +2216,31 @@ Proof.
   solve_by_induction.
 Qed.
 
+Theorem big_red_shift (V : Set) m1 m2 m3 c1 c2
+  (e1 e2 : Expr V) n i :
+  (i >= 0)%Z ->
+  C[e1,m1 ~~> Lab (OfNat n),m2|c1] ->
+  C[e2,m2 ~~> Int i,m3|c2] ->
+  C[Shift e1 e2,m1 ~~> Lab (OfNat (n + Z.to_nat i)),m3|1+c1+c2].
+Proof.
+  solve_by_induction.
+Qed.
+
 Theorem big_red_assign (V : Set) l m1 m2 m3 m4 c1 c2
   (e1 e2 : Expr V) (v : Value V) :
   Assignment l v m3 m4 ->
   C[e1,m1 ~~> Lab l,m2|c1] ->
   C[e2,m2 ~~> v,m3|c2] ->
   C[e1 <- e2,m1 ~~> U_val,m4|c1+c2+1].
+Proof.
+  solve_by_induction.
+Qed.
+
+Theorem big_red_free (V : Set) l m1 m2 m3 c
+  (e : Expr V) :
+  Dealloc l m2 m3 ->
+  C[e,m1 ~~> Lab l,m2|c] ->
+  C[Free e,m1 ~~> U_val,m3|1+c].
 Proof.
   solve_by_induction.
 Qed.
@@ -1921,3 +2328,23 @@ Proof.
   solve_by_induction.
 Qed.
 *)
+
+Theorem big_red_app_inv (V : Set) m1 m4 c
+  (e1 e2 : Expr V) (v : Value V) :
+  C[e1 <* e2,m1 ~~> v,m4|c] ->
+  exists c1 e1' m2 c2 (v2 : Value V) m3 c3,
+  C[e1,m1 ~~> -\ e1',m2|c1] /\
+  C[e2,m2 ~~>     v2,m3|c2] /\
+  C[subst_e e1' v2,m3 ~~> v,m4|c3] /\
+  c = c1 + c2 + 1 + c3.
+Proof.
+  remember (e1 <* e2) as e eqn:He. remember (Val v) as ev eqn:Hev. intros Hred.
+  revert e1 e2 v He Hev. induction Hred; intros ? ? ? ->; try discriminate.
+  intros ->. inversion H; subst.
+  - eauto 11 with lamref.
+  - destruct (IHHred _ _ _ eq_refl eq_refl) as (?&?&?&?&?&?&?&?&?&?&->).
+    eauto 12 with lamref.
+  - destruct (IHHred _ _ _ eq_refl eq_refl)
+      as (?&?&?&?&?&?&?&(<-&->&->)%cost_red_value&?&?&->).
+    eauto 12 with lamref.
+Qed.

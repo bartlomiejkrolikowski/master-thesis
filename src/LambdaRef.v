@@ -1,4 +1,5 @@
-(* a simple lambda calculus with mutable references *)
+(* a simple lambda calculus with mutable references,
+  based on formalizations from https://github.com/ppolesiuk/type-systems-notes *)
 
 Require Import Nat.
 Require List.
@@ -6,8 +7,7 @@ Import List.ListNotations.
 Require Import String.
 Require Import ZArith.
 
-Definition inc_set (A : Set) : Set :=
-  option A.
+Definition inc_set : Set -> Set := option.
 
 Definition inc_fun {A B : Set}
   (f : A -> B) (y : B) (x : inc_set A) : B :=
@@ -96,22 +96,15 @@ with Expr (V : Set) :=
 | RecE : list (Expr V) -> Expr V (* record expression *)
 | Get : nat -> Expr V -> Expr V (* get nth field of a record *)
 | Ref : Expr V -> Expr V (* mutable reference *)
-| Deref : Expr V -> Expr V
+| NewArray : Expr V -> Expr V (* an array consisting of contiguous memory cells *)
+| Deref : Expr V -> Expr V (* read a single value from the memory *)
+| Shift : Expr V -> Expr V -> Expr V (* shift a label by a nonnegative integer *)
 | Assign : Expr V -> Expr V -> Expr V
+| Free : Expr V -> Expr V (* free the given memory cell *)
 | Seq : Expr V -> Expr V -> Expr V
 | If : Expr V -> Expr V -> Expr V -> Expr V
 | While : Expr V -> Expr V -> Expr V
 .
-(*
-Inductive type :=
-| Unit : type
-| IntT : type (* integer *)
-| BoolT : type (* bool *)
-| Arrow : type -> type -> type
-| RefT : type -> type (* reference *)
-| RecT : list type -> type (* record *)
-.
-*)
 
 Arguments U_val {V}.
 Arguments Var {V}.
@@ -120,15 +113,18 @@ Arguments Bool {V}.
 Arguments Lab {V}.
 Arguments RecV {V}.
 Arguments Lam {V}.
-Arguments Ref {V}.
 Arguments Val {V}.
 Arguments App {V}.
 Arguments UnOp {V}.
 Arguments BinOp {V}.
 Arguments RecE {V}.
 Arguments Get {V}.
+Arguments NewArray {V}.
+Arguments Ref {V}.
 Arguments Deref {V}.
+Arguments Shift {V}.
 Arguments Assign {V}.
+Arguments Free {V}.
 Arguments Seq {V}.
 Arguments If {V}.
 Arguments While {V}.
@@ -160,12 +156,33 @@ with map_e {A B : Set} (f : A -> B) (e : Expr A) : Expr B :=
   | RecE es => RecE (List.map (map_e f) es)
   | Get n e => Get n (map_e f e)
   | Ref e => Ref (map_e f e)
+  | NewArray e => NewArray (map_e f e)
   | Deref e => Deref (map_e f e)
+  | Shift e1 e2 => Shift (map_e f e1) (map_e f e2)
   | Assign e1 e2 => Assign (map_e f e1) (map_e f e2)
+  | Free e => Free (map_e f e)
   | Seq e1 e2 => Seq (map_e f e1) (map_e f e2)
   | If e1 e2 e3 => If (map_e f e1) (map_e f e2) (map_e f e3)
   | While e1 e2 => While (map_e f e1) (map_e f e2)
   end.
+
+(* is value with limited range of variables *)
+Definition is_limited_value (A : Set) [B : Set] (f : A -> B) (v : Value B) :
+  Prop :=
+  exists (v' : Value A), v = map_v f v'.
+
+(* is expression with limited range of variables *)
+Definition is_limited_expr (A : Set) [B : Set] (f : A -> B) (e : Expr B) :
+  Prop :=
+  exists (e' : Expr A), e = map_e f e'.
+
+Definition is_closed_value {A} : Value A -> Prop :=
+  is_limited_value Empty_set (fun x => match x with end).
+Global Hint Unfold is_closed_value : is_closed_db.
+
+Definition is_closed_expr {A} : Expr A -> Prop :=
+  is_limited_expr Empty_set (fun x => match x with end).
+Global Hint Unfold is_closed_expr : is_closed_db.
 
 Definition shift_v {V : Set} : Value V -> Value (inc_set V) :=
   map_v Some.
@@ -207,8 +224,11 @@ with bind_e {A B : Set}
   | RecE es => RecE (List.map (bind_e f) es)
   | Get n e => Get n (bind_e f e)
   | Ref e => Ref (bind_e f e)
+  | NewArray e => NewArray (bind_e f e)
   | Deref e => Deref (bind_e f e)
+  | Shift e1 e2 => Shift (bind_e f e1) (bind_e f e2)
   | Assign e1 e2 => Assign (bind_e f e1) (bind_e f e2)
+  | Free e => Free (bind_e f e)
   | Seq e1 e2 => Seq (bind_e f e1) (bind_e f e2)
   | If e1 e2 e3 => If (bind_e f e1) (bind_e f e2) (bind_e f e3)
   | While e1 e2 => While (bind_e f e1) (bind_e f e2)
@@ -242,15 +262,18 @@ with map_labels_e {V : Set} (f : Label -> Label) (e : Expr V) : Expr V :=
   | RecE es => RecE (List.map (map_labels_e f) es)
   | Get n e => Get n (map_labels_e f e)
   | Ref e => Ref (map_labels_e f e)
+  | NewArray e => NewArray (map_labels_e f e)
   | Deref e => Deref (map_labels_e f e)
+  | Shift e1 e2 => Shift (map_labels_e f e1) (map_labels_e f e2)
   | Assign e1 e2 => Assign (map_labels_e f e1) (map_labels_e f e2)
+  | Free e => Free (map_labels_e f e)
   | Seq e1 e2 => Seq (map_labels_e f e1) (map_labels_e f e2)
   | If e1 e2 e3 =>
     If (map_labels_e f e1) (map_labels_e f e2) (map_labels_e f e3)
   | While e1 e2 => While (map_labels_e f e1) (map_labels_e f e2)
   end.
 
-Definition Map (V : Set) : Set := list (Label * (Value V)).
+Definition Map (V : Set) : Set := list (Label * option (Value V)).
 
 (*Definition extend {V L : Set} (m : Map V L) (v : Value V L)
   : Map V (inc_set L) :=
@@ -282,18 +305,25 @@ Global Hint Unfold Is_fresh_label : lamref.
 Global Hint Unfold Is_Valid_Map : lamref.
 
 Inductive Lookup {V : Set} (l : Label) : Map V -> Value V -> Prop :=
-| Lookup_hd (m : Map V) (v : Value V) : Lookup l ((l,v) :: m)%list v
-| Lookup_tl (a : Label * Value V) (m : Map V) (v : Value V) :
+| Lookup_hd (m : Map V) (v : Value V) : Lookup l ((l, Some v) :: m)%list v
+| Lookup_tl (a : Label * option (Value V)) (m : Map V) (v : Value V) :
     Lookup l m v -> Lookup l (a :: m)%list v
 .
 
 Inductive Assignment {V : Set} (l : Label) (v : Value V) :
   Map V -> Map V -> Prop :=
-| Assignment_hd (v0 : Value V) (m : Map V) :
-    Assignment l v ((l,v0) :: m)%list ((l,v) :: m)%list
-| Assignment_tl (a : Label * Value V) (m m' : Map V) :
+| Assignment_hd (ov : option (Value V)) (m : Map V) :
+    Assignment l v ((l,ov) :: m)%list ((l, Some v) :: m)%list
+| Assignment_tl (a : Label * option (Value V)) (m m' : Map V) :
     Assignment l v m m' ->
     Assignment l v (a :: m)%list (a :: m')%list
+.
+
+Inductive Dealloc {V : Set} (l : Label) : Map V -> Map V -> Prop :=
+| Dealloc_hd (m : Map V) (ov : option (Value V)) : Dealloc l ((l,ov)::m)%list m
+| Dealloc_tl (m m' : Map V) (a : Label * option (Value V)) :
+    Dealloc l m m' ->
+    Dealloc l (a::m)%list (a::m')%list
 .
 
 Inductive Nth {A : Type} : nat -> list A -> A -> Prop :=
@@ -323,14 +353,21 @@ Open Scope label_scope.
 Fixpoint lookup {V : Set} (l : Label) (m : Map V) : option (Value V) :=
   match m with
   | nil => None
-  | (l', v) :: m' => if l =? l' then Some v else lookup l m'
+  | (l', v) :: m' => if l =? l' then v else lookup l m'
   end%list.
 
 Fixpoint update {V : Set} (l : Label) (v : Value V) (m : Map V) : Map V :=
   match m with
-  | nil => [(l, v)]
+  | nil => [(l, Some v)]
   | (l', v') :: m' =>
-    if l =? l' then ((l', v) :: m') else (l', v') :: (update l v m')
+    if l =? l' then ((l', Some v) :: m') else (l', v') :: (update l v m')
+  end%list.
+
+Fixpoint free {V : Set} (l : Label) (m : Map V) : Map V :=
+  match m with
+  | nil => nil
+  | (l', v) :: m' =>
+    if l =? l' then m' else (l', v) :: (free l m')
   end%list.
 End label_section.
 
@@ -339,6 +376,19 @@ Definition list_max (l : list nat) : nat :=
 
 Definition new_label {V : Set} (m : Map V) : Label :=
   OfNat (1 + list_max (List.map of_label (labels m))).
+
+Fixpoint n_new_cells_from {V : Set} l n : Map V :=
+  match n with
+  | 0 => []
+  | S n => let 'OfNat n' := l in
+    (l, None) :: n_new_cells_from (OfNat (1+n')) n
+  end%list.
+
+Definition alloc_array {V : Set} n (m : Map V) : Map V * Label :=
+  let init := new_label m in
+  (n_new_cells_from init n ++ m, init)%list.
+
+Global Hint Unfold alloc_array : lamref.
 
 (* SOS semantics *)
 Reserved Notation "'R[' e1 ',' m1 '~~>' e2 ',' m2 ']'".
@@ -390,15 +440,28 @@ Inductive red {V : Set} :
 
 | red_ref : forall m l (v : Value _),
     l = new_label m ->
-    R[Ref v, m ~~> Lab l, ((l,v) :: m)%list]
+    R[Ref v, m ~~> Lab l, ((l, Some v) :: m)%list]
+
+| red_new_array : forall i m m' l,
+    (i >= 0)%Z ->
+    (m', l) = alloc_array (Z.to_nat i) m ->
+    R[NewArray (Int i), m ~~> Lab l, m']
 
 | red_deref : forall m l v,
     Lookup l m v ->
     R[Deref (Lab l), m ~~> v, m]
 
+| red_shift : forall m n i,
+    (i >= 0)%Z ->
+    R[Shift (Lab (OfNat n)) (Int i), m ~~> Lab (OfNat (n + Z.to_nat i)), m]
+
 | red_assign : forall m m' l v,
     Assignment l v m m' ->
     R[Assign (Lab l) v, m ~~> U_val, m']
+
+| red_free : forall m m' l,
+    Dealloc l m m' ->
+    R[Free (Lab l), m ~~> U_val, m']
 
 | red_seq : forall m e,
     R[Seq U_val e, m ~~> e, m]
@@ -446,9 +509,21 @@ Inductive red {V : Set} :
     R[e, m ~~> e', m'] ->
     R[Ref e, m ~~> Ref e', m']
 
+| red_new_array_e : forall m m' e e',
+    R[e, m ~~> e', m'] ->
+    R[NewArray e, m ~~> NewArray e', m']
+
 | red_deref_e : forall m m' e e',
     R[e, m ~~> e', m'] ->
     R[Deref e, m ~~> Deref e', m']
+
+| red_shift1 : forall m m' e1 e1' e2,
+    R[e1, m ~~> e1', m'] ->
+    R[Shift e1 e2, m ~~> Shift e1' e2, m']
+
+| red_shift2 : forall m m' (v : Value _) e e',
+    R[e, m ~~> e', m'] ->
+    R[Shift v e, m ~~> Shift v e', m']
 
 | red_assign1 : forall m m' e1 e1' e2,
     R[e1, m ~~> e1', m'] ->
@@ -457,6 +532,10 @@ Inductive red {V : Set} :
 | red_assign2 : forall m m' (v : Value _) e e',
     R[e, m ~~> e', m'] ->
     R[Assign v e, m ~~> Assign v e', m']
+
+| red_free_e : forall m m' e e',
+    R[e, m ~~> e', m'] ->
+    R[Free e, m ~~> Free e', m']
 
 | red_seq1 : forall m m' e1 e1' e2,
     R[e1, m ~~> e1', m'] ->
@@ -491,110 +570,15 @@ where "'C[' e1 ',' m1 '~~>' e2 ',' m2 '|' c ']'" :=
 
 Global Hint Constructors cost_red : lamref.
 
-(*
-(* type system *)
-Definition env (V : Set) : Set := V -> type.
-Definition env_empty : env Empty_set :=
-  fun x => match x with end.
-
-Reserved Notation "'T[' G '|-' e ':::' t ']'".
-
-Inductive typing {V : Set} (G : env V) :
-  Expr V -> type -> Prop :=
-
-| T_Unit : T[ G |- U_val ::: Unit ]
-
-| T_Var : forall x, T[ G |- Var x ::: (G x) ]
-
-| T_Int : forall i, T[ G |- Int i ::: IntT ]
-
-| T_Bool : forall b, T[ G |- Bool b ::: BoolT ]
-
-| T_RecV : forall vs ts,
-    List.Forall2 (fun (v : Value _) t => T[ G |- v ::: t ]) vs ts ->
-    T[ G |- RecV vs ::: RecT ts ]
-
-| T_Lam : forall e t1 t2,
-    T[ inc_fun G t1 |- e ::: t2 ] ->
-    T[ G |- Lam e ::: Arrow t1 t2 ]
-
-| T_App : forall e1 e2 t2 t1,
-    T[ G |- e1 ::: Arrow t2 t1 ] ->
-    T[ G |- e2 ::: t2 ] ->
-    T[ G |- App e1 e2 ::: t1 ]
-
-| T_BUOp : forall e k,
-    T[ G |- e ::: BoolT ] ->
-    T[ G |- UnOp (BUOp k) e ::: BoolT ]
-
-| T_IUOp : forall e k,
-    T[ G |- e ::: IntT ] ->
-    T[ G |- UnOp (IUOp k) e ::: IntT ]
-
-| T_BBOp : forall e1 e2 k,
-    T[ G |- e1 ::: BoolT ] ->
-    T[ G |- e2 ::: BoolT ] ->
-    T[ G |- BinOp (BBOp k) e1 e2 ::: BoolT ]
-
-| T_IBOp : forall e1 e2 k,
-    T[ G |- e1 ::: IntT ] ->
-    T[ G |- e2 ::: IntT ] ->
-    T[ G |- BinOp (IBOp k) e1 e2 ::: IntT ]
-
-| T_CBOp : forall e1 e2 k,
-    T[ G |- e1 ::: IntT ] ->
-    T[ G |- e2 ::: IntT ] ->
-    T[ G |- BinOp (CBOp k) e1 e2 ::: BoolT ]
-
-| T_RecE : forall es ts,
-    List.Forall2 (fun e t => T[ G |- e ::: t ]) es ts ->
-    T[ G |- RecE es ::: RecT ts ]
-
-| T_Get : forall n e ts t,
-    Nth n ts t ->
-    T[ G |- e ::: RecT ts ] ->
-    T[ G |- Get n e ::: t ]
-
-| T_Ref : forall e t,
-    T[ G |- e ::: t ] ->
-    T[ G |- Ref e ::: RefT t ]
-
-| T_Deref : forall e t,
-    T[ G |- e ::: RefT t ] ->
-    T[ G |- Deref e ::: t ]
-
-| T_Assign : forall e1 e2 t,
-    T[ G |- e1 ::: RefT t ] ->
-    T[ G |- e2 ::: t ] ->
-    T[ G |- Assign e1 e2 ::: Unit ]
-
-| T_Seq : forall e1 e2 t,
-    T[ G |- e1 ::: Unit ] ->
-    T[ G |- e2 ::: t ] ->
-    T[ G |- Seq e1 e2 ::: t ]
-
-| T_If : forall e1 e2 e3 t,
-    T[ G |- e1 ::: BoolT ] ->
-    T[ G |- e2 ::: t ] ->
-    T[ G |- e2 ::: t ] ->
-    T[ G |- If e1 e2 e3 ::: t ]
-
-| T_While : forall e1 e2,
-    T[ G |- e1 ::: BoolT ] ->
-    T[ G |- e2 ::: Unit ] ->
-    T[ G |- While e1 e2 ::: Unit ]
-
-where "T[ G |- e ::: t ]" := (@typing _ G e t).
-*)
 (* NOTATIONS *)
 
-Notation "'$' x" := (Some x) (at level 50).
+(*Notation "'$' x" := (Some x) (at level 50).*)
 
 Notation "'-\' e" := (Lam e) (at level 100).
 
 Notation "e1 '<*' e2" :=
   (App e1 e2)
-  (at level 50, left associativity).
+  (at level 59, left associativity).
 
 Notation "'[~]' e" := (UnOp (BUOp BNeg) e) (at level 50).
 Notation "'[--]' e" := (UnOp (IUOp INeg) e) (at level 50).
@@ -609,6 +593,10 @@ Notation "e1 '[=]' e2" := (BinOp (CBOp CEq) e1 e2) (at level 50).
 
 Notation "'!' e" := (Deref e) (at level 50).
 
+Notation "e1 '>>' e2" :=
+  (Shift e1 e2)
+  (at level 70, no associativity).
+
 Notation "e1 '<-' e2" :=
   (Assign e1 e2)
   (at level 70, no associativity).
@@ -616,11 +604,7 @@ Notation "e1 '<-' e2" :=
 Notation "e1 ';;' e2" :=
   (Seq e1 e2)
   (at level 90, right associativity).
-(*
-Notation "t1 --> t2" :=
-  (Arrow t1 t2)
-  (at level 60, right associativity).
-*)
+
 Notation "[let] e1 [in] e2 [end]" :=
   ((-\ e2) <* e1)
   (at level 50, no associativity).
@@ -636,7 +620,7 @@ Notation "[while] e1 [do] e2 [end]" :=
 
 Definition StringLam (x : string) (e : Expr string) :
   Value string :=
-  Lam (map_e (fun y => if x =? y then None else $ y)%string e).
+  Lam (map_e (fun y => if x =? y then None else Some y)%string e).
 
 (*
 Class EqBool (A : Set) : Set := {

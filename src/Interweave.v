@@ -26,6 +26,13 @@ Proof.
   auto using Interweave_comm, Interweave_nil_l.
 Qed.
 
+Fact Interweave_app A (xs ys : list A) : Interweave xs ys (xs ++ ys).
+Proof.
+  induction xs; simpl.
+  - apply Interweave_nil_l.
+  - constructor. assumption.
+Qed.
+
 Lemma Interweave_nil_l_inv A (ys zs : list A) :
   Interweave [] ys zs -> ys = zs.
 Proof.
@@ -151,4 +158,23 @@ Proof.
   - subst xs. symmetry in Hys'. apply map_eq_cons in Hys' as (?&?&->&<-&<-).
     edestruct IHHinter as (?&->&?); auto.
     eexists (_ :: _). simpl. repeat constructor. assumption.
+Qed.
+
+Lemma Interweave_single_l A (x : A) (ys : list A) (zs : list A) :
+  Interweave [x] ys zs ->
+  exists ys1 ys2, ys = ys1 ++ ys2 /\ zs = ys1 ++ (x::ys2).
+Proof.
+  intros Hinter. remember [x] as xs eqn:Hxs. generalize dependent x.
+  induction Hinter; intros.
+  - discriminate.
+  - injection Hxs as -> ->. apply Interweave_nil_l_inv in Hinter as ->.
+    exists [], zs. simpl. auto.
+  - apply IHHinter in Hxs as (ys1&ys2&->&->). exists (y::ys1), ys2. simpl. auto.
+Qed.
+
+Lemma Interweave_single_r A (xs : list A) (y : A) (zs : list A) :
+  Interweave xs [y] zs ->
+  exists xs1 xs2, xs = xs1 ++ xs2 /\ zs = xs1 ++ (y::xs2).
+Proof.
+  intros Hinter. now apply Interweave_comm, Interweave_single_l in Hinter.
 Qed.

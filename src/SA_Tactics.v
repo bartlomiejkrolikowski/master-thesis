@@ -1,8 +1,8 @@
-Require Import src_arrays.LambdaRef.
-Require Import src_arrays.LamRefFacts.
-Require Import src_arrays.LambdaAssertions_credits_perm.
-Require Import src_arrays.LambdaTotalTriple_credits_perm.
-Require Import src_arrays.LamRefLogicFactsTotal_credits_perm.
+Require Import src.LambdaRef.
+Require Import src.LamRefFacts.
+Require Import src.LambdaAssertions_credits_perm.
+Require Import src.LambdaTotalTriple_credits_perm.
+Require Import src.LamRefLogicFactsTotal_credits_perm.
 Require Import List.
 Import ListNotations.
 Require String.

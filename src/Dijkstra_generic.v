@@ -3,19 +3,19 @@ Import List.ListNotations.
 Require Import String.
 Require Import ZArith.
 
-Require Import src_arrays.LambdaRef.
-Require Import src_arrays.LamRefFacts.
-Require Import src_arrays.LambdaAssertions_credits_perm.
-Require Import src_arrays.LambdaTotalTriple_credits_perm.
-Require Import src_arrays.LamRefLogicFactsTotal_credits_perm.
+Require Import src.LambdaRef.
+Require Import src.LamRefFacts.
+Require Import src.LambdaAssertions_credits_perm.
+Require Import src.LambdaTotalTriple_credits_perm.
+Require Import src.LamRefLogicFactsTotal_credits_perm.
 Require Import Lia.
-Require Import src_arrays.Tactics.
-Require Import src_arrays.SA_Tactics.
-Require Import src_arrays.Interweave.
+Require Import src.Tactics.
+Require Import src.SA_Tactics.
+Require Import src.Interweave.
 
 Require Import graphs.Graphs.
-Require Import src_arrays.Dijkstra_aux.
-Require Import src_arrays.Dijkstra_aux_graphs.
+Require Import src.Dijkstra_aux.
+Require Import src.Dijkstra_aux_graphs.
 
 Definition generic_dijkstra (get_size get_max_label get_neighbours mkheap h_insert h_empty h_extract_min h_decrease_key h_free l_is_nil l_head l_tail : Value string) : Value string :=
   [-\] "g", [-\] "src", (*[-\] "dst",*)
