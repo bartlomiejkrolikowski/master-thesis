@@ -2795,8 +2795,108 @@ Proof.
                                   destruct Hin as ((?%E_closed2&?)&?); auto
                                 end. } }
                             { apply disjoint_sum_size; eauto using single_set_size.
-                              admit. }
-                            { admit. }
+                              unfold are_disjoint_sets, single.
+                              lazymatch goal with
+                              | [H : set_equiv ?R' _,
+                                H'' : Dijkstra_invariant _ _ ?P' _ _,
+                                H''' : ?P' = empty /\ ?Q'' = _ \/
+                                  ?P' src /\ ?Q'' = neighbourhood _ _,
+                                H'''' : forall _ _,
+                                  List.nth _ (_ ?LL1 ++ _::_ ?LL2) None = Some _ <-> ?f _ = _,
+                                H''''' : forall _ _,
+                                  List.nth _ (_ ?LL1' ++ _::_ ?LL2') None = Some _ <-> ?f' _ = _,
+                                H6 : forall _, i' = _ \/ _ -> ?f _ = ?D' _,
+                                H7 : forall _, i' = _ \/ _ -> ?f' _ = ?pred' _,
+                                H8 : forall _, List.In _ _ -> ?f _ = ?D'' _,
+                                H9 : forall _, List.In _ _ -> ?f' _ = ?pred'' _,
+                                H10 : is_elem_weighted_unique_list _ _ (_++(i',w')::_),
+                                H11 : is_nat_fun_of_val_list ?LD' ?D',
+                                H12 : List.nth x_min ?LD' None = _
+                                |- forall _, ~ (?R' _ /\ _)] =>
+                                rename R' into R, H into HeqR, P' into P, Q'' into N, LL1 into L1,
+                                  LL2 into L2, LL1' into L1', LL2' into L2', f into fD,
+                                  f' into fD', D' into D, pred' into pred, D'' into D2,
+                                  pred'' into pred2, LD' into LD,
+                                  H'' into HDij_inv, H''' into Hor,
+                                  H'''' into HD_nth, H''''' into Hpred_nth,
+                                  H6 into HD, H7 into Hpred, H8 into HD2, H9 into Hpred2,
+                                  H10 into Hneighs, H11 into Hfun, H12 into Hnth
+                              end.
+                              intros ? (HR&<-). apply HeqR in HR.
+                              unfold set_sum, set_remove in HR.
+                              destruct HR as [(HN&Hneq)|(Hnin&Hin)].
+                              { destruct (D i') eqn:HDi'.
+                                { rewrite <- HD, <- HD_nth in HDi'; auto.
+                                  rewrite List.app_nth2, List.map_length, Hlen3,
+                                    Nat.sub_diag in HDi';
+                                    [|rewrite List.map_length, Hlen3; lia].
+                                  simpl in HDi'. injection HDi'. lia. }
+                                { destruct Hor as [(->&->)|(Hin&->)].
+                                  { unfold set_sum, empty, single in HN.
+                                    destruct HN as [[]|<-].
+                                    eapply Dijkstra_invariant_nonnone with (x := src); eauto. }
+                                  { apply Dijkstra_invariant_nonnone
+                                      with (x := i') in HDij_inv; auto. } } }
+                              { unfold is_elem_weighted_unique_list,
+                                  is_elem_weighted_list, neighbours in Hneighs.
+                                rewrite List.map_app in Hneighs.
+                                destruct Hneighs as (?&Hnodup%List.NoDup_remove_2).
+                                rewrite List.in_app_iff in Hnodup. auto. } }
+                            { unfold set_sum.
+                              lazymatch goal with
+                              | [H : set_equiv ?R' _,
+                                H'' : Dijkstra_invariant _ _ ?P' _ _,
+                                H''' : ?P' = empty /\ ?Q'' = _ \/
+                                  ?P' src /\ ?Q'' = neighbourhood _ _,
+                                H'''' : forall _ _,
+                                  List.nth _ (_ ?LL1 ++ _::_ ?LL2) None = Some _ <-> ?f _ = _,
+                                H''''' : forall _ _,
+                                  List.nth _ (_ ?LL1' ++ _::_ ?LL2') None = Some _ <-> ?f' _ = _,
+                                H6 : forall _, i' = _ \/ _ -> ?f _ = ?D' _,
+                                H7 : forall _, i' = _ \/ _ -> ?f' _ = ?pred' _,
+                                H8 : forall _, List.In _ _ -> ?f _ = ?D'' _,
+                                H9 : forall _, List.In _ _ -> ?f' _ = ?pred'' _,
+                                H10 : is_elem_weighted_unique_list _ _ (_++(i',w')::_),
+                                H11 : is_nat_fun_of_val_list ?LD' ?D',
+                                H12 : List.nth x_min ?LD' None = _
+                                |- (?P' _ \/ ?R' _) -> _] =>
+                                rename R' into R, H into HeqR, P' into P, Q'' into N, LL1 into L1,
+                                  LL2 into L2, LL1' into L1', LL2' into L2', f into fD,
+                                  f' into fD', D' into D, pred' into pred, D'' into D2,
+                                  pred'' into pred2, LD' into LD,
+                                  H'' into HDij_inv, H''' into Hor,
+                                  H'''' into HD_nth, H''''' into Hpred_nth,
+                                  H6 into HD, H7 into Hpred, H8 into HD2, H9 into Hpred2,
+                                  H10 into Hneighs, H11 into Hfun, H12 into Hnth
+                              end.
+                              intros [Hin|HR].
+                              { eapply Dijkstra_invariant_D_is_some_in_set
+                                  in Hin as (d&HDin); eauto.
+                                rewrite <- HD, <- HD_nth in HDin; auto.
+                                rewrite List.app_nth2, List.map_length, Hlen3,
+                                  Nat.sub_diag in HDin;
+                                  [|rewrite List.map_length, Hlen3; lia].
+                                simpl in HDin. injection HDin. lia. }
+                              { unfold single. exfalso. apply HeqR in HR.
+                                unfold set_sum, set_remove in HR.
+                                destruct HR as [(HN&Hneq)|(Hnin&Hin)].
+                                { destruct (D i') eqn:HDi'.
+                                  { rewrite <- HD, <- HD_nth in HDi'; auto.
+                                    rewrite List.app_nth2, List.map_length, Hlen3,
+                                      Nat.sub_diag in HDi';
+                                      [|rewrite List.map_length, Hlen3; lia].
+                                    simpl in HDi'. injection HDi'. lia. }
+                                  { destruct Hor as [(->&->)|(Hin&->)].
+                                    { unfold set_sum, empty, single in HN.
+                                      destruct HN as [[]|<-].
+                                      eapply Dijkstra_invariant_nonnone with (x := src); eauto. }
+                                    { apply Dijkstra_invariant_nonnone
+                                        with (x := i') in HDij_inv; auto. } } }
+                                { unfold is_elem_weighted_unique_list,
+                                    is_elem_weighted_list, neighbours in Hneighs.
+                                  rewrite List.map_app in Hneighs.
+                                  destruct Hneighs as (?&Hnodup%List.NoDup_remove_2).
+                                  rewrite List.in_app_iff in Hnodup. auto. } } }
                             { reflexivity. }
                             { swap_star. solve_star. apply empty_star_l_intro. swap_star.
                               apply star_assoc. swap_star. unfold update_nat_function_at.
@@ -3514,7 +3614,58 @@ Proof.
                               { assumption. }
                               { eassumption. }
                               { reflexivity. }
-                              { admit. }
+                              { split_all; eauto. unfold set_sum. intros HnIn.
+                                lazymatch goal with
+                                | [H : ~(?P' i' \/ ?Q' i'),
+                                  H' : set_equiv ?Q' _,
+                                  H'' : Dijkstra_invariant _ _ ?P' _ _,
+                                  H''' : ?P' = empty /\ ?Q'' = _ \/
+                                    ?P' src /\ ?Q'' = neighbourhood _ _,
+                                  H'''' : forall _ _,
+                                    List.nth _ (_ ?LL1 ++ _::_ ?LL2) None = Some _ <-> ?f _ = _,
+                                  H''''' : forall _ _,
+                                    List.nth _ (_ ?LL1' ++ _::_ ?LL2') None = Some _ <-> ?f' _ = _,
+                                  H6 : forall _, i' = _ \/ _ -> ?f _ = ?D' _,
+                                  H7 : forall _, i' = _ \/ _ -> ?f' _ = ?pred' _,
+                                  H8 : forall _, List.In _ _ -> ?f _ = ?D'' _,
+                                  H9 : forall _, List.In _ _ -> ?f' _ = ?pred'' _,
+                                  H10 : is_elem_weighted_unique_list _ _ (_++(i',w')::_),
+                                  H11 : is_nat_fun_of_val_list ?LD' ?D',
+                                  H12 : List.nth x_min ?LD' None = _
+                                  |- _] =>
+                                  rename P' into P, Q' into Q, Q'' into N, LL1 into L1,
+                                    LL2 into L2, LL1' into L1', LL2' into L2', f into fD,
+                                    f' into fD', D' into D, pred' into pred, D'' into D2,
+                                    pred'' into pred2, LD' into LD,
+                                    H' into HeqQ, H'' into HDij_inv, H''' into Hor,
+                                    H'''' into HD_nth, H''''' into Hpred_nth,
+                                    H6 into HD, H7 into Hpred, H8 into HD2, H9 into Hpred2,
+                                    H10 into Hneighs, H11 into Hfun, H12 into Hnth
+                                end.
+                                unfold is_elem_weighted_unique_list,
+                                  is_elem_weighted_list, neighbours in Hneighs.
+                                destruct Hneighs as (Hneighs&?). specialize Hneighs with i' w'.
+                                rewrite List.in_app_iff in Hneighs. simpl in Hneighs.
+                                destruct Hneighs as ((?&HW)&?); auto.
+                                exfalso. apply HnIn. unfold set_equiv in HeqQ. right.
+                                apply HeqQ. unfold set_sum, set_remove. left. split.
+                                { eapply Dijkstra_invariant_if_D_some
+                                    with (x := i') (n := Z.to_nat x') (pr2 := x_min)
+                                    in HDij_inv.
+                                  { destruct Hor as [(->&->)|(Hin&->)].
+                                    { destruct HDij_inv as [(?&?)|([]&?)].
+                                      unfold set_sum, single. auto. }
+                                    { destruct HDij_inv as [(->&?)|(?&?)]; auto.
+                                      contradiction. } }
+                                  { rewrite <- HD, <- HD_nth; auto.
+                                    rewrite List.app_nth2; rewrite List.map_length, Hlen3;
+                                      [|lia].
+                                    rewrite Nat.sub_diag. simpl. repeat f_equal. lia. }
+                                  { assumption. }
+                                  { unfold is_nat_fun_of_val_list, fun_of_list in Hfun.
+                                    destruct Hfun as (?&Hfun). apply Hfun. eassumption. }
+                                  { rewrite <- HW. lia. } }
+                                { intros ->. unfold is_irreflexive, not in *. eauto. } }
                               { do 2 apply star_assoc_r. swap_star.
                                 rewrite Nat.add_0_l, Nat.add_0_r.
                                 unfold update_nat_function_at.
@@ -3809,7 +3960,40 @@ Proof.
                               apply Hnin. rewrite List.map_app, List.in_app_iff.
                               simpl. auto. }
                             { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
-                          { admit. } }
+                          { unfold add_single, set_sum, single, empty.
+                            intros y y' [?|<-] ?.
+                            { lazymatch goal with
+                              | [H : forall _ _, _ -> _ ->
+                                  match ?f _ with | _ => _ end
+                                |- match ?f _ with | _ => _ end] =>
+                                apply H; eauto
+                              end. }
+                            { admit. (* unfold min_cost_elem in Hmincost.
+                              destruct Hmincost as (?&Hmin).
+                              rewrite H45.
+                              Search distance_decrease.
+                              unfold set_equiv in H37.
+                              rewrite H37 in H51.
+                              apply Hmin.
+                             auto.*) } }
+                          (*{ intros.
+                            lazymatch goal with
+                            | [H : forall _ _, _ -> _ ->
+                                match ?f _ with | _ => _ end
+                              |- match ?f _ with | _ => _ end] =>
+                              apply H; eauto
+                            end.
+                            unfold x.
+                            unfold add_single, set_sum in *. auto. }
+                          { intros.
+                            lazymatch goal with
+                            | [H : forall _ _, _ -> _ ->
+                                match ?f _ with | _ => _ end
+                              |- match ?f _ with | _ => _ end] =>
+                              apply H; eauto
+                            end.
+                            unfold add_single, set_sum in *. auto. }
+                          { admit. }*) }
                         { lazymatch goal with
                           | [ H : set_equiv ?P ?R,
                               H' : (_ <*> (_ <*> (_ <*> (_ <*>
@@ -3896,7 +4080,91 @@ Proof.
                           intros [Hin | (Hnin&[Hin| [<-|[]]])];
                             [revert Hin|revert Hnin Hin|revert Hnin Hi'P];
                             clear; tauto. }
-                        { split_all; eauto. admit. }
+                        { split_all; eauto. unfold set_sum. intros HnIn.
+                          lazymatch goal with
+                          | [H : ~(?P' i' \/ ?Q' i'),
+                            H' : set_equiv ?Q' _,
+                            H'' : Dijkstra_invariant _ _ ?P' _ _,
+                            H''' : ?P' = empty /\ ?Q'' = _ \/
+                              ?P' src /\ ?Q'' = neighbourhood _ _,
+                            H'''' : forall _ _,
+                              List.nth _ (_ ?LL1 ++ _::_ ?LL2) None = Some _ <-> ?f _ = _,
+                            H''''' : forall _ _,
+                              List.nth _ (_ ?LL1' ++ _::_ ?LL2') None = Some _ <-> ?f' _ = _,
+                            H6 : forall _, i' = _ \/ _ -> ?f _ = ?D' _,
+                            H7 : forall _, i' = _ \/ _ -> ?f' _ = ?pred' _,
+                            H8 : forall _, List.In _ _ -> ?f _ = ?D'' _,
+                            H9 : forall _, List.In _ _ -> ?f' _ = ?pred'' _,
+                            H10 : is_elem_weighted_unique_list _ _ (_++(i',w')::_),
+                            H11 : is_nat_fun_of_val_list ?LD' ?D',
+                            H12 : List.nth x_min ?LD' None = _
+                            |- _] =>
+                            rename P' into P, Q' into Q, Q'' into N, LL1 into L1,
+                              LL2 into L2, LL1' into L1', LL2' into L2', f into fD,
+                              f' into fD', D' into D, pred' into pred, D'' into D2,
+                              pred'' into pred2, LD' into LD,
+                              H' into HeqQ, H'' into HDij_inv, H''' into Hor,
+                              H'''' into HD_nth, H''''' into Hpred_nth,
+                              H6 into HD, H7 into Hpred, H8 into HD2, H9 into Hpred2,
+                              H10 into Hneighs, H11 into Hfun, H12 into Hnth
+                          end.
+                          exfalso. apply HnIn. unfold set_equiv in HeqQ. left.
+                          (*apply HeqQ. unfold set_sum, set_remove. left. split.*)
+                          { unfold is_elem_weighted_unique_list,
+                              is_elem_weighted_list, neighbours in Hneighs.
+                            destruct Hneighs as (Hneighs&?). specialize Hneighs with i' w'.
+                            rewrite List.in_app_iff in Hneighs. simpl in Hneighs.
+                            destruct Hneighs as ((?&HW)&?); auto.
+                            destruct Hor as [(->&->)|(Hin&->)].
+                            { eapply Dijkstra_invariant_D_some with (x := i') in HDij_inv
+                                as [<- |[[]|(?&?&[]&?)]];
+                                eauto.
+                              { unfold min_cost_elem in Hmincost.
+                                destruct Hmincost as (Hsingle&_).
+                                unfold set_sum, single, empty in Hsingle.
+                                destruct Hsingle as [[]| ->]. exfalso.
+                                unfold is_irreflexive, empty, not in *. eauto. }
+                              { rewrite <- HD, <- HD_nth; auto.
+                                rewrite List.app_nth2; rewrite List.map_length, Hlen3;
+                                  [|lia].
+                                rewrite Nat.sub_diag. simpl. repeat f_equal. symmetry.
+                                apply Z2Nat.id. lia. } }
+                            { unfold min_cost_elem, set_sum, single, empty
+                                in Hmincost |- *.
+                              eapply Dijkstra_invariant_if_D_some_neighbour_le_W
+                                with (u := x_min) (v := i') (dv := Z.to_nat x')
+                                in HDij_inv.
+                              { assumption. }
+                              { unfold closest_neighbour. assumption. }
+                              { assumption. }
+                              { unfold is_nat_fun_of_val_list, fun_of_list in Hfun.
+                                destruct Hfun as (?&Hfun). apply Hfun. eassumption. }
+                              { rewrite <- HD, <- HD_nth; auto.
+                                rewrite List.app_nth2; rewrite List.map_length, Hlen3;
+                                  [|lia].
+                                rewrite Nat.sub_diag. simpl. repeat f_equal. lia. }
+                              { lia. } } }
+                            (*unfold is_elem_weighted_unique_list,
+                              is_elem_weighted_list, neighbours in Hneighs.
+                            destruct Hneighs as (Hneighs&?). specialize Hneighs with i' w'.
+                            rewrite List.in_app_iff in Hneighs. simpl in Hneighs.
+                              destruct Hneighs as ((?&HW)&?); auto.
+                            eapply Dijkstra_invariant_if_D_some
+                              with (x := i') (n := Z.to_nat x') (pr2 := x_min)
+                              in HDij_inv.
+                            { destruct Hor as [(->&->)|(Hin&->)].
+                              { destruct HDij_inv as [(?&?)|([]&?)].
+                                unfold set_sum, single. auto. }
+                              { destruct HDij_inv as [(->&?)|(?&?)]; auto.
+                                contradiction. } }
+                            { rewrite <- HD, <- HD_nth; auto.
+                              rewrite List.app_nth2; rewrite List.map_length, Hlen3;
+                                [|lia].
+                              rewrite Nat.sub_diag. simpl. repeat f_equal. lia. }
+                            { assumption. }
+                            { unfold is_nat_fun_of_val_list, fun_of_list in Hfun.
+                              destruct Hfun as (?&Hfun). apply Hfun. eassumption. }
+                            { rewrite <- HW. lia. }*) }
                         swap_star. apply star_assoc_l. swap_star_ctx. normalize_star.
                         swap_star_ctx. normalize_star. simpl. rewrite Nat.add_0_r.
                         eapply star_implies_mono; [prove_implies_refl| |eassumption].
