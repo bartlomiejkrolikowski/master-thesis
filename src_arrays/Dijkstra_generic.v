@@ -3015,7 +3015,79 @@ Proof.
                                 destruct H as ((?%E_closed2&?)&?)
                               end;
                               auto. }
-                            { admit. (*intros u HP.
+                            { lazymatch goal with
+                              | [H' : set_equiv ?Q' _,
+                                H'' : Dijkstra_invariant _ _ ?P' _ _,
+                                H''' : ?P' = empty /\ ?Q'' = _ \/
+                                  ?P' src /\ ?Q'' = neighbourhood _ _,
+                                H'''' : forall _ _,
+                                  List.nth _ (_ ?LL1 ++ _::_ ?LL2) None = Some _ <-> ?f _ = _,
+                                H''''' : forall _ _,
+                                  List.nth _ (_ ?LL1' ++ _::_ ?LL2') None = Some _ <-> ?f' _ = _,
+                                H6 : forall _,
+                                  i' = _ \/ List.In _ (_ ?Ns1') -> ?f _ = ?D' _,
+                                H7 : forall _,
+                                  i' = _ \/ List.In _ (_ ?Ns1') -> ?f' _ = ?pred' _,
+                                H8 : forall _, List.In _ (_ ?Ns2') -> ?f _ = ?D'' _,
+                                H9 : forall _, List.In _ (_ ?Ns2') -> ?f' _ = ?pred'' _,
+                                H10 : is_elem_weighted_unique_list _ _ (_++(i',w')::_),
+                                H11 : is_nat_fun_of_val_list ?LD' ?D',
+                                H12 : List.nth x_min ?LD' None = _,
+                                H14 : forall _, ~ _ -> ?f _ = ?D'' _,
+                                H15 : forall _, ~ _ -> ?f' _ = ?pred'' _
+                                  |- _] =>
+                                rename P' into P, Q' into Q, Q'' into N, LL1 into L1,
+                                  LL2 into L2, LL1' into L1', LL2' into L2', f into fD,
+                                  f' into fD', D' into D, pred' into pred, D'' into D2,
+                                  pred'' into pred2, LD' into LD, Ns1' into Ns1, Ns2' into Ns2,
+                                  H' into HeqQ, H'' into HDij_inv, H''' into Hor,
+                                  H'''' into HD_nth, H''''' into Hpred_nth,
+                                  H6 into HD, H7 into Hpred, H8 into HD2, H9 into Hpred2,
+                                  H10 into Hneighs, H11 into Hfun, H12 into Hnth,
+                                  H14 into HD2out, H15 into Hpred2out
+                              end.
+                              clear H48.
+                              lazymatch goal with
+                              | [H : List.nth x_min _ _ = Some (Int (Z.of_nat ?x)) |- _] =>
+                                rename x into y_min
+                              end.
+                              assert (D x_min = Some y_min) as HDmin.
+                              { unfold is_nat_fun_of_val_list, fun_of_list in Hfun.
+                                destruct Hfun as (?&Hfun). apply Hfun. assumption. }
+                              intros u [HP|<-].
+                              { destruct Hor as [(->&->)|(Hor1&Hor2)].
+                                { contradiction. }
+                                { assert (fD u = D u) as ->.
+                                  { assert (Decidable.decidable (List.In u (i'::List.map fst Ns1)))
+                                      as [Hin|Hnin].
+                                    { apply decidable_in, Nat.eq_decidable. }
+                                    { auto. }
+                                    { erewrite <- Dijkstra_invariant_distance_decrease_in_P
+                                        with (D := D) (D' := D2); eauto.
+                                      assert (Decidable.decidable (List.In u (List.map fst Ns2)))
+                                        as [Hin2|Hnin2].
+                                      { apply decidable_in, Nat.eq_decidable. }
+                                      { apply HD2. assumption. }
+                                      { apply HD2out. rewrite List.in_app_iff. tauto. } } }
+                                  edestruct Dijkstra_invariant_D_is_some_in_set
+                                    with (v := u) as (?&Hd); eauto.
+                                  rewrite Hd. assert (le (D u) (D x_min)).
+                                  { eapply Dijkstra_invariant_D_ge_in_neighbourhood; eauto.
+                                    unfold min_cost_elem in Hmincost. destruct Hmincost.
+                                    subst N. assumption. }
+                                  rewrite Z2Nat.inj_add, Nat2Z.id; try lia. transitivity y_min.
+                                  { rewrite Hd, HDmin in *. simpl in *. assumption. }
+                                  { lia. } } }
+                              { rewrite HD2out.
+                                { erewrite distance_decrease_min; eauto. rewrite HDmin. lia. }
+                                { unfold is_elem_weighted_unique_list, is_elem_weighted_list,
+                                    neighbours in Hneighs.
+                                  destruct Hneighs as (Hneighs&?).
+                                  change (i'::List.map fst ?L)%list with (List.map fst ((i',w')::L)).
+                                  rewrite <- List.map_app, List.in_map_iff. intros ((?&?)&<-&Hin).
+                                  rewrite Hneighs in Hin. simpl in Hin. destruct Hin.
+                                  unfold is_irreflexive, not in *. eauto. } }
+                              (*admit.*) (*intros u HP.
                               change
                                 (match ?x with
                                 | Some _ => _ <= ?y | None => _
@@ -3582,13 +3654,13 @@ Proof.
                                 { exfalso. subst i''.
                                   apply Hnin. rewrite List.map_app, List.in_app_iff.
                                   simpl. auto. }
-                              { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
+                                { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
                               { unfold update_nat_function_at. intros i'' Hnin.
                                 destruct Nat.eqb_spec with i'' i'.
                                 { exfalso. subst i''.
                                   apply Hnin. rewrite List.map_app, List.in_app_iff.
                                   simpl. auto. }
-                              { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
+                                { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
                               { assumption. }
                               { admit. }
                               { lazymatch goal with
@@ -3778,6 +3850,7 @@ Proof.
                                     H6 into HD, H7 into Hpred, H8 into HD2, H9 into Hpred2,
                                     H10 into Hneighs, H11 into Hfun, H12 into Hnth
                                 end.
+                                clear H48.
                                 destruct (fD i') eqn:HfD; trivial.
                                 apply HD_nth in HfD.
                                 rewrite List.app_nth2, List.map_length, Hlen3, Nat.sub_diag in HfD.
@@ -3814,6 +3887,7 @@ Proof.
                                     H10 into Hneighs, H11 into Hfun, H12 into Hnth,
                                     H14 into HD2out, H15 into Hpred2out
                                 end.
+                                clear H48.
                                 lazymatch goal with
                                 | [H : List.nth x_min _ _ = Some (Int (Z.of_nat ?x)) |- _] =>
                                   rename x into y_min
@@ -4408,7 +4482,7 @@ Proof.
                           end.
                           swap_star. solve_star. swap_star.
                           (* only that part of solve_star works here *)
-                          repeat match goal with
+                          repeat lazymatch goal with
                           | [|- ((_ <*> _) <*> _) ?c ?m ] =>
                             apply star_assoc_l; eauto
                           | [|- ((<exists> _, _) <*> _) ?c ?m ] =>
@@ -5004,7 +5078,7 @@ Proof.
                 end.
                 { unfold min_cost_elem, set_sum, empty, single in Hmincost.
                   destruct Hmincost as ([[]| ->]&_).
-                  repeat match goal with
+                  repeat lazymatch goal with
                   | [|- ((_ <*> _) <*> _) ?c ?m ] =>
                     apply star_assoc_l; eauto
                   | [|- (<[_]> <*> _) ?c ?m ] =>
@@ -5226,7 +5300,7 @@ Proof.
                     end.
                     eapply decidable_if_finite;
                       eauto using decidable_uncurry, Nat.eq_decidable. }
-                  repeat match goal with
+                  repeat lazymatch goal with
                   | [|- ((_ <*> _) <*> _) ?c ?m ] =>
                     apply star_assoc_l; eauto
                   | [|- (<[_]> <*> _) ?c ?m ] =>
