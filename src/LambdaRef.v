@@ -1,5 +1,5 @@
 (* a simple lambda calculus with mutable references,
-  based on formalizations from https://github.com/ppolesiuk/type-systems-notes *)
+  inspired by formalizations from https://github.com/ppolesiuk/type-systems-notes *)
 
 Require Import Nat.
 Require List.
@@ -274,22 +274,6 @@ with map_labels_e {V : Set} (f : Label -> Label) (e : Expr V) : Expr V :=
   end.
 
 Definition Map (V : Set) : Set := list (Label * option (Value V)).
-
-(*Definition extend {V L : Set} (m : Map V L) (v : Value V L)
-  : Map V (inc_set L) :=
-  fun (l : inc_set L) =>
-    match l with
-    | Some l => shift_v (m l)
-    | None   => shift_v v
-    end.
-
-Definition assign {V L : Set} (m : Map V L) (l : L) (v : Value V L) : Map V L.
-Admitted.
-
-Definition max_label {V : Set} (m : Map V) : Label :=
-  List.fold_right
-    (fun '(OfNat n, _) '(OfNat m) => OfNat (max n m)) (OfNat 0) m.
-*)
 
 Definition labels {V : Set} (m : Map V) : list Label :=
   List.map fst m.
@@ -572,8 +556,6 @@ Global Hint Constructors cost_red : lamref.
 
 (* NOTATIONS *)
 
-(*Notation "'$' x" := (Some x) (at level 50).*)
-
 Notation "'-\' e" := (Lam e) (at level 100).
 
 Notation "e1 '<*' e2" :=
@@ -622,29 +604,6 @@ Definition StringLam (x : string) (e : Expr string) :
   Value string :=
   Lam (map_e (fun y => if x =? y then None else Some y)%string e).
 
-(*
-Class EqBool (A : Set) : Set := {
-  eqB : A -> A -> bool;
-}.
-
-Global Instance StringEqB : EqBool string := {|
-  eqB := eqb;
-|}.
-
-Global Instance OptionEqB (A : Set) `{EqBool A} :
-  EqBool (option A) := {|
-  eqB x y := match x, y with
-  | None, None => true
-  | Some x', Some y' => eqB x' y'
-  | _, _ => false
-  end;
-|}.
-
-Definition StringLam' {A : Set} `{EqBool A} (x : A) (e : Expr A) :
-  Value A :=
-  Lam (map_e (fun y => if eqB x y then None else $ y) e).
-*)
-
 Notation "'[-\]' x ',' e" :=
   (StringLam x e)
   (at level 100, no associativity).
@@ -652,38 +611,3 @@ Notation "'[-\]' x ',' e" :=
 Notation "'[let' x ']' e1 '[in]' e2 [end]" :=
   (([-\] x, e2) <* e1)
   (at level 50, no associativity).
-
-
-(* ------------------------LEMMAS-------------------------------------*)
-(*Fixpoint bind_shift_v (A : Set) x (a : _ A) :
-  bind_v (inc_fun Var x) (shift_v a) = a
-with bind_shift_e (A : Set) x (a : _ A) :
-  bind_e (inc_fun Var x) (shift_e a) = a.
-Proof.
-  - destruct a; simpl; try reflexivity.
-    + f_equal. induction l; simpl.
-      * reflexivity.
-      * f_equal; eauto.
-    + f_equal. Print liftS. eapply bind_shift_e.
-*)
-
-(*(* reordering in context *)
-Lemma reordering (V : Set) (G : env V) (e : Expr _) (t t' t'' : type) :
-  T[ inc_fun (inc_fun G t'') t' |- shift_e e ::: t] ->
-  T[ inc_fun (inc_fun G t') t'' |- map_e (option_map Some) e ::: t].
-Proof.
-  (*remember (inc_fun (inc_fun G t') t'') as G'.*)
-  remember (inc_fun (inc_fun G t'') t') as G''.
-  (*remember (map_e (option_map Some) e) as e'.*)
-  remember (shift_e e) as e''.
-  intro H. induction H.
-  - econstructor.
-Qed.
-(* weakening lemma *)
-Lemma weakening (V : Set) (G : env V) (e : Expr V) (t t' : type) :
-  T[ G |- e ::: t ] ->
-  T[ inc_fun G t' |- shift_e e ::: t].
-Proof.
-  intro H. induction H; cbn; econstructor; try eassumption.
-Abort.
-*)

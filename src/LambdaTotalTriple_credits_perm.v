@@ -13,10 +13,8 @@ Definition step_hoare_triple {V : Set}
   forall (c : nat) ((*m*) m' : Map V),
     Is_Valid_Map m' ->
     P (1+c) m' ->
-    (*Permutation m m' ->*)
-    exists (e' : Expr V) (m'' (*m'''*) : Map V),
+    exists (e' : Expr V) (m'' : Map V),
       R[e, m' ~~> e', m''] /\
-      (*Permutation m'' m''' /\*)
       Is_Valid_Map m'' /\
       Q c m''.
 
@@ -26,11 +24,9 @@ Definition hoare_triple {V : Set}
   forall (c1 : nat) ((*mp*) m : Map V),
     Is_Valid_Map m ->
     P c1 m ->
-    (*Permutation mp m ->*)
     exists (v : Value V) (c c2 : nat) (m' (*mq*) : Map V),
       C[e, m ~~> v, m' | c] /\
       Q v c2 m' /\
-      (*Permutation m' mq /\*)
       Is_Valid_Map m' /\
       c1 = c + c2.
 
@@ -44,75 +40,11 @@ Definition triple_fun {V : Set}
   (P Q : Value V -> StateAssertion V) : Prop :=
   forall v' : Value V, triple (v <* v') (P v') Q.
 
-(*Fixpoint n_ary_StateAssertion (n : nat) V :=
-  match n with
-  | 0 => StateAssertion V
-  | S n' => Value V -> n_ary_StateAssertion n' V
-  end.
-
-Fixpoint n_ary_forall*)
-
 Fixpoint n_ary_app {V : Set} (e : Expr V) (es : list (Expr V)) : Expr V :=
   match es with
   | [] => e
   | (e'::es') => n_ary_app (e <* e') es'
   end%list.
-
-(*
-Definition triple_fun_n_ary {V : Set} n
-  (v : Value V)
-  (P : list (Value V) -> StateAssertion V)
-  (Q : Value V -> StateAssertion V) : Prop :=
-  forall vs : list (Value V),
-    List.length vs = n -> triple (n_ary_app v (List.map Val vs)) (P vs) Q.
-
-Fixpoint triple_list {V : Set}
-  (es : list (Expr V))
-  (P : StateAssertion V)
-  (Q : list (Value V) -> StateAssertion V) : Prop :=
-  match es with
-  | [] => P ->> Q []
-  | (e::es') =>
-    exists Q', triple e P Q' /\
-      forall v, triple_list es' (Q' v) (fun vs => Q (v::vs))
-  end%list.
-
-(*Fixpoint triple_list_decreasing {V : Set}
-  (es : list (Expr V))
-  (P : StateAssertion V)
-  (Q : list (Value V) -> StateAssertion V) : Prop :=
-  match es with
-  | [] => P ->> Q []
-  | (e::es') =>
-    exists P', P ->> $1 <*> P' /\
-    exists Q', triple e P' Q' /\
-      forall v, triple_list_decreasing es' (Q' v) (fun vs => Q (v::vs))
-  end%list.*)
-
-Fixpoint n_ary_app_inv {V : Set} (e : Expr V) (es : list (Expr V)) : Expr V :=
-  match es with
-  | [] => e
-  | (e'::es') => n_ary_app_inv e es' <* e'
-  end%list.
-
-Definition triple_fun_n_ary_inv {V : Set} n
-  (v : Value V)
-  (P : list (Value V) -> StateAssertion V)
-  (Q : Value V -> StateAssertion V) : Prop :=
-  forall vs : list (Value V),
-    List.length vs = n -> triple (n_ary_app_inv v (List.map Val vs)) (P vs) Q.
-
-Fixpoint triple_list_inv {V : Set}
-  (es : list (Expr V))
-  (P : StateAssertion V)
-  (Q : list (Value V) -> StateAssertion V) : Prop :=
-  match es with
-  | [] => P ->> Q []
-  | (e::es') =>
-    exists Q', triple_list_inv es' P Q' /\
-      forall vs, triple e (Q' vs) (fun v => Q (v::vs))
-  end%list.
-*)
 
 Fixpoint n_ary_fun_type (n : nat) (A B : Type) : Type :=
   match n with
@@ -174,14 +106,3 @@ Fixpoint triple_list {V : Set}
     exists Q', triple e P Q' /\
       forall v, triple_list es' (Q' v) (Q v)
   end%list.
-
-(*Eval simpl in triple_fun_n_ary 2.*)
-
-(*Fixpoint triple_fun_n_ary n {V : Set}
-  (v : Value V)
-  (P : n_ary_fun_type n (Value V) (StateAssertion V))
-  (Q : Value V -> StateAssertion V) : Prop :=
-  n_ary_forall n (to_n_ary_fun n (fun xs =>
-    match xs with
-    | Vector.nil _ =>
-    end))*)

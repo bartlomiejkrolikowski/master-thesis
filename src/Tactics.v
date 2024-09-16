@@ -2,14 +2,6 @@ Require Import src.LambdaRef.
 Require Import List.
 Import ListNotations.
 
-(*
-Ltac solve_typing :=
-  repeat econstructor; simpl;
-  match goal with
-  | [ |- T[ ?G |- Val (Var ?x) ::: ?t ] ] => apply (T_Var G x)
-  end.
-*)
-
 Ltac solve_cost_red x :=
   repeat (eapply no_red || (eapply S_red; [ x | ])).
 

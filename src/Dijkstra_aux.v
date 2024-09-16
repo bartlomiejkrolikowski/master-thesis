@@ -184,55 +184,7 @@ Proof.
     do 2 (apply star_pure_l; split; auto). eassumption.
   - intros. simpl. solve_simple_value; normalize_star; eauto. lia.
 Qed.
-(*
-Ltac find_witness_is_closed e :=
-  lazymatch e with
-  (* variables *)
-  | @None ?T => exact (@None ltac:(find_witness_is_closed T))
-  | Some ?x => exact (Some ltac:(find_witness_is_closed x))
-  (* Value *)
-  | U_val => exact U_val
-  | Var ?x => exact (Var ltac:(find_witness_is_closed x))
-  | Int ?i => exact (Int i)
-  | Bool ?b => exact (Bool b)
-  | Lab ?l => exact (Lab l)
-  (*| RecV ?vs => exact (RecV (*TODO*)) *)
-  | Lam ?e => exact (Lam ltac:(find_witness_is_closed e))
-  (* Expr *)
-  | Val ?v => exact (Val ltac:(find_witness_is_closed v))
-  | App ?e1 ?e2 =>
-    exact (App ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
-  | UnOp ?k ?e => exact (UnOp k ltac:(find_witness_is_closed e))
-  | BinOp ?k ?e1 ?e2 =>
-    exact (BinOp k
-      ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
-(*  | RecE es => exact (ecE (*TODO*))*)
-  | Get ?n ?e => exact (Get n ltac:(find_witness_is_closed e))
-  | Ref ?e => exact (Ref ltac:(find_witness_is_closed e))
-  | NewArray ?e => exact (NewArray ltac:(find_witness_is_closed e))
-  | Deref ?e => exact (Deref ltac:(find_witness_is_closed e))
-  | Shift ?e1 ?e2 => exact (Shift ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
-  | Assign ?e1 ?e2 => exact (Assign ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
-  | Free ?e => exact (Free ltac:(find_witness_is_closed e))
-  | Seq ?e1 ?e2 => exact (Seq ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
-  | If ?e1 ?e2 ?e3 => exact
-    (If ltac:(find_witness_is_closed e1)
-      ltac:(find_witness_is_closed e2) ltac:(find_witness_is_closed e3))
-  | While ?e1 ?e2 => exact (While ltac:(find_witness_is_closed e1) ltac:(find_witness_is_closed e2))
-  (* Coq types *)
-  | option ?T => exact (option ltac:(find_witness_is_closed T))
-  | ?T => exact Empty_set
-  end.
 
-(*Check (ltac:(find_witness_is_closed ltac:(eval compute in assign_array_at))).*)
-
-Ltac prove_is_closed :=
-  unfold is_closed_value, StringLam; compute; eexists ?[e];
-  lazymatch goal with
-  | [|- ?e' = _] => instantiate (e := (ltac:(find_witness_is_closed e')))
-  end;
-  simpl; reflexivity.
-*)
 Hint Unfold inc_set : is_closed_db.
 
 Lemma is_closed_value_assign_array_at :

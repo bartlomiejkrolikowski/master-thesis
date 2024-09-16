@@ -78,33 +78,7 @@ Ltac prove_implies_reorder_pure :=
     end
   | [|- ?P ->> _] => apply implies_refl
   end.
-(*
-Ltac prove_implies_reorder_pure_bwd :=
-  match goal with
-  | [|- _ ->> ?Q <*> ?Q'] =>
-    eapply implies_trans;
-    [|apply star_implies_mono; prove_implies_reorder_pure_bwd];
-    match goal with
-    | [|- _ ->> <[?P]> <*> ?Q1' ] =>
-      apply star_implies_mono; [apply implies_refl|];
-      prove_implies_reorder_pure_bwd
-    | [|- _ ->> (<[?P]> <*> ?Q1) <*> ?Q1' ] =>
-      eapply implies_trans; [|apply star_assoc_r];
-      apply star_implies_mono; [apply implies_refl|];
-      prove_implies_reorder_pure_bwd
-    | [|- _ ->> ?Q1 <*> <[?P]> ] =>
-      eapply implies_trans; [|apply star_comm];
-      apply star_implies_mono; [apply implies_refl|];
-      prove_implies_reorder_pure_bwd
-    | [|- _ ->> ?Q1 <*> (<[?P]> <*> ?Q1') ] =>
-      eapply implies_trans; [|apply star_comm];
-      eapply implies_trans; [|apply star_assoc_r];
-      apply star_implies_mono; [apply implies_refl|];
-      prove_implies_reorder_pure_bwd
-    end
-  | [|- _ ->> ?P] => apply implies_refl
-  end.
-*)
+
 Ltac triple_reorder_pure :=
   match goal with
   | [|- triple ?e ?P' ?Q'] =>
@@ -174,40 +148,6 @@ Ltac triple_reorder_credits :=
     apply triple_weaken with (P := ltac:(reorder_credits P')) (Q := Q');
       [prove_implies_reorder_credits|intros; apply implies_refl|]
   end.
-(*
-Ltac prove_implies_pull_credits n :=
-  match goal with
-  | [|- ?Q <*> ?Q' ->> _] =>
-    eapply implies_trans;
-    [apply star_implies_mono; [prove_implies_pull_credits n|apply implies_refl]|];
-    match goal with
-    | [|- sa_credits _ <*> ?Q1' ->> _ ] => idtac
-    | [|- (sa_credits _ <*> ?Q1) <*> ?Q1' ->> _ ] =>
-      eapply implies_trans; [apply star_assoc_r|]
-    end
-  | [|- ?Q <*> ?Q' ->> _] =>
-    eapply implies_trans;
-    [apply star_implies_mono; [apply implies_refl|prove_implies_pull_credits n]|];
-    match goal with
-    | [|- ?Q1 <*> sa_credits _ ->> _ ] =>
-      eapply implies_trans; [apply star_comm|]
-    | [|- ?Q1 <*> (sa_credits _ <*> ?Q1') ->> _ ] =>
-      eapply implies_trans; [apply star_comm|];
-      eapply implies_trans; [apply star_assoc_r|]
-    end
-  | [|- sa_credits _ <*> ?Q ->> _ ] =>
-    eapply star_implies_mono;
-    [eapply credits_star_r with (c1 := n); reflexivity|apply implies_refl]
-  | [|- sa_credits _ ->> _] => eapply credits_star_r with (c1 := n); reflexivity
-  | [|- ?P ->> _] => apply implies_refl
-  end.
-Ltac triple_pull_credits n :=
-  match goal with
-  | [|- triple ?e ?P' ?Q'] =>
-    eapply triple_weaken with (Q := Q');
-      [prove_implies_reorder_credits n|intros; apply implies_refl|]
-  end.
-*)
 
 Ltac triple_pull_credits n :=
   match goal with
@@ -418,19 +358,6 @@ Ltac clear_empty P :=
   | _ => exact P (*; idtac "<>"*)
   end.
 
-(*Goal True.
-match constr:(fun x => x + 1) with
-| fun t => @?y t => let a := fresh t in let b := constr:(fun a => y a) in idtac a b y
-end.
-Abort.
-Check (ltac:(clear_empty ltac:(eval simpl in (fun (x:Label) (y : Expr (inc_set string)) =>  (<[]> <*> <[1=1]> <*> (<[2=2]> <*> <exists> n m : nat, (<[n=m]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <(x :== -\y)>) <*> <[]> <*> <[6=6]>)):StateAssertion string))))).
-Goal True. match constr:(fun x xx : nat => ((fun t => t + xx) x + 1) * 3) with
-| fun z v => @?y z v * 3 => idtac "y =" y; pose (fun z : nat => ltac:(
-  match ltac:(eval simpl in (fun v : nat => y z v)) with
-  | fun r => @?a r => idtac "r =" r "; a =" a; let aa := (ltac:(eval simpl in (a))) in exact (aa 8)
-  end) * 5)
-end.*)
-
 Ltac prove_implies_clear_empty :=
   lazymatch goal with
   | [|- ?Q <*> ?Q' ->> _ ] =>
@@ -497,17 +424,11 @@ Ltac reorder_exists P :=
     | (<exists> x : ?T, @?Q1 x) =>
         let t := fresh x in
       reorder_exists ltac:(eval simpl in (<exists> t : T, Q1 t <*> Q'))
-(*      let t := fresh x in
-      let Q2 := ltac:(eval simpl in (fun t =>ltac:(reorder_exists ltac:(eval simpl in (Q1 t <*> Q'))))) in
-      exact (<exists> x, Q2 x)*)
     | ?Q1 =>
       lazymatch ltac:(eval simpl in (ltac:(reorder_exists Q'))) with
       | (<exists> x : ?T, @?Q1' x) =>
         let t := fresh x in
         reorder_exists ltac:(eval simpl in (<exists> t : T, Q1 <*> Q1' t))
-(*        let t := fresh x in
-        let Q2 := ltac:(eval simpl in (fun t =>ltac:(reorder_exists ltac:(eval simpl in (Q1 <*> Q1' t))))) in
-        exact (<exists> x, Q2 x)*)
       | ?Q1' => exact (Q1 <*> Q1')
       end
     end
@@ -585,39 +506,6 @@ Ltac triple_reorder_exists :=
     apply triple_weaken with (P := ltac:(reorder_exists P')) (Q := Q');
       [prove_implies_reorder_exists|prove_implies_refl|]
   end.
-
-(*Ltac prove_post_by_constant_eta_expansion :=
-  match goal with
-  | [H : ?P ?c ?m |- _ ?v ?c ?m]
-  end.
-*)
-
-(*
-Goal True.
-eassert (option (Value string)). shelve.
-eassert (H = _). shelve.
-lazymatch goal with
-| [_ : H = ?yy |- _] =>
-  epose (fun x (y : Expr (_ string)) => ltac:(clear_empty ltac:(eval simpl in ltac:(remove (<(x :?= Some (-\ y))> : StateAssertion string) (<[]> <*> <[1=1]> <*> (<[2=2]> <*> (<[3=3]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <(x :== -\ y)>) <*> <[]> <*> <[6=6]>)))))))
-end.
-lazymatch goal with
-| [_ : H = ?yy |- _] =>
-  epose (fun x (y : Expr (_ string)) => ltac:(clear_empty ltac:(eval simpl in ltac:(remove (<(x :?= yy)> : StateAssertion string) (<[]> <*> <[1=1]> <*> (<[2=2]> <*> (<[3=3]> <*> <[]> <*> <[4=4]> <*> (<[5=5]> <*> <(x :== @U_val string)>) <*> <[]> <*> <[6=6]>)))))))
-end.
-Abort.
-
-Ltac tmp P :=
-  lazymatch P with
-  | ?Q <*> ?Q' => (*idtac Q Q';*)
-    tmp Q; tmp Q'
-  | <exists> t : ?T, @?Q t => (*idtac t T Q;*)
-    tmp Q
-  | fun t : ?T => @?Q t => (*idtac t T Q;*)
-    let u := fresh t in(*exact (fun x : T => ltac:(eval simpl in ltac:(clear_empty Q)))*)
-    tmp (Q u)
-  | ?X => (is_evar X; idtac "is_evar -" X) || idtac "!" X
-  end.
-*)
 
 Ltac get_leftmost P :=
   lazymatch P with

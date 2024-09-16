@@ -352,39 +352,6 @@ Proof.
   - right. intros [= ]. tauto.
 Qed.
 
-(*
-Definition is_nonempty_set {A} (P : A -> Prop) : Prop :=
-  exists x, P x.
-
-Fact size_lt_0_nonempty A P s :
-  @is_set_size A P s ->
-  (is_nonempty_set P <-> s > 0).
-Proof.
-  unfold is_set_size, is_elem_unique_list, is_elem_list, is_nonempty_set.
-  intros ([|]&(Hlist&?)&<-); simpl in *.
-  - split.
-    + intros (?&[]%Hlist).
-    + lia.
-  - split.
-    + lia.
-    + intros. eexists. apply Hlist. auto.
-Qed.
-
-Lemma nonempty_has_min_cost_elem_option_nat
-  (P : nat -> Prop) (W : nat -> option nat) :
-  is_nonempty_set P ->
-  exists x, min_cost_elem P W x.
-Proof.
-  unfold is_nonempty_set, min_cost_elem. simpl. intros (x&?).
-  remember (W x) as n eqn:Hn. destruct n.
-  2:{ exists x. rewrite <- Hn. simpl. }
-  induction n.
-  -
-  intros (L&(Hlist&Hnodup)&<-) ?. induction L; simpl in *; [lia|].
-  inversion Hnodup. subst.
-   eexists. rewrite
-Qed.
-*)
 Lemma nonempty_has_min_cost_elem_option_nat {A}
   (P : A -> Prop) s (W : A -> option nat) :
   (forall x y, Decidable.decidable (x = y :> A)) ->
@@ -435,22 +402,7 @@ Proof.
           { apply Hle. }
           { apply Hmin. auto. }
 Qed.
-(*
-Fact sa_and_if_implies V (P Q : StateAssertion V) c m :
-  P ->> Q ->
-  P c m ->
-  (P </\> Q) c m.
-Proof.
-  unfold sa_implies, sa_and. auto.
-Qed.
 
-Fact sa_implies_and_if_implies V (P Q : StateAssertion V) :
-  P ->> Q ->
-  P ->> (P </\> Q).
-Proof.
-  unfold sa_implies, sa_and. auto.
-Qed.
-*)
 Lemma nonempty_has_min_cost_elem_nat A P s (W : A -> nat) :
   is_set_size P s ->
   s > 0 ->
@@ -729,20 +681,6 @@ Proof.
   3,4:eauto; simpl; eauto.
   { simpl. admit. }
 Admitted.
-
-(*
-Definition is_vertex_potential A (g : graph A) (P : A -> Prop) p : Prop :=
-  forall s x,
-  is_set_size (V g) s ->
-  is_set_size (V (induced_subgraph P g)) x ->
-  p = s - x.
-
-Definition is_edge_potential A (g : graph A) (P : A -> Prop) p : Prop :=
-  forall s x,
-  is_set_size (uncurry (E g)) s ->
-  is_set_size (uncurry (E (induced_subgraph P g))) x ->
-  p = s - x.
-*)
 
 Lemma elem_weighted_unique_list_to_size A B P W L :
   @is_elem_weighted_unique_list A B P W L ->
