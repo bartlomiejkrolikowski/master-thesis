@@ -1588,8 +1588,8 @@ Proof.
                       (forall x, ~ List.In x (List.map fst
                         (Neigh_list_processed ++ Neigh_list_todo)) ->
                         pred x = pred' x) /\
-                      distance_decrease g x_min D_init D' pred_init pred' /\
-                      forall x y, P_init x -> Q y -> le (D x) (D y)]> <*>
+                      distance_decrease g x_min D_init D' pred_init pred' (*/\
+                      forall x y, P_init x -> Q y -> le (D x) (D y)*)]> <*>
                     <[is_nat_fun_of_val_list D_list D /\
                       is_nat_fun_of_val_list pred_list pred]> <*>
                     <[set_equiv Q (set_sum Q0 (fun x => ~ P_init x /\
@@ -1638,18 +1638,14 @@ Proof.
                       (forall x, ~ List.In x (List.map fst
                         (Neigh_list_processed ++ Neigh_list_todo)) ->
                         pred x = pred' x) /\
-                      distance_decrease g x_min D_init D' pred_init pred' /\
-                      forall x y, P_init x -> Q y -> le (D x) (D y)]> <*>
+                      distance_decrease g x_min D_init D' pred_init pred' (*/\
+                      forall x y, P_init x -> Q y -> le (D x) (D y)*)]> <*>
                     <[is_nat_fun_of_val_list D_list D /\
                       is_nat_fun_of_val_list pred_list pred]> <*>
                     <[set_equiv Q (set_sum Q0 (fun x => ~ P_init x /\
                       List.In x (List.map fst Neigh_list_processed)))]> <*>
                     <[km + sp + st <= m /\ is_subset Q (V g) /\
                       is_set_size Q sv']> <*>
-(*                    <[is_set_size Q0 kn]> <*>
-                    <[is_set_size (uncurry (E (induced_subgraph Q0 g))) km]> <*>
-                    <[sv < n]> <*>
-                    <[Dijkstra_invariant D pred P src g]> <*>*)
                     $ (cn1_0 + (cm*((m-km)-sp) + cn_t + cn*(n-((kn+1)+sv'))*t)) <*>
                     $ pot <*>
                     is_list (nat_pairs2values Neigh_list_todo) l <*>
@@ -1740,7 +1736,7 @@ Proof.
                             destruct H as (?&Hfun)
                           end.
                           apply Hfun. eassumption. } }
-                      { intros y y' Hy Hy'.
+                      (*{ intros y y' Hy Hy'.
                         lazymatch goal with
                         | [H : (_<*>(_<*>(_<*>is_heap _ _ ?P ?Q _ _ _<*>_<*>_))) _ _,
                           H' : _ = empty /\ _ = set_sum _ _ \/ _ src /\ _ = neighbourhood _ _
@@ -1752,8 +1748,13 @@ Proof.
                         end.
                         eapply Dijkstra_invariant_D_ge_in_neighbourhood; eauto.
                         destruct Hor as [(->&->)|(?&->)]; [contradiction|].
-                        unfold set_remove in Hy'. destruct Hy'. auto. } }
-                    { unfold set_equiv, set_sum. simpl. clear. tauto. }
+                        unfold set_remove in Hy'. destruct Hy'. auto. }*) }
+                    { lazymatch goal with
+                      | [H : (_<*>(_<*>(_<*>is_heap _ _ ?P ?Q _ _ _<*>_<*>_))) _ _
+                        |- set_equiv ?Q' _] =>
+                        unify Q Q'
+                      end.
+                      unfold set_equiv, set_sum. simpl. clear. tauto. }
                     { split_all.
                       { rewrite Nat.add_0_r.
                         lazymatch goal with
@@ -2036,14 +2037,12 @@ Proof.
                           (forall x, ~ List.In x (List.map fst
                             (Neigh_list_processed ++ (i',w')::Neigh_list_todo)) ->
                             pred' x = pred'' x) /\
-                          distance_decrease g x_min D_init D'' pred_init pred'' /\
-                          forall x y, Pr x -> H' y -> le (D' x) (D' y)]> <*>
+                          distance_decrease g x_min D_init D'' pred_init pred'' (*/\
+                          forall x y, Pr x -> H' y -> le (D' x) (D' y)*)]> <*>
                         <[set_equiv H' (set_sum (set_remove _ x_min)
                           (fun x => ~ P_init x /\ List.In x
                           (List.map fst (Neigh_list_processed ++ [(i',w')]))))]> <*>
                         <[is_subset H' (V g) /\ is_set_size H' sv' /\
-                          (*(set_sum Pr H' i' -> c3 = 2*t') /\
-                          (~ set_sum Pr H' i' -> c3 = 0)*)
                           (set_sum P_init H i' -> c3 = 2*t') /\ (* credits after other than insert *)
                           (~ set_sum P_init H i' -> c3 = 0)]> <*> (* credits after insert *)
                         $pot' <*> $c2 <*> $c3 <*> P1 <*> P2 <*> P3 <*>
@@ -2702,13 +2701,13 @@ Proof.
                                 simpl. auto. }
                               { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
                             { assumption. }
-                            { intros y y' Hy Hy'.
+                            (*{ intros y y' Hy Hy'.
                               lazymatch goal with
                               | [H : (is_heap _ _ ?PP ?QQ _ _ _<*>_) _ _,
                                 H' : ?P' = empty /\ ?Q'' = _ \/
                                   ?P' src /\ ?Q'' = neighbourhood _ _,
-                                H'' : forall _ _, ?P' _ -> _ ->
-                                  match ?f _ with | _ => _ end,
+                                (*H'' : forall _ _, ?P' _ -> _ ->
+                                  match ?f _ with | _ => _ end,*)
                                 H''' : forall _ _,
                                   List.nth _ (_ ?LL1 ++ _::_ ?LL2) None = Some _ <-> ?f _ = _,
                                 H'''' : forall _ _,
@@ -2735,7 +2734,7 @@ Proof.
                                     LL2 into L2, LL1' into L1', LL2' into L2', f into fD,
                                     f' into fpred, D' into D, pred' into pred, D'' into D2,
                                     pred'' into pred2, LD' into LD, Ns1' into Ns1, Ns2' into Ns2,
-                                    H' into Hor, H'' into Hle, H''' into HD_nth,
+                                    H' into Hor, (*H'' into Hle,*) H''' into HD_nth,
                                     H'''' into Hpred_nth, H''''' into HDij_inv,
                                     H6 into HD, H7 into Hpred, H8 into HD2, H9 into Hpred2,
                                     H10 into Hneighs, H11 into Hfun, H12 into Hnth, H13 into Hdecr,
@@ -2812,7 +2811,7 @@ Proof.
                                   destruct Hy' as (Hy'&Hneq). assumption. }
                                 { destruct Hmincost as (?&Hmin). apply Hmin.
                                   unfold set_remove, set_sum, single in Hy'.
-                                  destruct Hy' as (Hy'&Hneq). assumption. }*) }*) }
+                                  destruct Hy' as (Hy'&Hneq). assumption. }*) }*) }*)
                             { lazymatch goal with
                               | [ H : set_equiv ?R ?R',
                                   H' : (is_heap n C ?P ?Q _ _ _ <*> _) _ _
@@ -3662,7 +3661,7 @@ Proof.
                                   simpl. auto. }
                                 { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
                               { assumption. }
-                              { admit. }
+                              (*{ admit. }*)
                               { lazymatch goal with
                                 | [ H : set_equiv ?P ?R,
                                     H' : (is_heap n C _ ?Q _ _ _ <*> _) _ _
@@ -3850,7 +3849,6 @@ Proof.
                                     H6 into HD, H7 into Hpred, H8 into HD2, H9 into Hpred2,
                                     H10 into Hneighs, H11 into Hfun, H12 into Hnth
                                 end.
-                                clear H48.
                                 destruct (fD i') eqn:HfD; trivial.
                                 apply HD_nth in HfD.
                                 rewrite List.app_nth2, List.map_length, Hlen3, Nat.sub_diag in HfD.
@@ -3887,7 +3885,6 @@ Proof.
                                     H10 into Hneighs, H11 into Hfun, H12 into Hnth,
                                     H14 into HD2out, H15 into Hpred2out
                                 end.
-                                clear H48.
                                 lazymatch goal with
                                 | [H : List.nth x_min _ _ = Some (Int (Z.of_nat ?x)) |- _] =>
                                   rename x into y_min
@@ -4092,12 +4089,12 @@ Proof.
                           apply star_pure_l; split_all; [exact Hfun_a|exact Hfun_b|]
                         end.
                         rewrite Z.ltb_nlt in *. solve_star.
-                        { lazymatch goal with
+                        { (*lazymatch goal with
                           | [H : forall _ _, ?P _ -> _ -> match _ with | _ => _ end
                             |- _ /\ _ /\ _ /\ _ /\ _ /\ _ /\ _ /\
                               forall _ _, ?P' _ -> _ -> match _ with | _ => _ end] =>
                             unify (add_single P x_min) P'
-                          end.
+                          end.*)
                           split_all; try eassumption; eauto.
                           { intros i'' Hin.
                             rewrite List.map_app in Hin.
@@ -4199,7 +4196,7 @@ Proof.
                               apply Hnin. rewrite List.map_app, List.in_app_iff.
                               simpl. auto. }
                             { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
-                          { unfold add_single, set_sum, single, empty.
+                          (*{ unfold add_single, set_sum, single, empty.
                             intros y y' [?|<-] ?.
                             { lazymatch goal with
                               | [H : forall _ _, _ -> _ ->
@@ -4214,7 +4211,7 @@ Proof.
                               unfold set_equiv in H37.
                               rewrite H37 in H51.
                               apply Hmin.
-                             auto.*) } }
+                             auto.*) } }*)
                           (*{ intros.
                             lazymatch goal with
                             | [H : forall _ _, _ -> _ ->
@@ -4512,14 +4509,14 @@ Proof.
                           { rewrite <- List.app_assoc. simpl. eauto. }
                           { rewrite <- List.app_assoc. simpl. eauto. }
                           { eassumption. }
-                          { intros.
+                          (*{ intros.
                             lazymatch goal with
                             | [H : forall _ _, _ -> _ ->
                                 match ?f _ with | _ => _ end
                               |- match ?f _ with | _ => _ end] =>
                               apply H; auto
                             end.
-                            unfold add_single, set_sum in *. auto. }
+                            unfold add_single, set_sum in *. auto. }*)
                           { eassumption. }
                           { eassumption. }
                           { eassumption. }
