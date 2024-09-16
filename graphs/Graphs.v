@@ -163,29 +163,6 @@ Inductive is_undir_walk {A} (g : graph A) (u : A) : A -> list A -> Prop :=
   | is_undir_walk_cons_rev v w p :
     E g v u -> is_undir_walk g v w p -> is_undir_walk g u w (u::p).
 
-(*
-Fact is_walk_spec A (g : graph A) (p : list A) :
-  is_walk g p <->
-    (forall x, In x p -> V g x) /\
-    (forall u v, In u p -> In v p -> E g u v).
-Proof.
-  split.
-  - intro Hwalk. induction Hwalk; simpl in *.
-    + intuition.
-    + intuition; subst.
-
-Fact nil_walk A (g : graph A) : is_walk g [].
-Proof.
-  unfold is_walk. simpl. intuition.
-Qed.
-
-Fact single_walk A (g : graph A) x :
-  V g x -> is_walk g [x].
-Proof.
-  unfold is_walk. simpl. intuition; subst. auto.
-Qed.
-*)
-
 Definition is_a_path {A} (g : graph A) (p : list A) :=
   is_a_walk g p /\ NoDup p.
 

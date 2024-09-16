@@ -761,6 +761,9 @@ Qed.
 Definition are_disjoint_sets {A} (P Q : A -> Prop) : Prop :=
   forall x, ~ (P x /\ Q x).
 
+Definition set_remove {A} (P : A -> Prop) (x y : A) : Prop :=
+  P y /\ y <> x.
+
 Lemma sum_elem_list A (P Q : A -> Prop) Lp Lq :
   is_elem_list P Lp ->
   is_elem_list Q Lq ->
@@ -1006,4 +1009,231 @@ Proof.
   { intros. apply decidable_uncurry; unfold Decidable.decidable; lia. }
   - split.
     +*) admit.
+Admitted.
+
+Lemma update_nat_function_at_preserves_le P Q f i (ov : option nat) x y :
+  P x ->
+  Q y ->
+  le (f x) (f y) ->
+  (forall x, P x -> le (f x) ov) ->
+  (forall y, Q y -> le ov (f y)) ->
+  le (update_nat_function_at f i ov x) (update_nat_function_at f i ov y).
+Proof.
+Admitted.
+
+(* other properties *)
+
+Lemma is_set_size_with_neighbours A B (P P' : A -> Prop) s g n x f L1 L2 :
+  is_irreflexive g ->
+  is_set_size (V g) n ->
+  is_set_size P s ->
+  P x ->
+  are_disjoint_sets P P' ->
+  @is_elem_weighted_unique_list A B (neighbours g x) f (L1 ++ L2)%list ->
+  exists s', s' < n /\ is_set_size
+    (set_sum (set_remove P x) (fun y => ~ P' y /\ List.In y (List.map fst L1))) s'.
+Proof.
+Admitted.
+
+Lemma Dijkstra_invariant_nonnone A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) x :
+  Dijkstra_invariant D pred P s g ->
+  (x = s \/ neighbourhood g P x) ->
+  ~ D x = None.
+Proof.
+Admitted.
+
+Lemma Dijkstra_invariant_D_some A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) x n :
+  Dijkstra_invariant D pred P s g ->
+  D x = Some n ->
+  x = s \/ P x \/ neighbourhood g P x.
+Proof.
+Admitted.
+
+Lemma Dijkstra_invariant_if_D_some A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) x n (*n1*) n2 (*pr1*) pr2 :
+  Dijkstra_invariant D pred P s g ->
+  D x = Some n ->
+  (*pred x = Some pr1 ->*)
+  E g pr2 x ->
+  (*D pr1 = Some n1 ->*)
+  D pr2 = Some n2 ->
+  (*n = n1 + W g pr1 x ->*)
+  n2 + W g pr2 x < n ->
+  (P = empty /\ x = s) \/ (P s /\ neighbourhood g P x).
+Proof.
+Admitted.
+
+Lemma Dijkstra_invariant_if_D_some_neighbour_le_W A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) u v du dv :
+  Dijkstra_invariant D pred P s g ->
+  closest_neighbour g P D u ->
+  neighbours g u v ->
+  D u = Some du ->
+  D v = Some dv ->
+  dv <= du + W g u v ->
+  P v.
+Proof.
+Admitted.
+
+Lemma Dijkstra_invariant_D_is_some_in_set A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) v :
+  Dijkstra_invariant D pred P s g ->
+  P v ->
+  exists d, D v = Some d.
+Proof.
+Admitted.
+
+(* distance labels are greater or equal in the neighbourhood of P *)
+Lemma Dijkstra_invariant_D_ge_in_neighbourhood A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) u v :
+  Dijkstra_invariant D pred P s g ->
+  P u ->
+  (neighbourhood g P v) ->
+  (*(exists d, D u = Some d) /\*) le (D u) (D v).
+Proof.
+Admitted.
+
+Lemma Dijkstra_invariant_distance_decrease_in_P A
+  (D D' : A -> option nat) (pred pred' : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) u v :
+  Dijkstra_invariant D pred P s g ->
+  distance_decrease g u D D' pred pred' ->
+  P v ->
+  D' v = D v.
+Proof.
+Admitted.
+
+Lemma elem_unique_list_of_weighted_unique A B P (W : A -> B) LW :
+  is_elem_weighted_unique_list P W LW ->
+  is_elem_unique_list P (List.map fst LW).
+Proof.
+Admitted.
+
+Lemma neighbourhood_add_new_single_size A g P v ns N N' :
+  @is_set_size A (neighbourhood g P) ns ->
+  is_elem_unique_list (neighbours g v) N ->
+  is_filtered_list (fun x => ~ P x) N N' ->
+  neighbourhood g P v ->
+  is_set_size (neighbourhood g (add_single P v)) (ns + List.length N' - 1).
+Proof.
+Admitted.
+
+Lemma edges_add_single_size A g P x es n n' :
+  @is_irreflexive A g ->
+  is_set_size (uncurry (set_sum2 (fun u v => P u /\ P v /\ E g u v)
+    (fun u v => P u /\ ~ P v /\ E g u v))) es ->
+  is_set_size (neighbours g x) n ->
+  is_set_size (neighbour_of g x) n' ->
+  is_set_size
+    (uncurry (set_sum2
+      (fun u v => add_single P x u /\ add_single P x v /\ E g u v)
+      (fun u v => add_single P x u /\ ~ add_single P x v /\ E g u v)))
+    (es + n + n').
+Proof.
+Admitted.
+
+Lemma elem_list_to_unique A P L :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  @is_elem_list A P L ->
+  exists L', is_elem_unique_list P L'.
+Proof.
+  intros Hdec_eq Hlist. assert (forall x, Decidable.decidable (P x)) as Hdec.
+  { intros. eapply decidable_if_elem_list; eassumption. }
+  assert (forall x L, Decidable.decidable (@List.In A x L)) as HdecL.
+  { intros. apply decidable_in. assumption. }
+  unfold is_elem_unique_list, is_elem_list in *. generalize dependent P.
+  induction L as [|x L IHL]; simpl in *; intros.
+  - exists nil. simpl. auto using List.NoDup.
+  - destruct HdecL with x L.
+    + apply IHL; auto. intros. rewrite <- Hlist. intuition (subst;assumption).
+    + edestruct IHL with (P := fun x => P x /\ List.In x L) as (L'&Hin&?).
+      { intros. rewrite <- Hlist. tauto. }
+      { intros. apply Decidable.dec_and; auto. }
+      destruct Hdec with x.
+        * exists (x::L')%list. simpl. split.
+          -- intros. rewrite Hin, <- Hlist. tauto.
+          -- constructor; auto. rewrite Hin. tauto.
+        * exists L'. split; auto. intros. rewrite Hin.
+          rewrite <- Hlist in *. tauto.
+Qed.
+
+Lemma elem_list_intersect_filtered A P Q L L' :
+  @is_elem_list A P L ->
+  is_filtered_list Q L L' ->
+  is_elem_list (intersect P Q) L'.
+Proof.
+Admitted.
+
+Lemma neighbourhood_add_single A g P u v :
+  @neighbourhood A g (add_single P u) v <->
+    (neighbourhood g P v) \/ (~ P v /\ neighbours g u v).
+Proof.
+Admitted.
+
+Lemma set_remove_size_decr A (P : A -> Prop) x s :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  is_set_size P s ->
+  P x ->
+  is_set_size (set_remove P x) (s-1).
+Proof.
+Admitted.
+
+Lemma sum_size_le A (P Q : A -> Prop) sP sQ sPQ :
+  is_set_size P sP ->
+  is_set_size Q sQ ->
+  is_set_size (set_sum P Q) sPQ ->
+  sPQ <= sP + sQ.
+Proof.
+Admitted.
+
+Lemma is_filtered_again A P L L' :
+  @is_filtered_list A P L L' ->
+  is_filtered_list (fun x => P x /\ List.In x L) L L'.
+Proof.
+Admitted.
+
+Lemma Dijkstra_invariant_D_src A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) :
+  Dijkstra_invariant D pred P s g ->
+  D s = Some 0.
+Proof.
+Admitted.
+
+Lemma distance_decrease_min A g v D D' pred pred' :
+  @distance_decrease A g v D D' pred pred' ->
+  D' v = D v.
+Proof.
+Admitted.
+
+(*Lemma Dijkstra_invariant_all_le_C A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) n C u d :
+  Dijkstra_invariant D pred P s g ->
+  is_set_size P n ->
+  is_max_label g C ->
+  P u ->
+  D u = Some d ->
+  d <= n*C.
+Proof.
+Admitted.*)
+
+Lemma Dijkstra_invariant_closest_neighbour_le_C A
+  (D : A -> option nat) (pred : A -> option A) (P : A -> Prop)
+  (s : A) (g : wgraph A) n C u d :
+  Dijkstra_invariant D pred P s g ->
+  is_set_size P n ->
+  is_max_label g C ->
+  closest_neighbour g P D u ->
+  D u = Some d ->
+  d <= (n+1)*C.
+Proof.
 Admitted.
