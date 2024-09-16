@@ -4005,7 +4005,14 @@ Proof.
                           { rewrite <- List.app_assoc. simpl. eauto. }
                           { rewrite <- List.app_assoc. simpl. eauto. }
                           { eassumption. }
-                          { admit. }
+                          { intros.
+                            lazymatch goal with
+                            | [H : forall _ _, _ -> _ ->
+                                match ?f _ with | _ => _ end
+                              |- match ?f _ with | _ => _ end] =>
+                              apply H; auto
+                            end.
+                            unfold add_single, set_sum in *. auto. }
                           { eassumption. }
                           { eassumption. }
                           { eassumption. }
