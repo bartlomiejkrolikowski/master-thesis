@@ -3072,7 +3072,6 @@ Proof.
                                   H10 into Hneighs, H11 into Hfun, H12 into Hnth,
                                   H14 into HD2out, H15 into Hpred2out
                               end.
-                              clear H48.
                               lazymatch goal with
                               | [H : List.nth x_min _ _ = Some (Int (Z.of_nat ?x)) |- _] =>
                                 rename x into y_min
@@ -5795,4 +5794,6 @@ Proof.
                       [apply star_implies_mono
                       |apply credits_star_l; reflexivity]);
                       prove_implies_refl. } } }
-Admitted.
+Unshelve.
+  all: now constructor.
+Qed.
