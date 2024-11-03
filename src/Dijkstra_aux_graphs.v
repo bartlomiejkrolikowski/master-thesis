@@ -208,7 +208,8 @@ Fact filtered_intersect_initial_elems A PL P L L' :
   is_filtered_list P L L' ->
   is_filtered_list (intersect P PL) L L'.
 Proof.
-Admitted.
+Abort.
+(*Admitted.*)
 
 Fact subset_elem_list A P P' L L' :
   is_filtered_list P' L L' ->
@@ -1026,13 +1027,29 @@ Definition update_nat_function_at {A} (f : nat -> A) x y : nat -> A :=
   fun n => if n =? x then y else f n.
 
 Lemma nat_function_update V f x y L1 t L2 :
+  x = List.length L1 ->
   is_nat_fun_of_val_list (L1 ++ t::L2)%list f ->
   @is_nat_fun_of_val_list V
     (L1 ++ Some (Int (Z.of_nat y))::L2)%list
     (update_nat_function_at f x (Some y)).
 Proof.
-  unfold is_nat_fun_of_val_list.
-Admitted.
+  unfold is_nat_fun_of_val_list, list_of_f, fun_of_list, update_nat_function_at.
+  intros ->. revert f.
+  induction L1; intros f (([|t' L']&[= Ht' HL'])&Hequiv); simpl in *;
+    try discriminate.
+  - subst. split.
+    + eexists (_::L')%list. simpl. reflexivity.
+    + intros [|i] n; simpl.
+      * split; intros [= Heq]; repeat f_equal; auto using Nat2Z.inj.
+      * rewrite <- Hequiv. reflexivity.
+  - subst. destruct IHL1 with (fun x => f (S x)) as ((L''&HL'')&Hequiv').
+    { split; eauto. intros. rewrite <- Hequiv. reflexivity. }
+    split.
+    + eexists (cons _ _). simpl. f_equal. eassumption.
+    + intros [|i] n; simpl.
+      * rewrite <- Hequiv. reflexivity.
+      * eauto.
+Qed.
 
 Lemma array_content_to_is_nat_function V L f l :
   @is_nat_fun_of_val_list V L f ->

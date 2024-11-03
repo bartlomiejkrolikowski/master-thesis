@@ -2227,8 +2227,8 @@ Proof.
                             end.
                             { assumption. }
                             { rewrite <- (Nat2Z.inj_add).
-                              eapply nat_function_update. eassumption. }
-                            { eapply nat_function_update. eassumption. }
+                              eapply nat_function_update; eauto. }
+                            { eapply nat_function_update; eauto. }
                             { rewrite <- Hlen1, List.app_length, List.app_length.
                               simpl. reflexivity. }
                             { rewrite <- Hlen2, List.app_length, List.app_length.
@@ -2246,7 +2246,9 @@ Proof.
                                   rewrite List.map_app in H; simpl in H;
                                   destruct H as (?&Hnin%List.NoDup_remove_2)
                                 end.
-                                apply Hnin. apply List.in_or_app. eauto. }
+                                apply Hnin. apply List.in_or_app. (*eauto.*)
+                                rewrite <- Hlen3. erewrite <- List.map_length.
+                                eauto. }
                               { eauto. } }
                             { unfold update_nat_function_at. intros i'' Hin.
                               lazymatch goal with
@@ -2261,9 +2263,12 @@ Proof.
                                   rewrite List.map_app in H; simpl in H;
                                   destruct H as (?&Hnin%List.NoDup_remove_2)
                                 end.
-                                apply Hnin. apply List.in_or_app. eauto. }
+                                apply Hnin. apply List.in_or_app. (*eauto.*)
+                                rewrite <- Hlen4. erewrite <- List.map_length.
+                                eauto. }
                               { eauto. } }
                             { unfold update_nat_function_at. intros i'' Hin.
+                              rewrite List.map_length, Hlen3.
                               lazymatch goal with
                               | [|- (if i'' =? ?x then _ else _) = _] =>
                                 destruct Nat.eqb_spec with i'' x
@@ -2314,6 +2319,7 @@ Proof.
                                   apply List.in_app_or in Hin.
                                   simpl in Hin. destruct Hin as [Hin|[->|[]]]; tauto. } }
                             { unfold update_nat_function_at. intros i'' Hin.
+                              rewrite List.map_length, Hlen4.
                               lazymatch goal with
                               | [|- (if i'' =? ?x then _ else _) = _] =>
                                 destruct Nat.eqb_spec with i'' x
@@ -2356,12 +2362,14 @@ Proof.
                                   apply List.in_app_or in Hin.
                                   simpl in Hin. destruct Hin as [Hin|[->|[]]]; tauto. } }
                             { unfold update_nat_function_at. intros i'' Hnin.
+                              rewrite List.map_length, Hlen3.
                               destruct Nat.eqb_spec with i'' i'.
                               { exfalso. subst i''.
                                 apply Hnin. rewrite List.map_app, List.in_app_iff.
                                 simpl. auto. }
                               { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
                             { unfold update_nat_function_at. intros i'' Hnin.
+                              rewrite List.map_length, Hlen4.
                               destruct Nat.eqb_spec with i'' i'.
                               { exfalso. subst i''.
                                 apply Hnin. rewrite List.map_app, List.in_app_iff.
@@ -2520,6 +2528,7 @@ Proof.
                             { reflexivity. }
                             { swap_star. solve_star. apply empty_star_l_intro. swap_star.
                               apply star_assoc. swap_star. unfold update_nat_function_at.
+                              rewrite List.map_length, Hlen3.
                               lazymatch goal with
                               | [H : (is_heap n C _ _ (_ (Z.to_nat _)) _ _ <*> _)
                                   _ _ |- _] =>
@@ -3073,8 +3082,8 @@ Proof.
                                 apply star_pure_l; split_all
                               end.
                               { assumption. }
-                              { eapply nat_function_update. eassumption. }
-                              { eapply nat_function_update. eassumption. }
+                              { eapply nat_function_update; eauto. }
+                              { eapply nat_function_update; eauto. }
                               { rewrite <- Hlen1, List.app_length, List.app_length.
                                 simpl. reflexivity. }
                               { rewrite <- Hlen2, List.app_length, List.app_length.
@@ -3085,6 +3094,7 @@ Proof.
                                   destruct Nat.eqb_spec with i'' x
                                 end.
                                 { exfalso. subst i''.
+                                  rewrite List.map_length, Hlen3 in Hin.
                                   lazymatch goal with
                                   | [H : is_elem_weighted_unique_list _ _
                                       (_ ++ (i',w')::_) |- _] =>
@@ -3100,6 +3110,7 @@ Proof.
                                   destruct Nat.eqb_spec with i'' x
                                 end.
                                 { exfalso. subst i''.
+                                  rewrite List.map_length, Hlen4 in Hin.
                                   lazymatch goal with
                                   | [H : is_elem_weighted_unique_list _ _
                                       (_ ++ (i',w')::_) |- _] =>
@@ -3110,6 +3121,7 @@ Proof.
                                   apply Hnin. apply List.in_or_app. eauto. }
                                 { eauto. } }
                               { unfold update_nat_function_at. intros i'' Hin.
+                                rewrite List.map_length, Hlen3.
                                 lazymatch goal with
                                 | [|- (if i'' =? ?x then _ else _) = _] =>
                                   destruct Nat.eqb_spec with i'' x
@@ -3160,6 +3172,7 @@ Proof.
                                     apply List.in_app_or in Hin.
                                     simpl in Hin. destruct Hin as [Hin|[->|[]]]; tauto. } }
                               { unfold update_nat_function_at. intros i'' Hin.
+                                rewrite List.map_length, Hlen4.
                                 lazymatch goal with
                                 | [|- (if i'' =? ?x then _ else _) = _] =>
                                   destruct Nat.eqb_spec with i'' x
@@ -3211,12 +3224,14 @@ Proof.
                                     apply List.in_app_or in Hin.
                                     simpl in Hin. destruct Hin as [Hin|[->|[]]]; tauto. } }
                               { unfold update_nat_function_at. intros i'' Hnin.
+                                rewrite List.map_length, Hlen3.
                                 destruct Nat.eqb_spec with i'' i'.
                                 { exfalso. subst i''.
                                   apply Hnin. rewrite List.map_app, List.in_app_iff.
                                   simpl. auto. }
                                 { rewrite List.map_app in Hnin. simpl in Hnin. eauto. } }
                               { unfold update_nat_function_at. intros i'' Hnin.
+                                rewrite List.map_length, Hlen4.
                                 destruct Nat.eqb_spec with i'' i'.
                                 { exfalso. subst i''.
                                   apply Hnin. rewrite List.map_app, List.in_app_iff.
@@ -3367,6 +3382,7 @@ Proof.
                               { do 2 apply star_assoc_r. swap_star.
                                 rewrite Nat.add_0_l, Nat.add_0_r.
                                 unfold update_nat_function_at.
+                                rewrite List.map_length, Hlen3.
                                 lazymatch goal with
                                 | [H : (is_heap n C _ _ (_ (Z.to_nat _)) _ _ <*> (_ <*> $?k))
                                     _ _ |- _] =>
