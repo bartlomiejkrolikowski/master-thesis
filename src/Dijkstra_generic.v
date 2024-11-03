@@ -1069,7 +1069,7 @@ Proof.
                   end.
                   change (?f ?x ?y) with (uncurry f (x,y)).
                   eapply decidable_if_elem_list; eauto. intros.
-                  eapply decidable_uncurry; unfold Decidable.decidable; lia. } }
+                  eapply decidable_uncurry_eq; unfold Decidable.decidable; lia. } }
               { unfold is_subset. unfold neighbourhood.
                 intros ? (?&?&?&?%E_closed2). assumption. }
             ** generalize dependent h_empty.
@@ -1151,7 +1151,7 @@ Proof.
                   | [H : Dijkstra_invariant _ _ _ _ _ |- _] =>
                     eapply invariant_D_is_some_for_neighbours
                   end;
-                  eauto.
+                  eauto using decidable_if_finite, Nat.eq_decidable.
                   { subst. unfold min_cost_elem, neighbourhood in Hmincost.
                     destruct Hmincost as ((?&?&?&?%E_closed2)&?). assumption. }
                   { subst. unfold min_cost_elem in Hmincost.
@@ -1539,7 +1539,7 @@ Proof.
                         end.
                         { intros. eapply decidable_if_finite.
                           { intros.
-                            apply decidable_uncurry;
+                            apply decidable_uncurry_eq;
                               unfold Decidable.decidable; lia. }
                           { apply disjoint_sum_size.
                             { unfold are_disjoint_sets, uncurry, cross, single,
@@ -4430,7 +4430,7 @@ Proof.
                     | [|- _ (E ?g ?u ?v)] => fold (uncurry (E g) (u,v))
                     end.
                     eapply decidable_if_finite;
-                      eauto using decidable_uncurry, Nat.eq_decidable. }
+                      eauto using decidable_uncurry_eq, Nat.eq_decidable. }
                   repeat lazymatch goal with
                   | [|- ((_ <*> _) <*> _) ?c ?m ] =>
                     apply star_assoc_l; eauto

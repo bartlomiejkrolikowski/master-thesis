@@ -203,6 +203,13 @@ Proof.
   intros Hfiltered. induction Hfiltered; simpl; lia.
 Qed.
 
+Fact filtered_intersect_initial_elems A PL P L L' :
+  @is_elem_list A PL L ->
+  is_filtered_list P L L' ->
+  is_filtered_list (intersect P PL) L L'.
+Proof.
+Admitted.
+
 Fact subset_elem_list A P P' L L' :
   is_filtered_list P' L L' ->
   is_elem_list P L ->
@@ -339,7 +346,28 @@ Proof.
     + unfold is_subset. tauto.
 Qed.
 
-Fact decidable_uncurry A B p q :
+Lemma decidable_neighbourhood' A (g : graph A) P L v :
+  (forall x y, Decidable.decidable (x = y :> A)) ->
+  is_elem_list (V g) L ->
+  (forall u v, Decidable.decidable (E g u v)) ->
+  (forall x, Decidable.decidable (P x)) ->
+  Decidable.decidable (neighbourhood g P v).
+Proof.
+  intros Heq_dec HVlist HEdec HPdec.
+  assert (forall v, Decidable.decidable (V g v)) as HVdec by
+    eauto using decidable_if_elem_list.
+  unfold Decidable.decidable, neighbourhood in *.
+  destruct HPdec with v as [HP | HnP].
+  - tauto.
+  - destruct exists_filtered with A (fun x => P x /\ E g x v) L as (?&Hlist).
+    { unfold Decidable.decidable. firstorder. }
+    eapply subset_elem_list in Hlist.
+    + apply decidable_exists_if_elem_list in Hlist as [? | ?]; tauto.
+    + eassumption.
+    + unfold is_subset. intros ? (?&?%E_closed1). assumption.
+Qed.
+
+Fact decidable_uncurry_eq A B p q :
   (forall x y, Decidable.decidable (x = y :> A)) ->
   (forall x y, Decidable.decidable (x = y :> B)) ->
   Decidable.decidable (p = q :> A * B).
@@ -350,6 +378,21 @@ Proof.
   - right. intros [= ]. tauto.
   - right. intros [= ]. tauto.
   - right. intros [= ]. tauto.
+Qed.
+
+Fact decidable_uncurry A B P (p : A * B) :
+  (forall x y, Decidable.decidable (P x y)) ->
+  Decidable.decidable (uncurry P p).
+Proof.
+  destruct p. unfold Decidable.decidable, uncurry. auto.
+Qed.
+
+Fact decidable_curry A B P (x : A) (y : B) :
+  (forall p, Decidable.decidable (uncurry P p)) ->
+  Decidable.decidable (P x y).
+Proof.
+  unfold Decidable.decidable, uncurry. intros Hdec. specialize Hdec with (x,y).
+  simpl in Hdec. assumption.
 Qed.
 
 Lemma nonempty_has_min_cost_elem_option_nat {A}
@@ -621,7 +664,8 @@ Proof.
     + intros [].
     + intros ([]&?); erewrite Hlist; eauto using E_closed1.
   - (*specialize (decidable_if_elem_list _ Le (uncurry (E g))). specialize IHLv with (g := induced_subgraph (fun y => y <> x) g).*)
-Admitted.
+Abort.
+(*Admitted.*)
 
 Lemma shortest_path_if_path A (g : wgraph A) u v p Lv Le :
   is_elem_list (V g) Lv ->
@@ -630,7 +674,8 @@ Lemma shortest_path_if_path A (g : wgraph A) u v p Lv Le :
   exists sp, is_shortest_path g u v sp.
 Proof.
   unfold is_shortest_path. intros. eapply nonempty_has_min_cost_elem_nat.
-Admitted.
+Abort.
+(*Admitted.*)
 
 Lemma shortest_path_if_walk A (g : wgraph A) u v p Lv Le :
   is_elem_list (V g) Lv ->
@@ -640,6 +685,64 @@ Lemma shortest_path_if_walk A (g : wgraph A) u v p Lv Le :
 Proof.
 Admitted.
 
+Fact decidable_sum A (P Q : A -> Prop) :
+  (forall x, Decidable.decidable (P x)) ->
+  (forall x, Decidable.decidable (Q x)) ->
+  (forall x, Decidable.decidable (set_sum P Q x)).
+Proof.
+  unfold Decidable.decidable, set_sum. intros HP HQ x. firstorder.
+Qed.
+
+Fact decidable_intersect A (P Q : A -> Prop) :
+  (forall x, Decidable.decidable (P x)) ->
+  (forall x, Decidable.decidable (Q x)) ->
+  (forall x, Decidable.decidable (intersect P Q x)).
+Proof.
+  unfold Decidable.decidable, intersect. intros HP HQ x. firstorder.
+Qed.
+
+Fact decidable_sum2 A (P Q : A -> A -> Prop) :
+  (forall x, Decidable.decidable (uncurry P x)) ->
+  (forall x, Decidable.decidable (uncurry Q x)) ->
+  (forall x, Decidable.decidable (uncurry (set_sum2 P Q) x)).
+Proof.
+  unfold Decidable.decidable, set_sum2, uncurry. intros HP HQ p.
+  specialize (HP p). specialize (HQ p). destruct p. tauto.
+Qed.
+
+Fact decidable_intersect2 A (P Q : A -> A -> Prop) :
+  (forall x, Decidable.decidable (uncurry P x)) ->
+  (forall x, Decidable.decidable (uncurry Q x)) ->
+  (forall x, Decidable.decidable (uncurry (intersect2 P Q) x)).
+Proof.
+  unfold Decidable.decidable, intersect2, uncurry. intros HP HQ p.
+  specialize (HP p). specialize (HQ p). destruct p. tauto.
+Qed.
+
+Fact decidable_vx_edge A g L (P : A -> Prop) :
+  is_elem_list (V g) L ->
+  (forall x y, Decidable.decidable (E g x y)) ->
+  (forall x, Decidable.decidable (P x)) ->
+  forall x, Decidable.decidable (vx_edge g P x).
+Proof.
+  unfold vx_edge. intros HVlist HEdec HPdec x. apply Decidable.dec_and; auto.
+  assert (exists L', is_filtered_list (fun u => ~ P u /\ E g x u) L L')
+    as (L'&HL').
+  { apply exists_filtered. intros y.
+    auto using Decidable.dec_and, Decidable.dec_not. }
+  eapply subset_elem_list in HL'; eauto.
+  { now eapply decidable_exists_if_elem_list. }
+  { unfold is_subset. intros ? (?&?%E_closed2). assumption. }
+Qed.
+
+(*
+Fact intersect_is_subset A (P Q : A -> Prop) :
+  is_subset (intersect P Q) Q.
+Proof.
+  unfold is_subset, intersect. tauto.
+Qed.
+*)
+
 Lemma invariant_D_is_some_for_subset A
   (D : A -> option nat) (pred : A -> option A) (P : A -> Prop) (s : A)
   (g : wgraph A) x Lv Le :
@@ -648,18 +751,52 @@ Lemma invariant_D_is_some_for_subset A
   Dijkstra_invariant D pred P s g ->
   V g x ->
   P x ->
+  (forall x, Decidable.decidable (P x)) ->
+  (forall x y : A, Decidable.decidable (x = y)) ->
   exists y, D x = Some y.
 Proof.
   unfold Dijkstra_invariant, Dijkstra_connectedness_invariant,
     Dijkstra_distance_invariant, Dijkstra_predecessors_invariant,
     are_valid_distances, are_valid_predecessors, are_maximal_predecessors,
     is_shortest_paths_tree, is_root.
-  intros ? ? (Hconnected&?&?) ? ?. edestruct Hconnected; eauto.
+  intros ? ? (Hconnected&(HD&?)&?) ? ? ? ?. edestruct Hconnected; eauto.
   { simpl. unfold set_sum, intersect, single. eauto. }
+  edestruct exists_filtered
+    with (P := V (wg_lift (induced_subgraph_with_edge_and_vx P s) g))
+    as (vfl&Hvfl).
+  { intros. simpl. apply decidable_sum.
+    { intros. apply decidable_intersect.
+      { intros. apply decidable_sum; auto. }
+      { intros. eapply decidable_if_elem_list; eauto. } }
+    { intros. apply decidable_sum.
+      { intros. eapply decidable_vx_edge; eauto using
+          decidable_curry, decidable_if_elem_list, decidable_uncurry_eq. }
+      { intros.
+        eapply decidable_neighbourhood';
+        eauto using
+          decidable_curry, decidable_if_elem_list, decidable_uncurry_eq. } } }
+  edestruct exists_filtered
+    with (P := uncurry (E (wg_lift (induced_subgraph_with_edge_and_vx P s) g)))
+    as (efl&Hefl).
+  { intros. simpl. apply decidable_sum2.
+    { intros (xx&yy). unfold uncurry. repeat apply Decidable.dec_and.
+      { apply decidable_sum; auto. }
+      { apply decidable_sum; auto. }
+      { eauto using decidable_curry, decidable_if_elem_list, decidable_uncurry_eq. } }
+    { intros (xx&yy). unfold uncurry. repeat apply Decidable.dec_and.
+      { auto. }
+      { apply Decidable.dec_not. auto. }
+      { eauto using decidable_curry, decidable_if_elem_list, decidable_uncurry_eq. } } }
   edestruct shortest_path_if_walk.
-  3,4:eauto; simpl; eauto.
-  { simpl. admit. }
-Admitted.
+  { eapply subset_elem_list; eauto. unfold is_subset. intros.
+    eapply is_subgraph_V; eauto.
+    apply induced_subgraph_with_edge_and_vx_is_subgraph. }
+  { eapply subset_elem_list; eauto. unfold is_subset, uncurry. intros (xx&yy).
+    eapply is_subgraph_E; eauto.
+    apply induced_subgraph_with_edge_and_vx_is_subgraph. }
+  { simpl. eassumption. }
+  { eexists. apply HD. simpl. eassumption. }
+Qed.
 
 Lemma invariant_D_is_some_for_neighbours A
   (D : A -> option nat) (pred : A -> option A) (P : A -> Prop) (s : A)
@@ -669,18 +806,52 @@ Lemma invariant_D_is_some_for_neighbours A
   Dijkstra_invariant D pred P s g ->
   V g x ->
   neighbourhood g P x ->
+  (forall x, Decidable.decidable (P x)) ->
+  (forall x y : A, Decidable.decidable (x = y)) ->
   exists y, D x = Some y.
 Proof.
   unfold Dijkstra_invariant, Dijkstra_connectedness_invariant,
     Dijkstra_distance_invariant, Dijkstra_predecessors_invariant,
     are_valid_distances, are_valid_predecessors, are_maximal_predecessors,
     is_shortest_paths_tree, is_root.
-  intros ? ? (Hconnected&?&?) ? ?. edestruct Hconnected; eauto.
+  intros ? ? (Hconnected&(HD&?)&?) ? ? ? ?. edestruct Hconnected; eauto.
   { simpl. unfold set_sum, intersect, single. eauto. }
+  edestruct exists_filtered
+    with (P := V (wg_lift (induced_subgraph_with_edge_and_vx P s) g))
+    as (vfl&Hvfl).
+  { intros. simpl. apply decidable_sum.
+    { intros. apply decidable_intersect.
+      { intros. apply decidable_sum; auto. }
+      { intros. eapply decidable_if_elem_list; eauto. } }
+    { intros. apply decidable_sum.
+      { intros. eapply decidable_vx_edge; eauto 6 using
+          decidable_curry, decidable_if_elem_list, decidable_uncurry_eq. }
+      { intros.
+        eapply decidable_neighbourhood';
+        eauto using
+          decidable_curry, decidable_if_elem_list, decidable_uncurry_eq. } } }
+  edestruct exists_filtered
+    with (P := uncurry (E (wg_lift (induced_subgraph_with_edge_and_vx P s) g)))
+    as (efl&Hefl).
+  { intros. simpl. apply decidable_sum2.
+    { intros (xx&yy). unfold uncurry. repeat apply Decidable.dec_and.
+      { apply decidable_sum; auto. }
+      { apply decidable_sum; auto. }
+      { eauto using decidable_curry, decidable_if_elem_list, decidable_uncurry_eq. } }
+    { intros (xx&yy). unfold uncurry. repeat apply Decidable.dec_and.
+      { auto. }
+      { apply Decidable.dec_not. auto. }
+      { eauto using decidable_curry, decidable_if_elem_list, decidable_uncurry_eq. } } }
   edestruct shortest_path_if_walk.
-  3,4:eauto; simpl; eauto.
-  { simpl. admit. }
-Admitted.
+  { eapply subset_elem_list; eauto. unfold is_subset. intros.
+    eapply is_subgraph_V; eauto.
+    apply induced_subgraph_with_edge_and_vx_is_subgraph. }
+  { eapply subset_elem_list; eauto. unfold is_subset, uncurry. intros (xx&yy).
+    eapply is_subgraph_E; eauto.
+    apply induced_subgraph_with_edge_and_vx_is_subgraph. }
+  { simpl. eassumption. }
+  { eexists. apply HD. simpl. eassumption. }
+Qed.
 
 Lemma elem_weighted_unique_list_to_size A B P W L :
   @is_elem_weighted_unique_list A B P W L ->

@@ -818,6 +818,12 @@ Proof.
   unfold is_subgraph, is_subset. intros (?&?). auto.
 Qed.
 
+Lemma is_subgraph_E A (g g' : graph A) x y :
+  is_subgraph g' g -> E g' x y -> E g x y.
+Proof.
+  unfold is_subgraph, is_subset. intros (?&?). auto.
+Qed.
+
 Lemma subgraph_walk A (g g' : graph A) u v w :
   is_subgraph g' g ->
   is_walk g' u v w -> is_walk g u v w.
