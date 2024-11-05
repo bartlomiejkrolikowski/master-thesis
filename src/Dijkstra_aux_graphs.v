@@ -115,7 +115,8 @@ Definition is_max_label {A} (g : wgraph A) (C : nat) :=
 
 Definition is_nat_function {V} (f : nat -> option nat) '(OfNat n0) : StateAssertion V :=
   fun c m =>
-    forall n n', f n = Some n' <-> Lookup (OfNat (n0+n)) m (Int (Z.of_nat n')).
+    forall n n', f n = Some n' -> Lookup (OfNat (n0+n)) m (Int (Z.of_nat n')).
+(*    forall n n', f n = Some n' <-> Lookup (OfNat (n0+n)) m (Int (Z.of_nat n')).*)
 
 Definition is_nil_b {A} (L : list A) : bool :=
   match L with
@@ -1055,7 +1056,19 @@ Lemma array_content_to_is_nat_function V L f l :
   @is_nat_fun_of_val_list V L f ->
   array_content L (Lab l) ->> is_nat_function f l.
 Proof.
-Admitted.
+  unfold is_nat_fun_of_val_list, fun_of_list, list_of_f, sa_implies,
+    is_nat_function.
+  intros ((L'&->)&Hequiv) c m Harray. destruct l. intros i n'.
+  rewrite <- Hequiv. intros H. apply valid_map_Lookup. revert H.
+  generalize dependent f. generalize dependent n. revert i m.
+  induction L'; simpl in *; destruct i; intros m n ? f ?; try discriminate.
+  - intros [= ->]. inversion Harray.
+    eapply in_or_Interweave; [eassumption|]. simpl. rewrite Nat.add_0_r. tauto.
+  - intros Hnth. rewrite Nat.add_succ_r, <- Nat.add_succ_l.
+    inversion Harray. eapply in_or_Interweave; [eassumption|]. right.
+    apply IHL' with (f := fun x => f (S x)); eauto. intros i' n''.
+    rewrite <- Hequiv. reflexivity.
+Qed.
 
 Fixpoint nat_decrease_distance
   (v : nat) (NW : list (nat*nat)) (D pred : nat -> option nat) :

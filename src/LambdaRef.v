@@ -1,5 +1,6 @@
 (* a simple lambda calculus with mutable references,
-  inspired by formalizations from https://github.com/ppolesiuk/type-systems-notes *)
+  inspired by formalizations from https://github.com/ppolesiuk/type-systems-notes
+  (especially, safe de Brujn indices with map and bind) *)
 
 Require Import Nat.
 Require List.
